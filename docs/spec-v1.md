@@ -264,3 +264,37 @@ ON/OFFは「品質」と「忠実度」の単純なトレードオフとして�
 - Exporterを交換可能にする
 - 将来の独自形式を追加しても前処理基盤を作り直さない
 - 警告はユーザーの判断材料として出し、不必要に処理を禁止しない
+
+
+## 13. 技術アーキテクチャ / 配布要件
+
+v1 の技術構成は以下を基準とします。
+
+- メインアプリケーション: C# / .NET / Avalonia
+- MLバックエンド: Python / PyTorch
+- 設計: UPD Commander Base Design + OOP
+- AI開発支援: ai-context-reducer
+- oop-design-checker は必須ではなく、任意のCI / レビュー補助として扱う
+
+### 13.1 配布条件
+
+- ユーザーに Python のインストールを要求しない
+- ユーザーに .NET Runtime のインストールを要求しない
+- 公開起動ポイントは原則として `YourSinger.exe` 1箇所とする
+- 内部に複数の worker exe / DLL / runtime / native library を含むことは許容する
+- Python worker はアプリに同梱し、メインアプリからのみ起動する
+
+### 13.2 ML実行条件
+
+- 学習・重い推論はローカルGPUを基本前提とする
+- ハードウェアに応じて High Quality / Balanced / Lightweight 等の処理モデルを選べるようにする
+- Auto モードでは GPU / VRAM / RAM 等から推奨プロファイルを選択する
+- CPU-only は完全非対応とせず、可能な範囲で軽量構成を提供する
+
+### 13.3 プロセス境界
+
+C# 側は UI / Project / Job / Data / ML Worker Control を担当し、Python 側は音声解析・学習等のML処理を担当する。
+
+大きな音声・tensor・model weights は IPC へ直接流さず、project workspace 上の artifact として保存し、IPC では path / id / metadata を受け渡す。
+
+詳細な責務境界・IPC・worker配布方式は `docs/architecture.md` を正とする。
