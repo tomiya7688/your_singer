@@ -11,6 +11,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Python workerの構文確認
+        run: python -m compileall src/process/YourSinger.Process/processing/ml/worker/your_singer_ml
+
       - name: .NET 10 SDKを準備
         uses: actions/setup-dotnet@v4
         with:
