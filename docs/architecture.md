@@ -73,16 +73,20 @@ YourSinger.exe
   │
   └─ IPC
       ↓
-Python ML Worker(s)
-      ├─ media/audio analysis
-      ├─ separation / denoise
-      ├─ diarization
-      ├─ ASR
-      ├─ phoneme alignment
-      ├─ F0 / energy
-      ├─ completion / correction
-      ├─ singing training
-      └─ talk training
+Process Layer
+  └─ processing/
+      └─ ml/
+          ├─ bridge / protocol / profiles
+          └─ worker/
+              ├─ media/audio analysis
+              ├─ separation / denoise
+              ├─ diarization
+              ├─ ASR
+              ├─ phoneme alignment
+              ├─ F0 / energy
+              ├─ completion / correction
+              ├─ singing training
+              └─ talk training
 ```
 
 ## UPD への適用
@@ -277,3 +281,51 @@ Checker を通すために不自然な設計へ変更してはならない。
 - realtime inference
 - 独自モデル形式
 - automation script runtime
+
+
+## ソース配置方針
+
+`ml` は独立した第4層にはしない。ML処理は **Process層が担当する実処理の一部**として配置する。
+
+概念構成:
+
+```text
+src/
+├─ ui/
+│  ├─ commanders/
+│  ├─ messengers/
+│  ├─ processing/
+│  └─ views/
+├─ process/
+│  ├─ commanders/
+│  ├─ messengers/
+│  └─ processing/
+│     ├─ media/
+│     ├─ audio/
+│     ├─ speaker/
+│     ├─ dataset/
+│     ├─ training/
+│     └─ ml/
+│        ├─ bridge/
+│        ├─ protocol/
+│        ├─ profiles/
+│        └─ worker/
+└─ data/
+   ├─ commanders/
+   ├─ messengers/
+   ├─ processing/
+   ├─ repositories/
+   └─ models/
+```
+
+Python worker のソースも `process/processing/ml/worker/` 配下に置く方針とし、MLをトップレベルの独立レイヤーとして扱わない。
+
+責務上は:
+
+- UI → Process を通して ML を利用する
+- UI から ML worker を直接呼ばない
+- Data から ML worker を直接呼ばない
+- Process が ML worker の起動・ジョブ送信・進捗受信・キャンセル・異常終了処理を指揮する
+- 実際のAI/音声処理は worker 内の処理モジュールが担当する
+
+この配置は、MLを特別扱いした独立アーキテクチャへせず、UPDの責務境界の中へ収めることを目的とする。
