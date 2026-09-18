@@ -1,0 +1,23 @@
+name: ビルド
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: .NET 10 SDKを準備
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: 復元
+        run: dotnet restore src/ui/YourSinger.App/YourSinger.App.csproj
+
+      - name: ビルド
+        run: dotnet build src/ui/YourSinger.App/YourSinger.App.csproj --configuration Release --no-restore

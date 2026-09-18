@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>YourSinger.Process</AssemblyName>
+    <RootNamespace>YourSinger.Process</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../data/YourSinger.Data/YourSinger.Data.csproj" />
+  </ItemGroup>
+</Project>
