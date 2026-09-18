@@ -1,0 +1,49 @@
+<Window
+    x:Class="YourSinger.App.MainWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Your Singer"
+    Width="920"
+    Height="620"
+    MinWidth="720"
+    MinHeight="480">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="28">
+    <StackPanel Grid.Row="0" Spacing="6">
+      <TextBlock Text="Your Singer" FontSize="30" FontWeight="SemiBold" />
+      <TextBlock
+          Text="歌声・話し声の素材をまとめて読み込み、学習用プロジェクトを作成します。"
+          TextWrapping="Wrap" />
+    </StackPanel>
+
+    <Border Grid.Row="1" Margin="0,24,0,20" Padding="20" CornerRadius="12">
+      <StackPanel Spacing="12">
+        <TextBlock Text="素材を追加" FontSize="20" FontWeight="SemiBold" />
+        <TextBlock
+            Text="フォルダ選択が基本です。配下の対応する動画・音声を自動で探します。"
+            TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <Button
+              x:Name="FolderButton"
+              Content="フォルダから新規プロジェクト"
+              Click="OnSelectFolderClick"
+              Padding="18,10" />
+          <Button
+              x:Name="FileButton"
+              Content="単一ファイルを選択"
+              Click="OnSelectFileClick"
+              Padding="18,10" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="2" RowDefinitions="Auto,*">
+      <TextBlock x:Name="SummaryText" Text="まだ素材は読み込まれていません。" Margin="0,0,0,8" />
+      <ListBox x:Name="SourceList" Grid.Row="1" />
+    </Grid>
+
+    <StackPanel Grid.Row="3" Margin="0,16,0,0" Spacing="8">
+      <ProgressBar x:Name="ProgressBar" Minimum="0" Maximum="1" Value="0" />
+      <TextBlock x:Name="StatusText" Text="準備完了" TextWrapping="Wrap" />
+    </StackPanel>
+  </Grid>
+</Window>
