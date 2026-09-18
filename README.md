@@ -204,7 +204,24 @@ exporters/
 - [処理パイプライン](docs/pipeline.md)
 - [内部データ設計](docs/data-model.md)
 - [モデル出力・互換形式](docs/model-outputs.md)
+- [技術アーキテクチャ / 配布設計](docs/architecture.md)
 - [将来構想](docs/future-format.md)
+
+## 技術構成
+
+v1 は以下を基本構成とします。
+
+- メインアプリ: **C# / .NET / Avalonia**
+- MLバックエンド: **Python / PyTorch**
+- 設計: **UPD Commander Base Design + OOP**
+- AI開発支援: **ai-context-reducer**
+- ユーザーは Python / .NET Runtime を別途インストールしない
+- 公開起動ポイントは原則 **YourSinger.exe 1箇所**
+- 内部 worker / exe / DLL が複数存在することは許容する
+- 学習はローカルGPUを基本前提とし、High Quality / Balanced / Lightweight 等のモデルプロファイルを切り替え可能にする
+- oop-design-checker は任意の補助ツールであり、必須条件ではない
+
+詳細は [技術アーキテクチャ / 配布設計](docs/architecture.md) を参照してください。
 
 ## 現在の優先順位
 
