@@ -6,6 +6,7 @@ import traceback
 
 from .preprocessing import preprocess_audio
 from .speaker_analysis import analyze_speakers
+from .content_classification import classify_content
 
 
 def _write(payload: dict) -> None:
@@ -28,6 +29,8 @@ def main() -> None:
             result = preprocess_audio(payload)
         elif command == "analyze_speakers":
             result = analyze_speakers(payload)
+        elif command == "classify_content":
+            result = classify_content(payload)
         else:
             raise ValueError(f"未対応のworkerコマンドです: {command}")
 
