@@ -190,3 +190,61 @@ cache key = hash(source_hash + stage + stage_version + settings_hash)
 - 解析結果を再利用できる
 - 後から別モデル形式を追加できる
 - どの処理で値が変わったか追跡できる
+
+
+## 将来拡張: Source Profile
+
+v1.0.0ではSource Profileを利用したAdaptive Trainingを必須にしません。
+ただし、将来追加できるようにSource / Segment metadataは拡張可能な構造にします。
+
+Source Profileは「元データがどのような素材か」を表す解析結果です。
+
+候補:
+
+- recording_quality
+- content_type
+- music_leak
+- reverb
+- compression
+- noise_characteristics
+- speaking_style
+- singing_style
+- pitch_range
+- dataset_density
+- segment_consistency
+- reliability
+
+概念例:
+
+```json
+{
+  "source_id": "src_0001",
+  "source_profile": {
+    "recording_quality": 0.78,
+    "music_leak": 0.31,
+    "reverb": 0.52,
+    "compression": 0.18,
+    "content_type": ["speech", "singing"],
+    "pitch_range": {
+      "min_hz": 92.0,
+      "max_hz": 740.0
+    },
+    "confidence": 0.86
+  }
+}
+```
+
+Source Profileは将来的に次の用途で利用します。
+
+- Dataset Builderのsampling調整
+- セグメントweight調整
+- augmentation強度調整
+- 補完 / 補正強度調整
+- 実測 / 推定特徴のweight調整
+- loss weighting
+- Speech / Singing学習比率調整
+- Training Strategy選択
+
+Adaptive TrainingはSource Profileごとに完全に別パイプラインを作るのではなく、Universal Voice Datasetを共通基盤とし、その後段の入力方法・重み・学習戦略を変更する形を基本とします。
+
+Source Profileの収集・可視化はv1.x、学習戦略への本格反映はv2.x以降を想定します。詳細は `roadmap.md` を参照してください。
