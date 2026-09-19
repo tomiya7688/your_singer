@@ -61,6 +61,7 @@ public sealed class CoverageRecord
         new(StringComparer.Ordinal);
     public Dictionary<string, int> ContentTypeCounts { get; init; } =
         new(StringComparer.Ordinal);
+    public SingingCoverageSummary SingingQuality { get; init; } = new();
 }
 
 public sealed class FeatureProvenanceRecord
