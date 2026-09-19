@@ -99,6 +99,13 @@ public sealed class UniversalVoiceDatasetService
                     FeatureFilesExist(workspace, cached))
                 {
                     dataset.Segments.Add(cached);
+                    if (existing is not null)
+                    {
+                        dataset.Provenance.AddRange(
+                            existing.Provenance.Where(x =>
+                                x.SegmentId == cached.SegmentId &&
+                                x.CacheKey == cached.CacheKey));
+                    }
                     continue;
                 }
 
