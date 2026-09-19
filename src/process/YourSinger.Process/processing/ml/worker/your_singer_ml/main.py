@@ -4,6 +4,7 @@ import json
 import sys
 import traceback
 
+from .content_classification import classify_content
 from .preprocessing import preprocess_audio
 from .speaker_analysis import analyze_speakers
 
@@ -28,6 +29,8 @@ def main() -> None:
             result = preprocess_audio(payload)
         elif command == "analyze_speakers":
             result = analyze_speakers(payload)
+        elif command == "classify_content":
+            result = classify_content(payload)
         else:
             raise ValueError(f"未対応のworkerコマンドです: {command}")
 
@@ -39,7 +42,7 @@ def main() -> None:
                 "error": None,
             }
         )
-    except Exception as exc:  # worker境界では例外をJSONへ正規化する
+    except Exception as exc:
         traceback.print_exc(file=sys.stderr)
         _write(
             {
