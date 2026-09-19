@@ -7,6 +7,7 @@ import traceback
 from .content_classification import classify_content
 from .preprocessing import preprocess_audio
 from .speaker_analysis import analyze_speakers
+from .universal_features import extract_universal_features
 
 
 def _write(payload: dict) -> None:
@@ -31,6 +32,8 @@ def main() -> None:
             result = analyze_speakers(payload)
         elif command == "classify_content":
             result = classify_content(payload)
+        elif command == "extract_universal_features":
+            result = extract_universal_features(payload)
         else:
             raise ValueError(f"未対応のworkerコマンドです: {command}")
 
