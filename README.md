@@ -198,6 +198,8 @@ exporters/
 
 この独自形式は将来機能であり、v1の必須範囲には含めません。
 
+また、v1.0.0後は元データの品質・種類・発声条件等をSource Profileとして解析し、将来的に素材に応じて学習データの重み・補完強度・sampling等を変えるAdaptive Trainingへ発展させる方針です。詳細は [バージョンロードマップ](docs/roadmap.md) を参照してください。
+
 ## ドキュメント
 
 - [v1仕様](docs/spec-v1.md)
@@ -205,6 +207,7 @@ exporters/
 - [内部データ設計](docs/data-model.md)
 - [モデル出力・互換形式](docs/model-outputs.md)
 - [技術アーキテクチャ / 配布設計](docs/architecture.md)
+- [バージョンロードマップ](docs/roadmap.md)
 - [将来構想](docs/future-format.md)
 
 ## 技術構成
