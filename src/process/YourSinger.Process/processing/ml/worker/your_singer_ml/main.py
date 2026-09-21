@@ -5,6 +5,7 @@ import sys
 import traceback
 
 from .content_classification import classify_content
+from .diffsinger_training import train_diffsinger
 from .preprocessing import preprocess_audio
 from .speaker_analysis import analyze_speakers
 from .universal_features import extract_universal_features
@@ -34,6 +35,8 @@ def main() -> None:
             result = classify_content(payload)
         elif command == "extract_universal_features":
             result = extract_universal_features(payload)
+        elif command == "train_diffsinger":
+            result = train_diffsinger(payload)
         else:
             raise ValueError(f"未対応のworkerコマンドです: {command}")
 
