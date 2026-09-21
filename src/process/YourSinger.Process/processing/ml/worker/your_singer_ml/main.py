@@ -8,6 +8,7 @@ from .content_classification import classify_content
 from .diffsinger_training import train_diffsinger
 from .preprocessing import preprocess_audio
 from .speaker_analysis import analyze_speakers
+from .style_bert_vits2_training import train_style_bert_vits2
 from .universal_features import extract_universal_features
 
 
@@ -37,6 +38,8 @@ def main() -> None:
             result = extract_universal_features(payload)
         elif command == "train_diffsinger":
             result = train_diffsinger(payload)
+        elif command == "train_style_bert_vits2":
+            result = train_style_bert_vits2(payload)
         else:
             raise ValueError(f"未対応のworkerコマンドです: {command}")
 
