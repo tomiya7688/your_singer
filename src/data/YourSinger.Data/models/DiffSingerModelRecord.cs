@@ -29,9 +29,11 @@ public sealed class DiffSingerExportRequest
     public required string SpeakerId { get; init; }
     public required string AcousticModelPath { get; init; }
     public required string DurationModelPath { get; init; }
-    public string? PitchModelPath { get; init; }
-    public string? VarianceModelPath { get; init; }
-    public string? VocoderDirectory { get; init; }
+    public required string DurationLinguisticModelPath { get; init; }
+    public required string DurationDictionaryPath { get; init; }
+    public string? PitchDirectory { get; init; }
+    public string? VarianceDirectory { get; init; }
+    public required string VocoderDirectory { get; init; }
     public required IReadOnlyList<string> Phonemes { get; init; }
 }
 
