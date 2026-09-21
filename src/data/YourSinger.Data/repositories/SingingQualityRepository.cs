@@ -14,6 +14,21 @@ public sealed class SingingQualityRepository
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower) }
     };
 
+    public async Task<SingingQualityDiagnostic?> LoadAsync(
+        ProjectWorkspace workspace,
+        CancellationToken cancellationToken = default)
+    {
+        var path = Path.Combine(workspace.MetadataPath, "singing-quality.json");
+        if (!File.Exists(path))
+            return null;
+
+        await using var stream = File.OpenRead(path);
+        return await JsonSerializer.DeserializeAsync<SingingQualityDiagnostic>(
+            stream,
+            JsonOptions,
+            cancellationToken);
+    }
+
     public async Task SaveAsync(
         ProjectWorkspace workspace,
         SingingQualityDiagnostic diagnostic,
