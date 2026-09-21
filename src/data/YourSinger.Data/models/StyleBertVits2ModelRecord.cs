@@ -18,8 +18,7 @@ public sealed class StyleBertVits2TrainingItem
     public List<string> Phonemes { get; init; } = [];
     public required string SpeakerName { get; init; }
     public string Language { get; init; } = "JP";
-    public Dictionary<string, double> StyleProsody { get; init; } =
-        new(StringComparer.Ordinal);
+    public StyleProsodyRecord StyleProsody { get; init; } = new();
 }
 
 public sealed class StyleBertVits2ExportRequest
