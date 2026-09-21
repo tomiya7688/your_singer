@@ -27,15 +27,16 @@ public sealed class DiffSingerExporter
         var generated = new List<string>();
         CopyFile(request.AcousticModelPath, Path.Combine(outputDirectory, "acoustic.onnx"), generated);
         CopyFile(request.DurationModelPath, Path.Combine(outputDirectory, "dsdur", "dur.onnx"), generated);
+        CopyFile(request.DurationLinguisticModelPath, Path.Combine(outputDirectory, "dsdur", "linguistic.onnx"), generated);
+        CopyFile(request.DurationDictionaryPath, Path.Combine(outputDirectory, "dsdur", "dsdict.yaml"), generated);
 
-        if (!string.IsNullOrWhiteSpace(request.PitchModelPath))
-            CopyFile(request.PitchModelPath, Path.Combine(outputDirectory, "dspitch", "pitch.onnx"), generated);
+        if (!string.IsNullOrWhiteSpace(request.PitchDirectory))
+            CopyDirectory(request.PitchDirectory, Path.Combine(outputDirectory, "dspitch"), generated);
 
-        if (!string.IsNullOrWhiteSpace(request.VarianceModelPath))
-            CopyFile(request.VarianceModelPath, Path.Combine(outputDirectory, "dsvariance", "variance.onnx"), generated);
+        if (!string.IsNullOrWhiteSpace(request.VarianceDirectory))
+            CopyDirectory(request.VarianceDirectory, Path.Combine(outputDirectory, "dsvariance"), generated);
 
-        if (!string.IsNullOrWhiteSpace(request.VocoderDirectory))
-            CopyDirectory(request.VocoderDirectory, Path.Combine(outputDirectory, "dsvocoder"), generated);
+        CopyDirectory(request.VocoderDirectory, Path.Combine(outputDirectory, "dsvocoder"), generated);
 
         var phonemes = request.Phonemes
             .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -58,10 +59,8 @@ public sealed class DiffSingerExporter
             Path.Combine(outputDirectory, "dsconfig.yaml"),
             "phonemes: phonemes.txt\n" +
             "acoustic: acoustic.onnx\n" +
-            "vocoder: local\n" +
-            "predict_dur: true\n" +
-            $"pitch: {(string.IsNullOrWhiteSpace(request.PitchModelPath) ? "null" : "dspitch/pitch.onnx")}\n" +
-            $"variance: {(string.IsNullOrWhiteSpace(request.VarianceModelPath) ? "null" : "dsvariance/variance.onnx")}\n",
+            "vocoder: dsvocoder\n" +
+            "predict_dur: true\n",
             generated);
 
         var durationDirectory = Path.Combine(outputDirectory, "dsdur");
@@ -73,6 +72,7 @@ public sealed class DiffSingerExporter
         WriteText(
             Path.Combine(durationDirectory, "dsconfig.yaml"),
             "phonemes: phonemes.txt\n" +
+            "linguistic: linguistic.onnx\n" +
             "dur: dur.onnx\n" +
             "predict_dur: true\n",
             generated);
@@ -90,19 +90,31 @@ public sealed class DiffSingerExporter
     {
         RequireFile(request.AcousticModelPath, "acoustic model");
         RequireFile(request.DurationModelPath, "duration model");
+        RequireFile(request.DurationLinguisticModelPath, "duration linguistic model");
+        RequireFile(request.DurationDictionaryPath, "duration dictionary");
 
-        if (!string.IsNullOrWhiteSpace(request.PitchModelPath))
-            RequireFile(request.PitchModelPath, "pitch model");
+        ValidateOptionalPredictorDirectory(request.PitchDirectory, "dspitch");
+        ValidateOptionalPredictorDirectory(request.VarianceDirectory, "dsvariance");
 
-        if (!string.IsNullOrWhiteSpace(request.VarianceModelPath))
-            RequireFile(request.VarianceModelPath, "variance model");
-
-        if (!string.IsNullOrWhiteSpace(request.VocoderDirectory) &&
-            !Directory.Exists(request.VocoderDirectory))
+        if (!Directory.Exists(request.VocoderDirectory))
             throw new DirectoryNotFoundException($"vocoder directoryがありません: {request.VocoderDirectory}");
+        RequireFile(Path.Combine(request.VocoderDirectory, "vocoder.yaml"), "vocoder config");
 
         if (request.Phonemes.Count == 0)
             throw new InvalidOperationException("phoneme定義がありません。");
+    }
+
+    private static void ValidateOptionalPredictorDirectory(string? path, string label)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+        if (!Directory.Exists(path))
+            throw new DirectoryNotFoundException($"{label} directoryがありません: {path}");
+
+        RequireFile(Path.Combine(path, "dsconfig.yaml"), $"{label} config");
+        RequireFile(Path.Combine(path, "phonemes.txt"), $"{label} phoneme definition");
+        RequireFile(Path.Combine(path, "linguistic.onnx"), $"{label} linguistic model");
+        RequireFile(Path.Combine(path, "dsdict.yaml"), $"{label} dictionary");
     }
 
     private static void RequireFile(string path, string label)
