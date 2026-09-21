@@ -359,7 +359,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        System.Diagnostics.Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
     }
 
     private async void OnSetSpeechClick(object? sender, RoutedEventArgs e) =>
