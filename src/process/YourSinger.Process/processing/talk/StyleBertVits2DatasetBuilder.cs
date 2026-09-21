@@ -65,9 +65,13 @@ public sealed class StyleBertVits2DatasetBuilder
                 Transcript = segment.Transcript,
                 Phonemes = segment.Phonemes.Select(x => x.Phoneme).ToList(),
                 SpeakerName = speakerName,
-                StyleProsody = new Dictionary<string, double>(
-                    segment.StyleProsody,
-                    StringComparer.Ordinal)
+                StyleProsody = new StyleProsodyRecord
+                {
+                    SpeakingRate = segment.StyleProsody.SpeakingRate,
+                    PitchRangeSemitones = segment.StyleProsody.PitchRangeSemitones,
+                    EnergyVariation = segment.StyleProsody.EnergyVariation,
+                    PauseRatio = segment.StyleProsody.PauseRatio
+                }
             });
         }
 
