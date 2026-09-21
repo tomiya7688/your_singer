@@ -115,24 +115,52 @@ public sealed class AutoCorrectionService
             .GroupBy(x => x.Phoneme, StringComparer.Ordinal)
             .ToDictionary(x => x.Key, x => x.Count(), StringComparer.Ordinal);
 
+        foreach (var expected in JapaneseCoverageCatalog.CorePhonemes)
+        {
+            if (phonemeCounts.GetValueOrDefault(expected) == 0)
+            {
+                result.Add(new CorrectionRecord
+                {
+                    SegmentId = "__dataset__",
+                    Phoneme = expected,
+                    State = CorrectionState.Estimated,
+                    Method = "missing-phoneme-estimation",
+                    Confidence = 0.45,
+                    Reason = "欠損音素のため近接音素・話者特徴・文脈から推定対象"
+                });
+            }
+        }
+
         foreach (var segment in dataset.Segments)
         {
             foreach (var phoneme in segment.Phonemes)
             {
                 var count = phonemeCounts.GetValueOrDefault(phoneme.Phoneme);
-                if (count == 0)
-                    continue;
 
-                if (count < 3)
+                if (phoneme.Confidence < 0.35)
                 {
                     result.Add(new CorrectionRecord
                     {
                         SegmentId = segment.SegmentId,
                         Phoneme = phoneme.Phoneme,
-                        State = CorrectionState.Estimated,
+                        State = CorrectionState.Corrected,
+                        Method = "phoneme-label-confidence-correction",
+                        Confidence = 0.60,
+                        OriginalValue = phoneme.Phoneme,
+                        CorrectedValue = phoneme.Phoneme,
+                        Reason = "音素confidenceが低いため文脈整合補正対象"
+                    });
+                }
+                else if (count < 3)
+                {
+                    result.Add(new CorrectionRecord
+                    {
+                        SegmentId = segment.SegmentId,
+                        Phoneme = phoneme.Phoneme,
+                        State = CorrectionState.WeakObserved,
                         Method = "cross-phoneme-speaker-feature-estimation",
                         Confidence = 0.55,
-                        Reason = "少量音素のため他音素から話者特徴を補助推定"
+                        Reason = "少量音素のため観測値を保持しつつ他音素から話者特徴を補助推定"
                     });
                 }
             }
