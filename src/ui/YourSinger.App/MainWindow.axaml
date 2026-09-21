@@ -3,47 +3,107 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Your Singer"
-    Width="920"
-    Height="620"
-    MinWidth="720"
-    MinHeight="480">
-  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="28">
-    <StackPanel Grid.Row="0" Spacing="6">
-      <TextBlock Text="Your Singer" FontSize="30" FontWeight="SemiBold" />
-      <TextBlock
-          Text="歌声・話し声の素材をまとめて読み込み、学習用プロジェクトを作成します。"
-          TextWrapping="Wrap" />
-    </StackPanel>
-
-    <Border Grid.Row="1" Margin="0,24,0,20" Padding="20" CornerRadius="12">
-      <StackPanel Spacing="12">
-        <TextBlock Text="素材を追加" FontSize="20" FontWeight="SemiBold" />
-        <TextBlock
-            Text="フォルダ選択が基本です。配下の対応する動画・音声を自動で探します。"
-            TextWrapping="Wrap" />
-        <StackPanel Orientation="Horizontal" Spacing="12">
-          <Button
-              x:Name="FolderButton"
-              Content="フォルダから新規プロジェクト"
-              Click="OnSelectFolderClick"
-              Padding="18,10" />
-          <Button
-              x:Name="FileButton"
-              Content="単一ファイルを選択"
-              Click="OnSelectFileClick"
-              Padding="18,10" />
-        </StackPanel>
+    Width="1180"
+    Height="780"
+    MinWidth="900"
+    MinHeight="620">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="22">
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+      <StackPanel Spacing="4">
+        <TextBlock Text="Your Singer" FontSize="30" FontWeight="SemiBold" />
+        <TextBlock Text="素材の読み込みから話者確認・品質診断・学習準備までを一つの画面で進めます。" TextWrapping="Wrap" />
       </StackPanel>
-    </Border>
-
-    <Grid Grid.Row="2" RowDefinitions="Auto,*">
-      <TextBlock x:Name="SummaryText" Text="まだ素材は読み込まれていません。" Margin="0,0,0,8" />
-      <ListBox x:Name="SourceList" Grid.Row="1" />
+      <TextBlock x:Name="ProjectPathText" Grid.Column="1" Text="プロジェクト未作成" VerticalAlignment="Center" />
     </Grid>
 
-    <StackPanel Grid.Row="3" Margin="0,16,0,0" Spacing="8">
+    <TabControl Grid.Row="1">
+      <TabItem Header="1. 素材">
+        <Grid RowDefinitions="Auto,Auto,*" Margin="16">
+          <Border Padding="22" CornerRadius="12" Margin="0,0,0,14">
+            <StackPanel Spacing="12">
+              <TextBlock Text="新規プロジェクト" FontSize="22" FontWeight="SemiBold" />
+              <TextBlock Text="フォルダ入力が基本です。配下の対応動画・音声をまとめて読み込みます。" TextWrapping="Wrap" />
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <Button x:Name="FolderButton" Content="フォルダから始める" Click="OnSelectFolderClick" Padding="24,14" FontSize="16" />
+                <Button x:Name="FileButton" Content="単一ファイル" Click="OnSelectFileClick" Padding="16,10" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
+            <Button x:Name="AnalyzeButton" Content="解析を実行" Click="OnAnalyzeClick" IsEnabled="False" />
+            <Button Content="表示を更新" Click="OnRefreshClick" />
+            <TextBlock x:Name="SummaryText" Text="まだ素材は読み込まれていません。" VerticalAlignment="Center" />
+          </StackPanel>
+          <ListBox x:Name="SourceList" Grid.Row="2" />
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="2. 話者・分類">
+        <Grid ColumnDefinitions="*,*" Margin="16">
+          <StackPanel Grid.Column="0" Spacing="10" Margin="0,0,12,0">
+            <TextBlock Text="検出話者" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock Text="学習対象を選び、用途を「歌唱」「トーク」「両方」から指定します。" TextWrapping="Wrap" />
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel x:Name="SpeakerPanel" Spacing="8" />
+            </ScrollViewer>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="選択話者を統合" Click="OnMergeSpeakersClick" />
+              <Button Content="代表サンプルを開く" Click="OnOpenRepresentativeClick" />
+            </StackPanel>
+          </StackPanel>
+
+          <StackPanel Grid.Column="1" Spacing="10" Margin="12,0,0,0">
+            <TextBlock Text="Speech / Singing分類" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock Text="分類に誤りがある場合は項目を選び、下のボタンから修正できます。" TextWrapping="Wrap" />
+            <ListBox x:Name="ClassificationList" Height="420" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="Speechに修正" Click="OnSetSpeechClick" />
+              <Button Content="Singingに修正" Click="OnSetSingingClick" />
+              <Button Content="セグメント除外" Click="OnExcludeSegmentClick" />
+            </StackPanel>
+          </StackPanel>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="3. 品質">
+        <Grid ColumnDefinitions="*,*" Margin="16">
+          <StackPanel Grid.Column="0" Spacing="10" Margin="0,0,12,0">
+            <TextBlock Text="50音・音素カバレッジ" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock x:Name="CoverageSummaryText" Text="診断結果はまだありません。" TextWrapping="Wrap" />
+            <ListBox x:Name="CoverageList" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Spacing="10" Margin="12,0,0,0">
+            <TextBlock Text="歌唱向け品質診断" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock x:Name="SingingSummaryText" Text="診断結果はまだありません。" TextWrapping="Wrap" />
+            <ListBox x:Name="SingingQualityList" />
+          </StackPanel>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="4. 学習・Export">
+        <StackPanel Margin="16" Spacing="14">
+          <TextBlock Text="学習設定" FontSize="20" FontWeight="SemiBold" />
+          <CheckBox x:Name="AutoCorrectionCheckBox" IsChecked="True" Content="不足を自動補完・補正する（推奨）" />
+          <TextBlock
+              Text="ONは不足箇所を機械的に補完・補正した学習用ビューを使います。元の録音を書き換える機能ではありません。OFFでは観測された素材のみを使います。"
+              TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="CreateJobsButton" Content="選択話者の学習ジョブを作成" Click="OnCreateJobsClick" IsEnabled="False" />
+            <Button Content="学習状況を更新" Click="OnRefreshClick" />
+          </StackPanel>
+          <TextBlock Text="学習進捗 / 成果物" FontSize="18" FontWeight="SemiBold" />
+          <ListBox x:Name="TrainingList" Height="300" />
+          <TextBlock Text="Exporterは学習成果物が揃ったジョブから実行します。失敗したジョブは再作成できます。" TextWrapping="Wrap" />
+        </StackPanel>
+      </TabItem>
+    </TabControl>
+
+    <StackPanel Grid.Row="2" Margin="0,14,0,0" Spacing="6">
       <ProgressBar x:Name="ProgressBar" Minimum="0" Maximum="1" Value="0" />
-      <TextBlock x:Name="StatusText" Text="準備完了" TextWrapping="Wrap" />
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock x:Name="StatusText" Text="準備完了" TextWrapping="Wrap" />
+        <Button Grid.Column="1" Content="再試行" Click="OnRetryClick" x:Name="RetryButton" IsVisible="False" />
+      </Grid>
     </StackPanel>
   </Grid>
 </Window>
