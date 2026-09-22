@@ -53,18 +53,17 @@ public sealed class TrainingDatasetSnapshotService(UniversalVoiceDatasetReposito
     }
 
     public static string CreateFingerprint(UniversalVoiceDatasetRecord dataset, bool enabled,
-        IReadOnlyList<CorrectionRecord> corrections)
+        IReadOnlyList<CorrectionRecord> corrections, PitchCompletionSettings? pitchSettings = null)
     {
-        // JSONの数値表現を使い、小数点の地域設定・列挙順・生成日時への依存を避ける。
         return Hash(new
         {
-            version = "training-snapshot-2", dataset.SchemaVersion, dataset.StageVersion,
-            correctionVersion = AutoCorrectionService.StageVersion, enabled,
+            version = "training-snapshot-3", dataset.SchemaVersion, dataset.StageVersion,
+            correctionVersion = AutoCorrectionService.StageVersion, enabled, pitchSettings,
             segments = dataset.Segments.OrderBy(x => x.SegmentId, StringComparer.Ordinal).ToArray(),
             corrections = corrections.OrderBy(x => x.SegmentId, StringComparer.Ordinal)
-                .ThenBy(x => x.Phoneme, StringComparer.Ordinal).ThenBy(x => x.State)
-                .ThenBy(x => x.Method, StringComparer.Ordinal).ThenBy(x => x.Confidence)
-                .ThenBy(x => x.OriginalValue, StringComparer.Ordinal)
+                .ThenBy(x => x.SpeakerId, StringComparer.Ordinal).ThenBy(x => x.Phoneme, StringComparer.Ordinal)
+                .ThenBy(x => x.StartFrame).ThenBy(x => x.State).ThenBy(x => x.Method, StringComparer.Ordinal)
+                .ThenBy(x => x.Confidence).ThenBy(x => x.OriginalValue, StringComparer.Ordinal)
                 .ThenBy(x => x.CorrectedValue, StringComparer.Ordinal).ToArray()
         });
     }
