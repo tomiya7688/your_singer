@@ -8,7 +8,10 @@ namespace YourSinger.Process.Tests;
 
 public sealed class FfmpegFactAttribute : FactAttribute
 {
-    public FfmpegFactAttribute()
+    public FfmpegFactAttribute(
+        [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
+        [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("YOURSINGER_TEST_FFMPEG")))
             Skip = "実FFmpeg検証にはYOURSINGER_TEST_FFMPEGの指定が必要です。";

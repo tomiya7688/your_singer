@@ -5,7 +5,10 @@ namespace YourSinger.Process.Tests;
 
 public sealed class PythonWorkerFactAttribute : FactAttribute
 {
-    public PythonWorkerFactAttribute()
+    public PythonWorkerFactAttribute(
+        [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
+        [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("YOURSINGER_TEST_PYTHON")))
             Skip = "プロセス境界テストにはYOURSINGER_TEST_PYTHONの指定が必要です。";
