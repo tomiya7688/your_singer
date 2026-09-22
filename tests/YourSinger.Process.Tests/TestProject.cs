@@ -1,3 +1,4 @@
+using System.Text.Json;
 using YourSinger.Data.Models;
 using YourSinger.Data.Processing;
 using YourSinger.Data.Repositories;
@@ -42,7 +43,12 @@ internal sealed class TestProject : IDisposable
         {
             WriteWave(Path.Combine(Workspace.RootPath, segment.AudioPath));
             foreach (var path in new[] { segment.F0FeaturePath, segment.EnergyFeaturePath, segment.VoicingFeaturePath })
-                await File.WriteAllTextAsync(Path.Combine(Workspace.RootPath, path), "[220,220]", Token);
+            {
+                // 実ワーカーと同じ時刻付き配列にする。以前の[220,220]は契約を検証できなかった。
+                var value = path == segment.F0FeaturePath ? 220.0 : path == segment.EnergyFeaturePath ? 0.03 : 1.0;
+                var frames = new[] { new { time_sec = 0.0, value, confidence = 0.95 }, new { time_sec = 0.01, value, confidence = 0.95 } };
+                await File.WriteAllTextAsync(Path.Combine(Workspace.RootPath, path), JsonSerializer.Serialize(frames), Token);
+            }
         }
         await DatasetRepository.SaveAsync(Workspace, new()
         {
