@@ -53,5 +53,16 @@ public sealed class TrainingJobBatch
 {
     public required string BatchId { get; init; }
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+    // 空文字は、この項目がない旧形式の保存データを示す。
+    public string InputVersion { get; init; } = string.Empty;
+    public string? RecreatedFromBatchId { get; init; }
     public List<TrainingJobRecord> Jobs { get; init; } = [];
+}
+
+public sealed record TrainingBatchLoadError(string FileName, string Message);
+
+public sealed class TrainingBatchHistory
+{
+    public List<TrainingJobBatch> Batches { get; init; } = [];
+    public List<TrainingBatchLoadError> Errors { get; init; } = [];
 }

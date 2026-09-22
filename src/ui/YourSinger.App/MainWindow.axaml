@@ -87,12 +87,14 @@
           <TextBlock
               Text="有効にすると、元音声を確認できる短い音高欠損の補完と、低信頼区間の除外を学習入力に反映します。未録音の音素を生成する機能は未対応です。無効にしても手動修正・除外は維持します。元の録音は変更しません。"
               TextWrapping="Wrap" />
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button x:Name="CreateJobsButton" Content="選択話者の学習ジョブを作成" Click="OnCreateJobsClick" IsEnabled="False" />
-            <Button Content="学習状況を更新" Click="OnRefreshClick" />
-          </StackPanel>
+          <WrapPanel Orientation="Horizontal">
+            <Button x:Name="CreateJobsButton" Content="選択話者の学習ジョブを作成" Click="OnCreateJobsClick" IsEnabled="False" Margin="0,0,8,8" />
+            <Button Content="学習状況を更新" Click="OnRefreshClick" Margin="0,0,8,8" />
+            <Button Content="履歴・ジョブ再作成" Click="OnOpenTrainingHistoryClick" Margin="0,0,8,8" />
+          </WrapPanel>
+          <TextBlock Text="旧形式のジョブは「履歴・ジョブ再作成」から作り直してください。既存プロジェクトの履歴も開けます。元のジョブやモデルは削除しません。" TextWrapping="Wrap" />
           <TextBlock Text="学習進捗 / 成果物" FontSize="18" FontWeight="SemiBold" />
-          <ListBox x:Name="TrainingList" Height="300" />
+          <ListBox x:Name="TrainingList" Height="240" />
           <TextBlock Text="モデルの書き出しには学習成果物が必要です。失敗したジョブは再作成できます。" TextWrapping="Wrap" />
         </StackPanel>
       </TabItem>

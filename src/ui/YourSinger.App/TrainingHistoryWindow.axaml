@@ -1,0 +1,29 @@
+<Window
+    x:Class="YourSinger.App.TrainingHistoryWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="学習履歴・ジョブの再作成"
+    Width="860" Height="720" MinWidth="660" MinHeight="560"
+    WindowStartupLocation="CenterOwner">
+  <Grid Margin="24" RowDefinitions="Auto,Auto,Auto,2*,*,Auto,Auto">
+    <StackPanel Spacing="6">
+      <TextBlock Text="学習履歴・ジョブの再作成" FontSize="24" FontWeight="SemiBold" />
+      <TextBlock Text="旧形式のジョブは、新しい入力形式で再作成してください。元のジョブ・学習ログ・モデルは残ります。" TextWrapping="Wrap" />
+      <TextBlock x:Name="HistoryProjectText" Text="プロジェクトを選択してください。" TextWrapping="Wrap" />
+    </StackPanel>
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,12">
+      <Button x:Name="OpenHistoryProjectButton" Content="既存プロジェクトの履歴を開く" Click="OnOpenProjectClick" />
+      <Button x:Name="RefreshHistoryButton" Content="一覧を更新" Click="OnRefreshHistoryClick" />
+    </StackPanel>
+    <TextBlock x:Name="HistoryWarningText" Grid.Row="2" TextWrapping="Wrap" Margin="0,0,0,10" />
+    <ListBox x:Name="BatchList" Grid.Row="3" SelectionChanged="OnBatchSelectionChanged" />
+    <ScrollViewer Grid.Row="4" Margin="0,12" VerticalScrollBarVisibility="Auto">
+      <TextBlock x:Name="BatchDetailText" Text="再作成するジョブ一式を選択してください。" TextWrapping="Wrap" />
+    </ScrollViewer>
+    <StackPanel Grid.Row="5" Spacing="8">
+      <TextBlock Text="話者・用途・補完ON/OFFを引き継ぎ、現在の手動編集と補完設定で入力を組み直します。音声の再解析や学習の開始は行いません。" TextWrapping="Wrap" />
+      <Button x:Name="RecreateBatchButton" Content="選択したジョブ一式を再作成" Click="OnRecreateBatchClick" IsEnabled="False" />
+    </StackPanel>
+    <TextBlock x:Name="HistoryStatusText" Grid.Row="6" Text="準備完了" Margin="0,14,0,0" TextWrapping="Wrap" />
+  </Grid>
+</Window>
