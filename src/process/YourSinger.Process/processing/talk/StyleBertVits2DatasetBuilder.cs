@@ -21,7 +21,6 @@ public sealed class StyleBertVits2DatasetBuilder
         if (string.IsNullOrWhiteSpace(speakerName))
             throw new ArgumentException("話者名が空です。", nameof(speakerName));
         var selected = await TrainingDatasetResolver.ResolveAsync(workspace, _datasetRepository, job, cancellationToken);
-        // 先に全入力を検証し、不足ファイルで既存の出力を途中まで上書きしない。
         var inputs = selected.Select(x => (Segment: x,
             Path: Path.GetFullPath(Path.Combine(workspace.RootPath, x.AudioPath)))).ToArray();
         foreach (var input in inputs)
@@ -30,7 +29,8 @@ public sealed class StyleBertVits2DatasetBuilder
             if (string.IsNullOrWhiteSpace(input.Segment.Transcript))
                 throw new InvalidDataException($"区間 {input.Segment.SegmentId} の文章が空です。");
         }
-        var root = Path.Combine(workspace.RootPath, "training", "style-bert-vits2", job.JobId);
+        // ジョブ全体は置換しない。既存のtrainerログや学習済み重みを保護する。
+        var root = Path.Combine(workspace.RootPath, "training", "style-bert-vits2", job.JobId, "dataset");
         var staging = root + $".{Guid.NewGuid():N}.tmp";
         var backup = root + $".{Guid.NewGuid():N}.bak";
         var items = new List<StyleBertVits2TrainingItem>();
@@ -42,9 +42,7 @@ public sealed class StyleBertVits2DatasetBuilder
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var (segment, inputPath) = inputs[index];
-                // 区間IDをファイル名にせず、禁止文字・大文字小文字の衝突を避ける。
-                var extension = Path.GetExtension(inputPath);
-                var fileName = $"segment_{index:D6}{extension}";
+                var fileName = $"segment_{index:D6}{Path.GetExtension(inputPath)}";
                 File.Copy(inputPath, Path.Combine(staging, "raw", fileName));
                 var destination = Path.Combine(root, "raw", fileName);
                 lines.Add($"raw/{fileName}|{EscapeField(speakerName)}|JP|{EscapeField(segment.Transcript)}");
