@@ -7,7 +7,7 @@ namespace YourSinger.Process.Processing.Dataset;
 
 public sealed class AutoCorrectionService
 {
-    public const string StageVersion = "v1-08.3";
+    public const string StageVersion = "v1-08.4";
     private readonly UniversalVoiceDatasetRepository _datasetRepository;
     private readonly AutoCorrectionRepository _correctionRepository;
 
@@ -35,6 +35,9 @@ public sealed class AutoCorrectionService
             foreach (var segment in dataset.Segments.Where(x => !rejected.Contains(x.SegmentId)))
                 corrections.AddRange(await completer.ApplyAsync(workspace, segment, settings.PitchCompletion, cancellationToken));
         }
+        // 生成はここでは行わない。利用者が採用した検証済み会話だけを学習用の投影へ追加する。
+        if (settings.Enabled)
+            corrections.AddRange(await new PhonemeSupplementService().AppendAcceptedAsync(workspace, dataset, cancellationToken));
         var fingerprint = TrainingDatasetSnapshotService.CreateFingerprint(dataset, settings.Enabled, corrections, settings.PitchCompletion);
         await _correctionRepository.SaveAsync(workspace, settings, corrections, cancellationToken);
         return new CorrectedDatasetView
@@ -70,7 +73,7 @@ public sealed class AutoCorrectionService
             });
         }
         var rejectedIds = result.Where(x => x.State == CorrectionState.Rejected).Select(x => x.SegmentId).ToHashSet(StringComparer.Ordinal);
-        // 音素未観測を別話者の観測で埋めたことにしない。未実装の音素生成は明示的に保留する。
+        // 観測音素の不足は、生成候補を採用しても観測済みに書き換えない。
         foreach (var group in dataset.Segments.Where(x => !rejectedIds.Contains(x.SegmentId) && x.SpeakerId is not null)
                      .GroupBy(x => x.SpeakerId!, StringComparer.Ordinal).OrderBy(x => x.Key, StringComparer.Ordinal))
         {
@@ -81,7 +84,7 @@ public sealed class AutoCorrectionService
                     SegmentId = "__dataset__", SpeakerId = group.Key, Phoneme = phone,
                     State = CorrectionState.Estimated, Method = "missing-phoneme-generation",
                     ApplicationStatus = CorrectionApplicationStatus.Deferred,
-                    Reason = "この話者に未観測の音素です。音声生成モデルによる補完は未適用です。"
+                    Reason = "この話者に未観測の音素です。生成データの採用記録は観測とは別に保持します。"
                 });
         }
         foreach (var segment in dataset.Segments.Where(x => !rejectedIds.Contains(x.SegmentId)))

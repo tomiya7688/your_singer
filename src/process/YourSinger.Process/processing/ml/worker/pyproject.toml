@@ -10,6 +10,9 @@ dependencies = [
   "pyopenjtalk==0.4.1"
 ]
 
+[project.optional-dependencies]
+phoneme-supplement = ["style-bert-vits2==2.7.0"]
+
 [project.scripts]
 your-singer-ml-worker = "your_singer_ml.main:main"
 

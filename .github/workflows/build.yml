@@ -25,9 +25,15 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - uses: actions/setup-python@v5
+        id: python
+        with:
+          python-version: '3.11'
       - name: アプリをビルド
         run: dotnet build src/ui/YourSinger.App/YourSinger.App.csproj --configuration Release
-      - name: 回帰・データ境界テスト
+      - name: 回帰・データ境界・ワーカー通信テスト
+        env:
+          YOURSINGER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
         run: dotnet test tests/YourSinger.Process.Tests/YourSinger.Process.Tests.csproj --configuration Release --logger "trx;LogFileName=regression.trx" --results-directory TestResults
       - name: テスト結果を保存
         if: always()
@@ -39,7 +45,7 @@ jobs:
           retention-days: 14
 
   worker:
-    name: Pythonワーカー構文確認
+    name: Python補完候補・通信検証
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -49,3 +55,7 @@ jobs:
           python-version: '3.11'
       - name: 構文確認
         run: python -m compileall -q src/process/YourSinger.Process/processing/ml/worker/your_singer_ml
+      - name: モデル不要の候補検証テスト
+        env:
+          PYTHONPATH: src/process/YourSinger.Process/processing/ml/worker
+        run: python -m unittest discover -s tests/worker -v

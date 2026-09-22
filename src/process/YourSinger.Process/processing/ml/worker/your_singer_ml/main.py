@@ -1,66 +1,47 @@
 from __future__ import annotations
 
+import contextlib
+import importlib
 import json
 import sys
 import traceback
 
-from .content_classification import classify_content
-from .diffsinger_training import train_diffsinger
-from .preprocessing import preprocess_audio
-from .speaker_analysis import analyze_speakers
-from .style_bert_vits2_training import train_style_bert_vits2
-from .universal_features import extract_universal_features
-
-
-def _write(payload: dict) -> None:
-    sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
-    sys.stdout.flush()
+COMMANDS = {
+    "preprocess_audio": ("preprocessing", "preprocess_audio"),
+    "analyze_speakers": ("speaker_analysis", "analyze_speakers"),
+    "classify_content": ("content_classification", "classify_content"),
+    "extract_universal_features": ("universal_features", "extract_universal_features"),
+    "train_diffsinger": ("diffsinger_training", "train_diffsinger"),
+    "train_style_bert_vits2": ("style_bert_vits2_training", "train_style_bert_vits2"),
+    "generate_phoneme_candidate": ("phoneme_supplement", "generate_phoneme_candidate"),
+}
 
 
 def main() -> None:
     line = sys.stdin.readline()
     if not line:
         return
-
+    request_id = "unknown"
     try:
         request = json.loads(line)
-        request_id = str(request["request_id"])
-        command = str(request["command"])
-        payload = request.get("payload") or {}
-
-        if command == "preprocess_audio":
-            result = preprocess_audio(payload)
-        elif command == "analyze_speakers":
-            result = analyze_speakers(payload)
-        elif command == "classify_content":
-            result = classify_content(payload)
-        elif command == "extract_universal_features":
-            result = extract_universal_features(payload)
-        elif command == "train_diffsinger":
-            result = train_diffsinger(payload)
-        elif command == "train_style_bert_vits2":
-            result = train_style_bert_vits2(payload)
-        else:
-            raise ValueError(f"未対応のworkerコマンドです: {command}")
-
-        _write(
-            {
-                "request_id": request_id,
-                "status": "ok",
-                "result": result,
-                "error": None,
-            }
-        )
-    except Exception as exc:
+        if not isinstance(request, dict) or not isinstance(request.get("request_id"), str):
+            raise ValueError("要求IDがありません。")
+        request_id = request["request_id"]
+        command = request.get("command")
+        payload = request.get("payload")
+        if not isinstance(command, str) or command not in COMMANDS or not isinstance(payload, dict):
+            raise ValueError("コマンドまたは要求データが不正です。")
+        module, function = COMMANDS[command]
+        # ML依存不足もJSONエラーにする。ライブラリログで標準出力の応答を壊さない。
+        with contextlib.redirect_stdout(sys.stderr):
+            handler = getattr(importlib.import_module("." + module, __package__), function)
+            result = handler(payload)
+        response = json.dumps(dict(request_id=request_id, status="ok", result=result, error=None), ensure_ascii=False, allow_nan=False)
+    except Exception as exception:
         traceback.print_exc(file=sys.stderr)
-        _write(
-            {
-                "request_id": locals().get("request_id", "unknown"),
-                "status": "error",
-                "result": None,
-                "error": str(exc),
-            }
-        )
+        response = json.dumps(dict(request_id=request_id, status="error", result=None, error=str(exception)), ensure_ascii=False, allow_nan=False)
+    sys.stdout.write(response + "\n")
+    sys.stdout.flush()
 
 
 if __name__ == "__main__":
