@@ -170,7 +170,7 @@ public sealed class PitchCompletionTests
             var values = await ReadFramesAsync(p, item.F0FeaturePath);
             Assert.Equal(enabled ? 220 : 0, values[4].Value, 8);
             Assert.Equal(enabled, dataset.AutoCorrectionEnabled);
-            if (!enabled) Assert.Equal(Path.Combine(p.Workspace.RootPath, source.F0FeaturePath), item.F0FeaturePath);
+            if (!enabled) Assert.Equal(Path.GetFullPath(source.F0FeaturePath, p.Workspace.RootPath), item.F0FeaturePath);
         }
     }
 
