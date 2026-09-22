@@ -7,7 +7,8 @@ namespace YourSinger.Process.Processing.Training;
 
 public sealed class TrainingJobPlanningService
 {
-    public const string StageVersion = "v1-09.2";
+    public const string StageVersion = "v1-09.3";
+    public const string CurrentInputVersion = StageVersion + "/" + AutoCorrectionService.StageVersion;
     private readonly UniversalVoiceDatasetRepository _datasetRepository;
     private readonly AutoCorrectionService _autoCorrectionService;
     private readonly TrainingJobRepository _jobRepository;
@@ -20,8 +21,16 @@ public sealed class TrainingJobPlanningService
         _jobRepository = jobRepository;
     }
 
-    public async Task<TrainingJobBatch> CreateBatchAsync(ProjectWorkspace workspace,
-        IReadOnlyList<SpeakerTrainingSelection> selections, CancellationToken cancellationToken = default)
+    public static bool RequiresRecreation(TrainingJobBatch batch) =>
+        !string.Equals(batch.InputVersion, CurrentInputVersion, StringComparison.Ordinal);
+
+    public Task<TrainingJobBatch> CreateBatchAsync(ProjectWorkspace workspace,
+        IReadOnlyList<SpeakerTrainingSelection> selections, CancellationToken cancellationToken = default) =>
+        CreateBatchCoreAsync(workspace, selections, null, cancellationToken);
+
+    private async Task<TrainingJobBatch> CreateBatchCoreAsync(ProjectWorkspace workspace,
+        IReadOnlyList<SpeakerTrainingSelection> selections, string? recreatedFromBatchId,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(selections);
         cancellationToken.ThrowIfCancellationRequested();
@@ -36,7 +45,11 @@ public sealed class TrainingJobPlanningService
 
         _ = await _datasetRepository.LoadAsync(workspace, cancellationToken)
             ?? throw new InvalidOperationException("共通音声データがありません。");
-        var batch = new TrainingJobBatch { BatchId = $"batch-{Guid.NewGuid():N}" };
+        var batch = new TrainingJobBatch
+        {
+            BatchId = $"batch-{Guid.NewGuid():N}", InputVersion = CurrentInputVersion,
+            RecreatedFromBatchId = recreatedFromBatchId
+        };
         var views = new Dictionary<bool, CorrectedDatasetView>();
         foreach (var selection in selections)
         {
@@ -52,7 +65,7 @@ public sealed class TrainingJobPlanningService
                 var ids = view.Segments.Where(x => x.SpeakerId == selection.SpeakerId && x.ContentType == type)
                     .Select(x => x.SegmentId).Order(StringComparer.Ordinal).ToList();
                 if (ids.Count == 0)
-                    throw new InvalidOperationException($"話者 {selection.SpeakerId} の{(target == TrainingTarget.Talk ? "トーク" : "歌唱")}用素材がありません。");
+                    throw new InvalidOperationException($"話者 {selection.SpeakerId} の{(target == TrainingTarget.Talk ? "トーク" : "歌唱")}用素材がありません。話者・用途・除外設定を確認してください。");
                 batch.Jobs.Add(new TrainingJobRecord
                 {
                     JobId = $"job-{Guid.NewGuid():N}", SpeakerId = selection.SpeakerId, Target = target,
@@ -62,21 +75,32 @@ public sealed class TrainingJobPlanningService
                 });
             }
         }
-        // 全選択の検証が終わるまでは途中のバッチを保存しない。
-        await _jobRepository.SaveBatchAsync(workspace, batch, cancellationToken);
+        // 新しいバッチだけを公開し、同じIDの既存ファイルは上書きしない。
+        await _jobRepository.CreateBatchAsync(workspace, batch, cancellationToken);
         return batch;
     }
 
     public Task<TrainingJobBatch> RecreateBatchAsync(ProjectWorkspace workspace, TrainingJobBatch sourceBatch,
+        CancellationToken cancellationToken = default) =>
+        RecreateBatchAsync(workspace, sourceBatch.BatchId, cancellationToken);
+
+    public async Task<TrainingJobBatch> RecreateBatchAsync(ProjectWorkspace workspace, string sourceBatchId,
         CancellationToken cancellationToken = default)
     {
-        var selections = sourceBatch.Jobs.GroupBy(x => new { x.SpeakerId, x.AutoCorrectionEnabled })
+        // 画面表示時の古い状態ではなく、確認後に保存済みの設定と状態を読み直す。
+        var source = await _jobRepository.LoadBatchAsync(workspace, sourceBatchId, cancellationToken)
+            ?? throw new InvalidOperationException("再作成元の学習ジョブが見つかりません。一覧を更新してください。");
+        if (source.Jobs.Any(job => job.State == TrainingJobState.Running))
+            throw new InvalidOperationException("実行中のジョブを含むため再作成できません。処理の終了または中止を確認してください。");
+        var selections = source.Jobs.GroupBy(x => new { x.SpeakerId, x.AutoCorrectionEnabled })
             .Select(group => new SpeakerTrainingSelection
             {
                 SpeakerId = group.Key.SpeakerId, AutoCorrectionEnabled = group.Key.AutoCorrectionEnabled,
                 Target = group.Aggregate(TrainingTarget.None, (target, job) => target | job.Target)
             }).ToArray();
-        return CreateBatchAsync(workspace, selections, cancellationToken);
+        if (selections.Select(x => x.SpeakerId).Distinct(StringComparer.Ordinal).Count() != selections.Length)
+            throw new InvalidOperationException("同じ話者に異なる補完設定が混在しています。話者・用途を選び直して新しいジョブを作成してください。");
+        return await CreateBatchCoreAsync(workspace, selections, source.BatchId, cancellationToken);
     }
 
     public async Task UpdateStateAsync(ProjectWorkspace workspace, string batchId, string jobId,
