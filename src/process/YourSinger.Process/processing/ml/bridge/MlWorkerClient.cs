@@ -25,6 +25,8 @@ public sealed class MlWorkerClient
             StandardInputEncoding = new UTF8Encoding(false), StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
+        info.Environment["PYTHONUTF8"] = "1";
+        info.Environment["PYTHONIOENCODING"] = "utf-8";
         foreach (var arg in _arguments) info.ArgumentList.Add(arg);
         using var process = new System.Diagnostics.Process { StartInfo = info };
         process.Start();
