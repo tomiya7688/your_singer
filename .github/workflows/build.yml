@@ -25,9 +25,15 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - uses: actions/setup-python@v5
+        id: python
+        with:
+          python-version: '3.11'
       - name: アプリをビルド
         run: dotnet build src/ui/YourSinger.App/YourSinger.App.csproj --configuration Release
-      - name: 回帰・データ境界テスト
+      - name: 回帰・データ境界・プロセス境界テスト
+        env:
+          YOURSINGER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
         run: dotnet test tests/YourSinger.Process.Tests/YourSinger.Process.Tests.csproj --configuration Release --filter "Category!=FfmpegIntegration" --logger "trx;LogFileName=regression.trx" --results-directory TestResults
       - name: 実入力テスト用FFmpegを準備
         if: runner.os == 'Linux'
