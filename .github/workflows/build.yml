@@ -1,26 +1,51 @@
-name: ビルド
+name: ビルド・回帰テスト
 
 on:
   push:
   pull_request:
 
-jobs:
-  build:
-    runs-on: windows-latest
+permissions:
+  contents: read
 
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dotnet:
+    name: .NET検証 (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
-      - name: Python workerの構文確認
-        run: python -m compileall src/process/YourSinger.Process/processing/ml/worker/your_singer_ml
-
-      - name: .NET 10 SDKを準備
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: アプリをビルド
+        run: dotnet build src/ui/YourSinger.App/YourSinger.App.csproj --configuration Release
+      - name: 回帰・データ境界テスト
+        run: dotnet test tests/YourSinger.Process.Tests/YourSinger.Process.Tests.csproj --configuration Release --logger "trx;LogFileName=regression.trx" --results-directory TestResults
+      - name: テスト結果を保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-${{ matrix.os }}
+          path: TestResults/**
+          if-no-files-found: warn
+          retention-days: 14
 
-      - name: 復元
-        run: dotnet restore src/ui/YourSinger.App/YourSinger.App.csproj
-
-      - name: ビルド
-        run: dotnet build src/ui/YourSinger.App/YourSinger.App.csproj --configuration Release --no-restore
+  worker:
+    name: Pythonワーカー構文確認
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 構文確認
+        run: python -m compileall -q src/process/YourSinger.Process/processing/ml/worker/your_singer_ml

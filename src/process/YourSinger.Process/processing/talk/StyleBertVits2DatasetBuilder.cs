@@ -3,117 +3,61 @@ using System.Text.Json;
 using YourSinger.Data.Models;
 using YourSinger.Data.Processing;
 using YourSinger.Data.Repositories;
+using YourSinger.Process.Processing.Dataset;
+using YourSinger.Process.Processing.Training;
 
 namespace YourSinger.Process.Processing.Talk;
 
-public sealed class StyleBertVits2DatasetBuilder
+public sealed class StyleBertVits2DatasetBuilder(UniversalVoiceDatasetRepository datasetRepository)
 {
-    public const string StageVersion = "v1-11.1";
+    public const string StageVersion = "v1-11.2";
 
-    private readonly UniversalVoiceDatasetRepository _datasetRepository;
-
-    public StyleBertVits2DatasetBuilder(UniversalVoiceDatasetRepository datasetRepository)
-    {
-        _datasetRepository = datasetRepository;
-    }
-
-    public async Task<StyleBertVits2DatasetRecord> BuildAsync(
-        ProjectWorkspace workspace,
-        TrainingJobRecord job,
-        string speakerName,
-        CancellationToken cancellationToken = default)
+    public async Task<StyleBertVits2DatasetRecord> BuildAsync(ProjectWorkspace workspace, TrainingJobRecord job,
+        string speakerName, CancellationToken cancellationToken = default)
     {
         if (job.Target != TrainingTarget.Talk)
-            throw new InvalidOperationException("トーク学習ジョブのみStyle-Bert-VITS2 datasetを生成できます。");
-
-        var dataset = await _datasetRepository.LoadAsync(workspace, cancellationToken)
-            ?? throw new InvalidOperationException("Universal Voice Datasetがありません。");
-
-        var selected = dataset.Segments
-            .Where(x => x.SpeakerId == job.SpeakerId)
-            .Where(x => x.ContentType == SegmentContentType.Speech)
-            .Where(x => job.SegmentIds.Contains(x.SegmentId, StringComparer.Ordinal))
-            .ToArray();
-
-        var root = Path.Combine(workspace.RootPath, "training", "style-bert-vits2", job.JobId);
-        var rawDirectory = Path.Combine(root, "raw");
-        Directory.CreateDirectory(rawDirectory);
-
-        var items = new List<StyleBertVits2TrainingItem>();
-        var esdLines = new List<string>();
-
-        foreach (var segment in selected)
+            throw new InvalidOperationException("トーク学習ジョブのみトーク用データを生成できます。");
+        var selected = await TrainingDatasetSnapshotService.ResolveJobAsync(datasetRepository, workspace, job, cancellationToken);
+        var root = Path.Combine(workspace.RootPath, "training", "style-bert-vits2", TrainingInputDirectory.RequireComponent(job.JobId));
+        return await TrainingInputDirectory.BuildAsync(root, async staging =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var extension = Path.GetExtension(segment.AudioPath);
-            if (string.IsNullOrWhiteSpace(extension))
-                extension = ".wav";
-
-            var safeId = Sanitize(segment.SegmentId);
-            var fileName = safeId + extension;
-            var destination = Path.Combine(rawDirectory, fileName);
-            File.Copy(segment.AudioPath, destination, overwrite: true);
-
-            var relative = Path.Combine("raw", fileName).Replace('\\', '/');
-            esdLines.Add($"{relative}|{EscapeField(speakerName)}|JP|{EscapeField(segment.Transcript)}");
-
-            items.Add(new StyleBertVits2TrainingItem
+            var rawDirectory = Path.Combine(staging, "raw");
+            Directory.CreateDirectory(rawDirectory);
+            var items = new List<StyleBertVits2TrainingItem>();
+            var lines = new List<string>();
+            foreach (var segment in selected)
             {
-                SegmentId = segment.SegmentId,
-                AudioPath = destination,
-                Transcript = segment.Transcript,
-                Phonemes = segment.Phonemes.Select(x => x.Phoneme).ToList(),
-                SpeakerName = speakerName,
-                StyleProsody = new StyleProsodyRecord
+                cancellationToken.ThrowIfCancellationRequested();
+                var source = Path.GetFullPath(segment.AudioPath, workspace.RootPath);
+                var fileName = TrainingInputDirectory.RequireComponent(segment.SegmentId) + ".wav";
+                File.Copy(source, Path.Combine(rawDirectory, fileName), overwrite: false);
+                lines.Add($"raw/{fileName}|{EscapeField(speakerName)}|JP|{EscapeField(segment.Transcript)}");
+                items.Add(new StyleBertVits2TrainingItem
                 {
-                    SpeakingRate = segment.StyleProsody.SpeakingRate,
-                    PitchRangeSemitones = segment.StyleProsody.PitchRangeSemitones,
-                    EnergyVariation = segment.StyleProsody.EnergyVariation,
-                    PauseRatio = segment.StyleProsody.PauseRatio
-                }
-            });
-        }
-
-        await File.WriteAllLinesAsync(
-            Path.Combine(root, "esd.list"),
-            esdLines,
-            new UTF8Encoding(false),
-            cancellationToken);
-
-        var record = new StyleBertVits2DatasetRecord
-        {
-            StageVersion = StageVersion,
-            JobId = job.JobId,
-            SpeakerId = job.SpeakerId,
-            DatasetFingerprint = job.DatasetFingerprint,
-            AutoCorrectionEnabled = job.AutoCorrectionEnabled,
-            Items = items
-        };
-
-        await using var stream = File.Create(Path.Combine(root, "dataset.json"));
-        await JsonSerializer.SerializeAsync(
-            stream,
-            record,
-            new JsonSerializerOptions
+                    SegmentId = segment.SegmentId, AudioPath = Path.Combine(root, "raw", fileName),
+                    Transcript = segment.Transcript, Phonemes = segment.Phonemes.Select(x => x.Phoneme).ToList(),
+                    SpeakerName = speakerName,
+                    StyleProsody = new StyleProsodyRecord
+                    {
+                        SpeakingRate = segment.StyleProsody.SpeakingRate,
+                        PitchRangeSemitones = segment.StyleProsody.PitchRangeSemitones,
+                        EnergyVariation = segment.StyleProsody.EnergyVariation, PauseRatio = segment.StyleProsody.PauseRatio
+                    }
+                });
+            }
+            await File.WriteAllLinesAsync(Path.Combine(staging, "esd.list"), lines, new UTF8Encoding(false), cancellationToken);
+            var record = new StyleBertVits2DatasetRecord
             {
-                WriteIndented = true,
-                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-            },
-            cancellationToken);
-
-        return record;
+                StageVersion = StageVersion, JobId = job.JobId, SpeakerId = job.SpeakerId,
+                DatasetFingerprint = job.DatasetFingerprint, AutoCorrectionEnabled = job.AutoCorrectionEnabled, Items = items
+            };
+            await using var stream = File.Create(Path.Combine(staging, "dataset.json"));
+            await JsonSerializer.SerializeAsync(stream, record,
+                new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower }, cancellationToken);
+            return record;
+        }, cancellationToken);
     }
 
-    private static string EscapeField(string value) =>
-        value.Replace("|", " ", StringComparison.Ordinal)
-            .Replace("\r", " ", StringComparison.Ordinal)
-            .Replace("\n", " ", StringComparison.Ordinal);
-
-    private static string Sanitize(string value)
-    {
-        foreach (var invalid in Path.GetInvalidFileNameChars())
-            value = value.Replace(invalid, '_');
-        return value;
-    }
+    private static string EscapeField(string value) => value.Replace("|", " ", StringComparison.Ordinal)
+        .Replace("\r", " ", StringComparison.Ordinal).Replace("\n", " ", StringComparison.Ordinal);
 }
