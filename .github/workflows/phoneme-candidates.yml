@@ -1,0 +1,35 @@
+name: 補完候補ワーカーの境界テスト
+
+on:
+  push:
+    paths:
+      - 'src/process/YourSinger.Process/processing/ml/completion_worker/**'
+      - 'tests/completion_worker/**'
+      - '.github/workflows/phoneme-candidates.yml'
+  pull_request:
+    paths:
+      - 'src/process/YourSinger.Process/processing/ml/completion_worker/**'
+      - 'tests/completion_worker/**'
+      - '.github/workflows/phoneme-candidates.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  boundary-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.12']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: 構文確認
+        run: python -m compileall -q src/process/YourSinger.Process/processing/ml/completion_worker
+      - name: モデル不要の候補生成・保存・API契約テスト
+        run: python -m unittest discover -s tests/completion_worker -v
