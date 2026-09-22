@@ -1,14 +1,11 @@
-# v1-11 実装設計: Style-Bert-VITS2トークモデル生成・Exporter
+# v1-11 実装設計: Style-Bert-VITS2トークモデル生成・出力
 
-## 対象
+## 対象と検証状態
 
-- Issue #12
-- Style-Bert-VITS2 2.7.0 をv1互換基準として固定する
-- Universal Voice DatasetのSpeech用途を入力とする
+Issue #12。Style-Bert-VITS2 2.7.0を互換目標とする。対象環境での実推論は未検証であり、互換性の保証とは区別する。
+共通音声データセットのうち、選択話者のトーク用途を入力とする。
 
 ## 推論成果物
-
-v1では対象推論環境へ渡す成果物を次の3点に固定する。
 
 ```text
 <model-name>/
@@ -17,103 +14,50 @@ v1では対象推論環境へ渡す成果物を次の3点に固定する。
 └─ <model-name>_e<epoch>_s<step>.safetensors
 ```
 
-`style_vectors.npy` はStyle-Bert-VITS2公式前処理で生成されたもののみを採用し、
-your_singer側で疑似vectorを生成しない。
+スタイルベクトルと重みは実際の前処理・学習成果物を受け取る。疑似ベクトルやダミー重みを本番成果物として生成しない。
 
-## Dataset Builder
+## 学習入力の構築
 
-v1-09のTalk学習jobを入力にし、対象話者のSpeech segmentだけを利用する。
-
-Voice Project内に次を生成する。
+学習ジョブを入力とし、話者統合・手動分類・手動除外を反映した学習用の読み取り結果を使用する。
+補正ON/OFFと内容識別子を再計算し、ジョブ計画時から入力が変わった場合はジョブの再作成を要求する。
+旧形式の内容識別子を持つジョブも再作成する。保存済みの観測データは変更しない。
 
 ```text
 training/style-bert-vits2/<job-id>/
-├─ raw/
-├─ esd.list
-└─ dataset.json
+├─ dataset/
+│  ├─ raw/
+│  ├─ esd.list
+│  └─ dataset.json
+└─ trainer/
+   └─ trainer.log
 ```
 
-`esd.list` は公式前処理へ渡す4列形式とする。
+v1-11.2から学習入力を`dataset/`へ分離する。再構築時はこのディレクトリだけを一時領域から置換し、学習ログ・重みのあるジョブ全体は削除しない。
+旧配置のファイルは自動削除しない。入力音声が相対パスの場合はプロジェクトルートを基準に解決する。
+
+`esd.list`は以下の4列で保存する。音声パスは`dataset/`を基準とし、呼び出し側で対象環境のデータルートへ配置する必要がある。
 
 ```text
-<audio path>|<speaker>|JP|<text>
+raw/<file-name>|<speaker>|JP|<text>
 ```
 
-公式text preprocessing後はphones / tones / word2phを含むcleaned datasetへ変換される。
+区切り文字・改行はフィールド内で空白に置換する。区間IDは一覧ファイルに保持し、ファイル名は連番にする。
+`dataset.json`は区間ID、文章、音素、話者、韻律特徴、内容識別子、補正ON/OFFを保持する。
 
-`dataset.json` にはyour_singer側の追跡情報として以下を保持する。
+## 学習処理との接続
 
-- segment ID
-- transcript
-- phoneme列
-- speaker
-- style/prosody特徴
-- dataset fingerprint
-- 自動補完・補正ON/OFF
+既存のワーカー呼び出し基盤は`workers/style-bert-vits2/`の`preprocess_all.py`と`train_ms.py`を起動し、プロジェクト内へログを保存する。
+ただし、生成した学習入力の配置、実バージョンに合う引数、学習設定、事前学習済み資産を含めた一連の接続は未検証である。
+実学習が完了していない状態を成功扱いにしない。
 
-## Trainer連携
+## 出力と検証
 
-Style-Bert-VITS2本体はProcessへ直接組み込まず、ML workerから同梱trainerを起動する。
+出力処理は`config.json`、`style_vectors.npy`、`.safetensors`を要求する。
+現在の検証器はファイルの存在と設定項目（`model_name`、`version`、`data.n_speakers`、`spk2id`、`num_styles`、`style2id`）を検査する。
+配列形状や重みの数値的妥当性、推論互換性をこの検査だけで保証しない。
 
-```text
-workers/
-└─ style-bert-vits2/
-   ├─ preprocess_all.py
-   └─ train_ms.py
-```
+## 実推論の完了条件
 
-v1では以下を順番に実行する。
-
-```text
-python preprocess_all.py -m <model-name>
-python train_ms.py -m <model-name>
-```
-
-いずれかが存在しない場合や終了コードが0以外の場合は失敗扱いとする。
-標準出力・標準エラーはVoice Project内の `trainer.log` に保存する。
-
-## Exporter
-
-Exporterは実在する学習成果物を要求する。
-
-必須:
-
-- config.json
-- style_vectors.npy
-- .safetensors model
-
-v1ではモデル重みを `.safetensors` に固定する。
-
-## Validator
-
-`StyleBertVits2ExportValidator` は以下を検証する。
-
-- config.jsonが存在しJSONとして読める
-- style_vectors.npyが存在する
-- .safetensorsが1件以上ある
-- model_name
-- version
-- data.n_speakers
-- data.spk2id
-- data.num_styles
-- data.style2id
-
-## 補完・補正
-
-学習jobの `AutoCorrectionEnabled` と `DatasetFingerprint` をdataset recordへ保存する。
-
-OFF時はv1-08のobserved-only viewから作ったTalk jobを利用し、ON時との差を追跡可能にする。
-
-## 実機推論試験
-
-CIではStyle-Bert-VITS2推論環境での音声生成までは行わない。
-
-Issue #12を完了扱いにする前に、Style-Bert-VITS2 2.7.0互換環境で以下を確認する。
-
-1. Exporter成果物をmodel_assetsへ配置できる
-2. config.json / model / style_vectors.npyが読み込まれる
-3. 対象speaker/styleを選択できる
-4. 任意の日本語文章を入力できる
-5. 音声生成が成功する
-
-実推論確認が終わるまでIssue #12はcloseしない。
+対象環境の`model_assets`へ出力を導入し、話者とスタイルを選択して任意の日本語文章から音声を生成する。
+学習元データ、設定、使用バージョン、ログ、出力音声を記録する。未実施項目は合格にせず、Issue #12を開いたままにする。
+回帰テストとの対応は`docs/implementation-v1-14.md`を参照する。
