@@ -18,6 +18,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: package-worker-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   package-windows:
     runs-on: windows-latest
@@ -47,8 +51,26 @@ jobs:
           if (-not $response) { throw "ワーカーから応答がありません" }
           $json = $response | ConvertFrom-Json
           if ($json.request_id -ne "smoke" -or $json.status -ne "ok") { throw "preflight応答が不正です: $response" }
+          $expectedVersions = @{
+            "style-bert-vits2" = "2.7.0"
+            "speechbrain" = "1.1.1"
+            "faster-whisper" = "1.1.1"
+            "pyopenjtalk" = "0.4.1"
+          }
+          foreach ($name in $expectedVersions.Keys) {
+            $actual = $json.result.versions.PSObject.Properties[$name].Value
+            if ($actual -ne $expectedVersions[$name]) {
+              throw "包装したruntimeの版が不正です: $name expected=$($expectedVersions[$name]) actual=$actual"
+            }
+          }
+          $runtimeIssues = @($json.result.issues | Where-Object { $_ -match "ワーカーに同梱されていません|発音辞書" })
+          if ($runtimeIssues.Count -gt 0) { throw "包装runtimeが不足しています: $($runtimeIssues -join ' / ')" }
           if ($withModels -and -not $json.result.ready) { throw "同梱モデルのpreflightに失敗しました: $response" }
-          if (-not $withModels -and $json.result.ready) { throw "モデルなし包装なのにpreflightが準備完了を返しました" }
+          if (-not $withModels) {
+            if ($json.result.ready) { throw "モデルなし包装なのにpreflightが準備完了を返しました" }
+            $modelMissing = @($json.result.issues | Where-Object { $_ -match "manifestまたはlock" })
+            if ($modelMissing.Count -eq 0) { throw "モデルなし包装の不足理由が想定と異なります: $response" }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: YourSinger-ML-windows-x64
