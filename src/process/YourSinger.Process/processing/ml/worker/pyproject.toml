@@ -6,7 +6,7 @@ dependencies = [
   "demucs==4.0.1",
   "speechbrain==1.1.1",
   "scikit-learn==1.9.1",
-  "faster-whisper>=1.1,<2",
+  "faster-whisper==1.1.1",
   "pyopenjtalk==0.4.1"
 ]
 

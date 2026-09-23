@@ -14,6 +14,7 @@ COMMANDS = {
     "train_diffsinger": ("diffsinger_training", "train_diffsinger"),
     "train_style_bert_vits2": ("style_bert_vits2_training", "train_style_bert_vits2"),
     "generate_phoneme_candidate": ("phoneme_supplement", "generate_phoneme_candidate"),
+    "phoneme_supplement_preflight": ("runtime_preflight", "check_phoneme_supplement_runtime"),
 }
 
 
@@ -32,7 +33,6 @@ def main() -> None:
         if not isinstance(command, str) or command not in COMMANDS or not isinstance(payload, dict):
             raise ValueError("コマンドまたは要求データが不正です。")
         module, function = COMMANDS[command]
-        # ML依存不足もJSONエラーにする。ライブラリログで標準出力の応答を壊さない。
         with contextlib.redirect_stdout(sys.stderr):
             handler = getattr(importlib.import_module("." + module, __package__), function)
             result = handler(payload)

@@ -1,0 +1,48 @@
+name: MLワーカー配布物を作成
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_phoneme_models:
+        description: "音素補完用の固定モデル資源も含める"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  package-windows:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Windowsワーカーを構築
+        shell: pwsh
+        run: |
+          if ("${{ inputs.include_phoneme_models }}" -eq "true") {
+            ./tools/build_ml_worker.ps1 -PrepareModels
+          } else {
+            ./tools/build_ml_worker.ps1
+          }
+      - name: ワーカー起動確認
+        shell: pwsh
+        run: |
+          $worker = Resolve-Path artifacts/ml-worker/YourSinger.ML.exe
+          $root = Resolve-Path artifacts/ml-worker
+          $models = Join-Path $root "models/phoneme-supplement"
+          $payload = @{ request_id = "smoke"; command = "phoneme_supplement_preflight"; payload = @{ resources_root = $models; full_verify = ("${{ inputs.include_phoneme_models }}" -eq "true") } } | ConvertTo-Json -Compress
+          $response = $payload | & $worker
+          if (-not $response) { throw "ワーカーから応答がありません" }
+          $json = $response | ConvertFrom-Json
+          if ($json.request_id -ne "smoke" -or $json.status -ne "ok") { throw "preflight応答が不正です: $response" }
+          if ("${{ inputs.include_phoneme_models }}" -eq "true" -and -not $json.result.ready) { throw "同梱モデルのpreflightに失敗しました: $response" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YourSinger-ML-windows-x64
+          path: artifacts/ml-worker/**
+          retention-days: 14
