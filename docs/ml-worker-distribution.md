@@ -9,7 +9,7 @@
 
 固定値は src/process/YourSinger.Process/processing/ml/worker/resources/phoneme-supplement.lock.json に置く。
 
-- Style-Bert-VITS2 runtime: 2.7.0
+- Style-Bert-VITS2 runtime: 2.7.0 / 公式tag commit `d8148f3090ee5038ca7b4e4b327116c64467f952`
 - faster-whisper runtime: 1.1.1
 - SpeechBrain runtime: 1.1.1
 - pyopenjtalk runtime: 0.4.1
@@ -26,6 +26,8 @@ Style-Bert-VITS2本体はAGPL-3.0なので、公開配布物のライセンス�
 開発・リリース側だけで prepare_phoneme_supplement_resources.py を実行する。
 各snapshotは固定revisionから必要ファイルだけ取得し、resource-lock.jsonとbundle-manifest.jsonを出力する。
 manifestには各ファイルのサイズとSHA-256を保存する。
+
+Style-Bert-VITS2 2.7.0はPyPI配布版として取得できないため、配布ビルドでは公式2.7.0 tagのcommit archiveを直接固定してインストールする。PyPI上の別versionへ暗黙にフォールバックしない。
 
 利用者向けのPython導入手順は作らない。
 
