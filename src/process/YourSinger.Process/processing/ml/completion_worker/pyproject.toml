@@ -1,0 +1,15 @@
+[project]
+name = "your-singer-completion-worker"
+version = "0.1.0"
+requires-python = ">=3.11,<3.13"
+dependencies = ["qwen-tts==0.1.1", "pyopenjtalk==0.4.1"]
+
+[project.scripts]
+your-singer-completion = "your_singer_completion.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["your_singer_completion*"]
