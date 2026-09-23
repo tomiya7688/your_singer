@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from your_singer_ml.runtime_preflight import check_phoneme_supplement_runtime
+from your_singer_ml.runtime_preflight import REQUIRED_FILES, check_phoneme_supplement_runtime
 
 
 class RuntimePreflightTests(unittest.TestCase):
@@ -20,12 +20,19 @@ class RuntimePreflightTests(unittest.TestCase):
         for name, repo, revision in entries:
             directory = root / name
             directory.mkdir(parents=True)
-            file = directory / "fixture.bin"
-            file.write_bytes(name.encode())
+            files = []
+            for relative in sorted(REQUIRED_FILES[name]):
+                file = directory / relative
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_bytes((name + ":" + relative).encode())
+                files.append({
+                    "path": relative,
+                    "size": file.stat().st_size,
+                    "sha256": hashlib.sha256(file.read_bytes()).hexdigest(),
+                })
             resources.append({
                 "name": name, "repo_id": repo, "revision": revision, "license": "test",
-                "files": [{"path": "fixture.bin", "size": file.stat().st_size,
-                           "sha256": hashlib.sha256(file.read_bytes()).hexdigest()}],
+                "files": files,
             })
         lock = root / "resource-lock.json"
         lock.write_text('{"fixture":true}', encoding="utf-8")
@@ -63,6 +70,22 @@ class RuntimePreflightTests(unittest.TestCase):
                 result = check_phoneme_supplement_runtime({"resources_root": temp})
         self.assertFalse(result["ready"])
         self.assertTrue(any("revision" in issue for issue in result["issues"]))
+
+    def test_missing_required_manifest_entry_is_not_ready(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.make_bundle(root)
+            manifest_path = root / "bundle-manifest.json"
+            manifest = json.loads(manifest_path.read_text())
+            item = next(x for x in manifest["resources"] if x["name"] == "asr")
+            item["files"] = [x for x in item["files"] if x["path"] != "model.bin"]
+            (root / "asr" / "model.bin").unlink()
+            manifest_path.write_text(json.dumps(manifest))
+            fake = type("P", (), {"OPEN_JTALK_DICT_DIR": temp})()
+            with patch.object(importlib.metadata, "version", self.version), patch.dict("sys.modules", {"pyopenjtalk": fake}):
+                result = check_phoneme_supplement_runtime({"resources_root": temp})
+        self.assertFalse(result["ready"])
+        self.assertTrue(any("必須ファイル" in issue for issue in result["issues"]))
 
     def test_full_verify_detects_changed_file(self):
         with tempfile.TemporaryDirectory() as temp:
