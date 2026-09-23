@@ -298,3 +298,16 @@ C# 側は UI / Project / Job / Data / ML Worker Control を担当し、Python �
 大きな音声・tensor・model weights は IPC へ直接流さず、project workspace 上の artifact として保存し、IPC では path / id / metadata を受け渡す。
 
 詳細な責務境界・IPC・worker配布方式は `docs/architecture.md` を正とする。
+
+
+## 14. ライセンス方針
+
+- Your Singer 本体は Apache License 2.0 とする。
+- Your Singer を使用してユーザーが生成したモデルは、そのユーザーのものとする。
+- Your Singer プロジェクトおよび開発者は、Your Singer 本体のライセンスを理由として生成モデルに権利を主張しない。
+- 生成モデルに Your Singer 本体の Apache License 2.0 を自動適用しない。
+- 入力元データの権利・ライセンス・許諾状態は Your Singer が自動判定・検証しない。
+- ベースモデル、pretrained model、外部ライブラリ等の第三者コンポーネントには、それぞれの第三者ライセンスが適用される。
+- 同梱する第三者コンポーネントはリリース前にライセンス確認を行い、必要なNOTICE・ライセンス文・帰属表示を配布物へ含める。
+
+詳細は `docs/license-policy.md` を正とする。
