@@ -44,8 +44,17 @@ foreach ($path in $required) {
 }
 
 $rootExecutables = @(Get-ChildItem $output -File -Filter "*.exe")
-if ($rootExecutables.Count -ne 1 -or $rootExecutables[0].Name -ne "YourSinger.exe") {
-    throw "公開ルートの起動EXEはYourSinger.exe 1件だけにしてください。"
+if (-not ($rootExecutables.Name -contains "YourSinger.exe")) {
+    throw "公開起動点のYourSinger.exeがありません。"
+}
+# .NET自己完結runtimeが内部診断用createdump.exeを同階層へ配置することがある。
+# ユーザー向け起動点として扱わず、それ以外の未知のEXEだけを拒否する。
+$allowedRuntimeExecutables = @("createdump.exe")
+$unexpectedExecutables = @($rootExecutables | Where-Object {
+    $_.Name -ne "YourSinger.exe" -and $_.Name -notin $allowedRuntimeExecutables
+})
+if ($unexpectedExecutables.Count -gt 0) {
+    throw "公開ルートに想定外のEXEがあります: $($unexpectedExecutables.Name -join ', ')"
 }
 if (Test-Path (Join-Path $output "python.exe")) {
     throw "利用者向け配布ルートへPython実行ファイルを公開しません。"
