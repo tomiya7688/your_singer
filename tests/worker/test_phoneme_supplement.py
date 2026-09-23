@@ -126,5 +126,6 @@ class CandidateTests(unittest.TestCase):
 
     def test_missing_production_models_do_not_return_success(self):
         self.payload.update(model_directory=str(self.root/'absent'), resources_root=str(self.root/'resources'))
-        with self.assertRaises(FileNotFoundError): generate_phoneme_candidate(self.payload)
+        with self.assertRaisesRegex(RuntimeError, "音素補完runtimeが未準備"):
+            generate_phoneme_candidate(self.payload)
         self.assertFalse(Path(self.payload['output_path']).exists())
