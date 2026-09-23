@@ -41,3 +41,19 @@ public sealed class PhonemeSupplementSelection
     // 初期実装では話者ごとに一つの文章だけを採用できる。
     public Dictionary<string, string> CandidateBySpeaker { get; init; } = new(StringComparer.Ordinal);
 }
+
+
+public sealed class PhonemeSupplementRuntimeStatus
+{
+    public bool Ready { get; init; }
+    public bool FullVerify { get; init; }
+    public Dictionary<string, string> Versions { get; init; } = new(StringComparer.Ordinal);
+    public List<PhonemeSupplementRuntimeResourceStatus> Resources { get; init; } = [];
+    public List<string> Issues { get; init; } = [];
+}
+
+public sealed class PhonemeSupplementRuntimeResourceStatus
+{
+    public required string Name { get; init; }
+    public int CheckedFiles { get; init; }
+}
