@@ -28,6 +28,7 @@ main()
 $arguments = @(
     "--noconfirm", "--clean", "--onedir",
     "--name", "YourSinger.ML",
+    "--collect-submodules", "your_singer_ml",
     "--collect-all", "style_bert_vits2",
     "--collect-all", "speechbrain",
     "--collect-all", "faster_whisper",
