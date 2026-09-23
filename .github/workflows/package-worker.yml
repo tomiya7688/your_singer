@@ -31,20 +31,25 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Windowsワーカーを構築
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Windows自己完結配布物を構築
         shell: pwsh
         run: |
           if ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.include_phoneme_models }}" -eq "true") {
-            ./tools/build_ml_worker.ps1 -PrepareModels
+            ./tools/build_windows_distribution.ps1 -IncludePhonemeModels
           } else {
-            ./tools/build_ml_worker.ps1
+            ./tools/build_windows_distribution.ps1
           }
       - name: ワーカー起動確認
         shell: pwsh
         run: |
-          $worker = Resolve-Path artifacts/ml-worker/YourSinger.ML.exe
-          $root = Resolve-Path artifacts/ml-worker
-          $models = Join-Path $root "models/phoneme-supplement"
+          $root = Resolve-Path artifacts/windows-distribution
+          $worker = Resolve-Path (Join-Path $root "workers/YourSinger.ML.exe")
+          $models = Join-Path $root "workers/models/phoneme-supplement"
+          if (-not (Test-Path (Join-Path $root "YourSinger.exe"))) { throw "YourSinger.exe が配布物にありません" }
+          if (-not (Test-Path (Join-Path $root "coreclr.dll"))) { throw ".NET自己完結runtimeが配布物にありません" }
           $withModels = ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.include_phoneme_models }}" -eq "true")
           $payload = @{ request_id = "smoke"; command = "phoneme_supplement_preflight"; payload = @{ resources_root = $models; full_verify = $withModels } } | ConvertTo-Json -Compress
           $response = $payload | & $worker
@@ -73,6 +78,6 @@ jobs:
           }
       - uses: actions/upload-artifact@v4
         with:
-          name: YourSinger-ML-windows-x64
-          path: artifacts/ml-worker/**
+          name: YourSinger-windows-x64
+          path: artifacts/windows-distribution/**
           retention-days: 14
