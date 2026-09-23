@@ -20,6 +20,24 @@ public sealed class PhonemeSupplementService
     public PhonemeSupplementService(Func<string, object, CancellationToken, Task<JsonElement>>? send = null) =>
         _send = send ?? ((command, payload, token) => new MlWorkerClient().SendAsync(command, payload, token));
 
+    public async Task<PhonemeSupplementRuntimeStatus> CheckRuntimeAsync(
+        bool fullVerify = false,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _send("phoneme_supplement_preflight", new
+        {
+            resources_root = Path.Combine(
+                AppContext.BaseDirectory,
+                "workers",
+                "models",
+                "phoneme-supplement"),
+            full_verify = fullVerify
+        }, cancellationToken);
+
+        return response.Deserialize<PhonemeSupplementRuntimeStatus>(Json)
+            ?? throw new InvalidDataException("音素補完runtimeの確認結果がありません。");
+    }
+
     public static IEnumerable<UniversalVoiceSegment> References(UniversalVoiceDatasetRecord dataset, string speakerId) =>
         dataset.Segments.Where(x => x.SpeakerId == speakerId && x.ContentType == SegmentContentType.Speech &&
             x.AsrConfidence >= 0.65 && x.AlignmentConfidence >= 0.65);
