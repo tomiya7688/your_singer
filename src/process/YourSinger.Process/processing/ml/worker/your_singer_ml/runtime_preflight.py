@@ -10,6 +10,29 @@ EXPECTED = {
     "asr": ("Systran/faster-whisper-small", "536b0662742c02347bc0e980a01041f333bce120"),
     "speaker": ("speechbrain/spkrec-ecapa-voxceleb", "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286"),
 }
+REQUIRED_FILES = {
+    "japanese-bert": {
+        "config.json",
+        "model.safetensors",
+        "special_tokens_map.json",
+        "tokenizer_config.json",
+        "vocab.txt",
+    },
+    "asr": {
+        "config.json",
+        "model.bin",
+        "tokenizer.json",
+        "vocabulary.txt",
+    },
+    "speaker": {
+        "hyperparams.yaml",
+        "embedding_model.ckpt",
+        "mean_var_norm_emb.ckpt",
+        "classifier.ckpt",
+        "label_encoder.txt",
+    },
+}
+
 PACKAGES = {
     "style-bert-vits2": "2.7.0",
     "speechbrain": "1.1.1",
@@ -69,6 +92,17 @@ def check_phoneme_supplement_runtime(payload: dict) -> dict:
                 if not isinstance(file_entries, list) or not file_entries:
                     issues.append(f"{name} のファイル一覧がありません。")
                     continue
+                listed = {
+                    entry.get("path")
+                    for entry in file_entries
+                    if isinstance(entry, dict) and isinstance(entry.get("path"), str)
+                }
+                missing_required = sorted(REQUIRED_FILES[name].difference(listed))
+                if missing_required:
+                    issues.append(
+                        f"{name} の必須ファイルがmanifestにありません: "
+                        + ", ".join(missing_required)
+                    )
                 checked = 0
                 for entry in file_entries:
                     relative = entry.get("path")
