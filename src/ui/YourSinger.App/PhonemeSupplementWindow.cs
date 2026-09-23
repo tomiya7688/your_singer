@@ -25,6 +25,7 @@ public sealed class PhonemeSupplementWindow : Window
     private readonly TextBox _text = new() { MaxLength = 120, TextWrapping = TextWrapping.Wrap };
     private readonly ListBox _candidates = new() { Height = 170 };
     private readonly TextBlock _details = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _runtimeStatus = new() { TextWrapping = TextWrapping.Wrap, Text = "補完環境を確認していません。" };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Text = "準備完了" };
     private readonly CheckBox _reviewed = new() { Content = "生成音声を試聴し、発音と話者を確認しました" };
     private readonly ProgressBar _progress = new() { IsVisible = false, IsIndeterminate = true };
@@ -38,6 +39,8 @@ public sealed class PhonemeSupplementWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Content = new ScrollViewer { Content = _panel, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
         AddText("対象話者の学習済みStyle-Bert-VITS2モデルから会話の補完候補を生成します。初回モデルを作る機能ではありません。信頼できるモデルだけを指定してください。");
+        _panel.Children.Add(_runtimeStatus);
+        AddButton("補完環境を確認", CheckRuntimeAsync);
         AddText("参照する観測会話（同じ話者の、2～14秒の明瞭な区間）");
         _panel.Children.Add(_reference);
         AddText("生成モデルのフォルダ（config.json・style_vectors.npy・safetensors 1件）");
@@ -79,6 +82,7 @@ public sealed class PhonemeSupplementWindow : Window
         _panel.Children.Add(_progress); _panel.Children.Add(_status);
         Opened += async (_, _) => await RunAsync(async token =>
         {
+            await CheckRuntimeAsync(token);
             var snapshot = await new TrainingDatasetSnapshotService(new UniversalVoiceDatasetRepository()).LoadAsync(_workspace, token);
             _reference.ItemsSource = snapshot.Segments.Where(x => x.SpeakerId is not null &&
                     x.ContentType == SegmentContentType.Speech && x.AsrConfidence >= 0.65 && x.AlignmentConfidence >= 0.65)
@@ -102,6 +106,12 @@ public sealed class PhonemeSupplementWindow : Window
 
     private async Task GenerateAsync(CancellationToken token)
     {
+        var runtime = await _service.CheckRuntimeAsync(false, token);
+        if (!runtime.Ready)
+            throw new InvalidOperationException(
+                "音素補完に必要なワーカー資源が揃っていません。\n" +
+                string.Join("\n", runtime.Issues));
+
         if (_reference.SelectedItem is not ReferenceRow source || _modelSpeaker.SelectedItem is not string modelSpeaker ||
             string.IsNullOrWhiteSpace(_modelPath.Text))
             throw new InvalidOperationException("参照区間・生成モデル・モデル内の話者を選択してください。");
@@ -117,6 +127,14 @@ public sealed class PhonemeSupplementWindow : Window
         await RefreshAsync(token);
         _candidates.SelectedItem = ((IEnumerable<CandidateRow>)_candidates.ItemsSource!).First(x => x.Candidate.CandidateId == candidate.CandidateId);
         _status.Text = candidate.Verification.MachinePassed ? "機械検証を通過しました。試聴後に採用を判断してください。" : "検証を通過しませんでした。この候補は学習に採用できません。";
+    }
+
+    private async Task CheckRuntimeAsync(CancellationToken token)
+    {
+        var runtime = await _service.CheckRuntimeAsync(false, token);
+        _runtimeStatus.Text = runtime.Ready
+            ? "補完環境: 準備完了（固定モデル資源・辞書・runtime版を確認済み）"
+            : "補完環境: 未準備\n" + string.Join("\n", runtime.Issues);
     }
 
     private async Task RefreshAsync(CancellationToken token) =>
