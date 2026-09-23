@@ -91,7 +91,7 @@ class RuntimePreflightTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             self.make_bundle(root)
-            (root / "asr" / "fixture.bin").write_bytes(b"changed")
+            (root / "asr" / "model.bin").write_bytes(b"changed")
             fake = type("P", (), {"OPEN_JTALK_DICT_DIR": temp})()
             with patch.object(importlib.metadata, "version", self.version), patch.dict("sys.modules", {"pyopenjtalk": fake}):
                 result = check_phoneme_supplement_runtime({"resources_root": temp, "full_verify": True})
