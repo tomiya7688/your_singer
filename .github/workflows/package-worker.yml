@@ -1,10 +1,11 @@
-name: MLワーカー配布物を作成
+name: Windows配布物を作成
 
 on:
   pull_request:
     paths:
       - ".github/workflows/package-worker.yml"
       - "tools/build_ml_worker.ps1"
+      - "tools/build_windows_distribution.ps1"
       - "tools/prepare_phoneme_supplement_resources.py"
       - "src/process/YourSinger.Process/processing/ml/worker/**"
   workflow_dispatch:
