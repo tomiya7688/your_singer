@@ -11,7 +11,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-phoneme-supplement = ["style-bert-vits2==2.7.0"]
+phoneme-supplement = [
+  "style-bert-vits2 @ https://github.com/litagin02/Style-Bert-VITS2/archive/d8148f3090ee5038ca7b4e4b327116c64467f952.zip"
+]
 
 [project.scripts]
 your-singer-ml-worker = "your_singer_ml.main:main"
