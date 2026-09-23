@@ -1,6 +1,12 @@
 name: MLワーカー配布物を作成
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/package-worker.yml"
+      - "tools/build_ml_worker.ps1"
+      - "tools/prepare_phoneme_supplement_resources.py"
+      - "src/process/YourSinger.Process/processing/ml/worker/**"
   workflow_dispatch:
     inputs:
       include_phoneme_models:
@@ -24,7 +30,7 @@ jobs:
       - name: Windowsワーカーを構築
         shell: pwsh
         run: |
-          if ("${{ inputs.include_phoneme_models }}" -eq "true") {
+          if ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.include_phoneme_models }}" -eq "true") {
             ./tools/build_ml_worker.ps1 -PrepareModels
           } else {
             ./tools/build_ml_worker.ps1
@@ -35,12 +41,14 @@ jobs:
           $worker = Resolve-Path artifacts/ml-worker/YourSinger.ML.exe
           $root = Resolve-Path artifacts/ml-worker
           $models = Join-Path $root "models/phoneme-supplement"
-          $payload = @{ request_id = "smoke"; command = "phoneme_supplement_preflight"; payload = @{ resources_root = $models; full_verify = ("${{ inputs.include_phoneme_models }}" -eq "true") } } | ConvertTo-Json -Compress
+          $withModels = ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.include_phoneme_models }}" -eq "true")
+          $payload = @{ request_id = "smoke"; command = "phoneme_supplement_preflight"; payload = @{ resources_root = $models; full_verify = $withModels } } | ConvertTo-Json -Compress
           $response = $payload | & $worker
           if (-not $response) { throw "ワーカーから応答がありません" }
           $json = $response | ConvertFrom-Json
           if ($json.request_id -ne "smoke" -or $json.status -ne "ok") { throw "preflight応答が不正です: $response" }
-          if ("${{ inputs.include_phoneme_models }}" -eq "true" -and -not $json.result.ready) { throw "同梱モデルのpreflightに失敗しました: $response" }
+          if ($withModels -and -not $json.result.ready) { throw "同梱モデルのpreflightに失敗しました: $response" }
+          if (-not $withModels -and $json.result.ready) { throw "モデルなし包装なのにpreflightが準備完了を返しました" }
       - uses: actions/upload-artifact@v4
         with:
           name: YourSinger-ML-windows-x64
