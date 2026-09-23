@@ -33,8 +33,9 @@ Style-Bert-VITS2 2.7.0はPyPI配布版として取得できないため、配布
 
 ## ワーカーの構築
 
-Windows配布用は tools/build_ml_worker.ps1 を使う。
-PrepareModelsを指定すると固定した3種類の補助モデルもworkers/models/phoneme-supplement相当の場所へ準備する。
+内部MLワーカー単体は tools/build_ml_worker.ps1 で構築する。
+利用者向けWindows配布物は tools/build_windows_distribution.ps1 を使い、.NET 10の自己完結publish結果とMLワーカーを同じフォルダへまとめる。
+IncludePhonemeModelsを指定すると固定した3種類の補助モデルも workers/models/phoneme-supplement/ へ準備する。
 
 PyInstallerのonedir構成を採用し、YourSinger.ML.exeと依存DLLを同じworkers配下に置く。
 巨大なPyTorch系依存をonefileへ毎回展開する方式は採用しない。
@@ -54,11 +55,31 @@ worker command phoneme_supplement_preflight は次を検証する。
 配布ビルド・リリース検証ではfull_verify=trueを使う。
 候補生成時には従来通りモデル一式の内容指紋を記録する。
 
+## 配布フォルダ
+
+```text
+YourSinger-windows-x64/
+├─ YourSinger.exe                 # 公開起動点
+├─ .NET自己完結runtime / DLL群
+├─ LICENSE
+├─ LICENSE-POLICY-ja.md
+├─ THIRD_PARTY_NOTICES.md
+├─ distribution-manifest.json
+└─ workers/
+   ├─ YourSinger.ML.exe
+   ├─ Python runtime / native DLL群
+   └─ models/
+      └─ phoneme-supplement/       # 固定モデルを含める配布候補のみ
+```
+
+公開ルートのEXEは YourSinger.exe 1件だけとする。Pythonや.NET Runtimeの別インストールは要求しない。
+distribution-manifest.json には配布ファイルの相対パス、サイズ、SHA-256を保存する。
+
 ## GitHub Actions
 
-.github/workflows/package-worker.yml は手動実行専用。
-通常のPR CIでGB級のモデルを毎回取得しない。
-公開配布候補ではinclude_phoneme_models=trueを指定し、full preflightに成功したartifactだけを次のリリース工程へ渡す。
+.github/workflows/package-worker.yml はPRでも実行し、モデルを含めないWindows自己完結配布物を実際に構築してYourSinger.ML.exeのpreflightをsmoke検証する。
+通常のPR CIではGB級の補助モデルを取得しない。
+公開配布候補ではworkflow_dispatchでinclude_phoneme_models=trueを指定し、full preflightに成功したartifactだけを次のリリース工程へ渡す。
 
 ## 未完了
 
