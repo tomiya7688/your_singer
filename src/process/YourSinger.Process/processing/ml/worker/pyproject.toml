@@ -19,3 +19,7 @@ your-singer-ml-worker = "your_singer_ml.main:main"
 [build-system]
 requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
+
+
+[tool.setuptools.packages.find]
+include = ["your_singer_ml*"]
