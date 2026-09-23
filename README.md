@@ -208,6 +208,7 @@ exporters/
 - [モデル出力・互換形式](docs/model-outputs.md)
 - [技術アーキテクチャ / 配布設計](docs/architecture.md)
 - [バージョンロードマップ](docs/roadmap.md)
+- [ライセンス方針](docs/license-policy.md)
 - [将来構想](docs/future-format.md)
 
 ## 技術構成
@@ -240,3 +241,15 @@ v1 は以下を基本構成とします。
 10. キャッシュ・差分再解析
 
 詳細はIssueと `docs/` を参照してください。
+
+
+## ライセンス
+
+Your Singer 本体は **Apache License 2.0** で提供します。
+
+**Your Singer を使ってあなたが生成したモデルは、あなたのものです。**
+Your Singer プロジェクトは、生成した歌唱モデル・トークモデル・学習済み重み等について、Your Singer 本体のライセンスを理由として権利を主張しません。
+
+ただし、入力データ、ベースモデル、pretrained model、第三者ライブラリ等には、それぞれ別の権利・ライセンス条件が適用される場合があります。
+
+詳細は [ライセンス方針](docs/license-policy.md) を参照してください。
