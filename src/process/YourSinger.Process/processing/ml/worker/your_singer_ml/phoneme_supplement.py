@@ -72,6 +72,18 @@ def generate_phoneme_candidate(payload: dict, backend_factory=None) -> dict:
     observed = payload.get("observed_phonemes")
     if not isinstance(observed, list) or not all(isinstance(x, str) for x in observed):
         raise ValueError("観測音素の一覧が不正です。")
+    if backend_factory is None:
+        from .runtime_preflight import check_phoneme_supplement_runtime
+        runtime = check_phoneme_supplement_runtime({
+            "resources_root": payload.get("resources_root", ""),
+            "full_verify": False,
+        })
+        if not runtime["ready"]:
+            raise RuntimeError(
+                "音素補完runtimeが未準備です。"
+                + " / ".join(runtime["issues"])
+            )
+
     reference = Path(payload["reference_audio_path"]).resolve(strict=True)
     output = Path(payload["output_path"]).absolute()
     if output.exists() or output.is_symlink() or not output.parent.is_dir():
