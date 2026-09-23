@@ -6,6 +6,15 @@ import json
 import sys
 import traceback
 
+def _configure_stdio() -> None:
+    # PyInstaller化したWindows workerをPowerShell等から直接起動しても、
+    # 日本語JSONとログが既定コードページへ落ちないよう明示的にUTF-8へ固定する。
+    for stream, errors in ((sys.stdin, "strict"), (sys.stdout, "strict"), (sys.stderr, "backslashreplace")):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8", errors=errors)
+
+
 COMMANDS = {
     "preprocess_audio": ("preprocessing", "preprocess_audio"),
     "analyze_speakers": ("speaker_analysis", "analyze_speakers"),
@@ -19,6 +28,7 @@ COMMANDS = {
 
 
 def main() -> None:
+    _configure_stdio()
     line = sys.stdin.readline()
     if not line:
         return
