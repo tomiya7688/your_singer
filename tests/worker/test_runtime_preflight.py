@@ -52,6 +52,15 @@ class RuntimePreflightTests(unittest.TestCase):
             "pyopenjtalk": "0.4.1",
         }[name]
 
+    def test_bytes_dictionary_path_is_supported(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.make_bundle(root)
+            fake = type("P", (), {"OPEN_JTALK_DICT_DIR": temp.encode()})()
+            with patch.object(importlib.metadata, "version", self.version), patch.dict("sys.modules", {"pyopenjtalk": fake}):
+                result = check_phoneme_supplement_runtime({"resources_root": temp})
+        self.assertTrue(result["ready"])
+
     def test_missing_bundle_is_not_ready(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(importlib.metadata, "version", self.version):
             result = check_phoneme_supplement_runtime({"resources_root": temp})
