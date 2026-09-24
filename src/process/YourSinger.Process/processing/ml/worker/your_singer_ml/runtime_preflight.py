@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.metadata
 import json
+import os
 from pathlib import Path
 
 EXPECTED = {
@@ -126,7 +127,8 @@ def check_phoneme_supplement_runtime(payload: dict) -> dict:
 
     try:
         import pyopenjtalk
-        if not Path(pyopenjtalk.OPEN_JTALK_DICT_DIR).is_dir():
+        dictionary = Path(os.fsdecode(pyopenjtalk.OPEN_JTALK_DICT_DIR))
+        if not dictionary.is_dir():
             issues.append("OpenJTalkの日本語発音辞書が同梱されていません。")
     except Exception as exc:
         issues.append(f"OpenJTalkの日本語発音辞書を確認できません: {exc}")
