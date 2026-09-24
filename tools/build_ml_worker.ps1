@@ -19,6 +19,11 @@ $workerExtra = "$worker[phoneme-supplement]"
 python -m pip install $workerExtra "pyinstaller==6.16.0"
 if ($LASTEXITCODE -ne 0) { throw "MLワーカー依存のインストールに失敗しました。" }
 
+# pyopenjtalk 0.4.1の辞書は初回利用時に取得されるため、
+# 配布物をオフラインで使えるようリリース側で一度展開してから包装する。
+python -c "import os, pathlib, pyopenjtalk; pyopenjtalk.g2p('テスト'); p=pathlib.Path(os.fsdecode(pyopenjtalk.OPEN_JTALK_DICT_DIR)); print(p); assert p.is_dir()"
+if ($LASTEXITCODE -ne 0) { throw "OpenJTalk日本語辞書の配布用展開に失敗しました。" }
+
 $entry = Join-Path $temp "worker_entry.py"
 @'
 from your_singer_ml.main import main
@@ -35,7 +40,7 @@ $arguments = @(
     "--collect-all", "ctranslate2",
     "--collect-all", "transformers",
     "--collect-all", "tokenizers",
-    "--collect-data", "pyopenjtalk",
+    "--collect-all", "pyopenjtalk",
     "--copy-metadata", "style-bert-vits2",
     "--copy-metadata", "speechbrain",
     "--copy-metadata", "faster-whisper",
