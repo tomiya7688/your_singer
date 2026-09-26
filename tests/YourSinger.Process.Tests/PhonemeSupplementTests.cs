@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using YourSinger.Data.Models;
+using YourSinger.Data.Repositories;
 using YourSinger.Process.Processing.Dataset;
 using YourSinger.Process.Processing.Dataset.Completion;
 using YourSinger.Process.Processing.Talk;
@@ -55,7 +56,7 @@ public sealed class PhonemeSupplementTests
 
         var observed = Assert.Single((await p.DatasetRepository.LoadAsync(p.Workspace, Token))!.Segments);
         Assert.Equal(1, observed.Phonemes.Count(x => x.Phoneme == "a"));
-        Assert.Empty(observed.Phonemes.Where(x => x.Phoneme == "k"));
+        Assert.DoesNotContain(observed.Phonemes, x => x.Phoneme == "k");
     }
 
     [Fact]
