@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using YourSinger.Data.Models;
+using YourSinger.Process.Processing.Dataset;
 using YourSinger.Process.Processing.Dataset.Completion;
 using YourSinger.Process.Processing.Talk;
 
