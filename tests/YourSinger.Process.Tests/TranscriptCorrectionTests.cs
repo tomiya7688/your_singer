@@ -112,7 +112,7 @@ public sealed class TranscriptCorrectionTests
         var deferred = Assert.Single(view.AppliedCorrections, x =>
             x.Method == TranscriptCorrectionService.ReviewVersion);
         Assert.Equal(CorrectionApplicationStatus.Deferred, deferred.ApplicationStatus);
-        Assert.Contains("一致しません", deferred.Reason);
+        Assert.Contains("一致しません", deferred.Reason!);
     }
 
     [Fact]
@@ -166,6 +166,6 @@ public sealed class TranscriptCorrectionTests
         var deferred = Assert.Single(view.AppliedCorrections, x =>
             x.Method == TranscriptCorrectionService.ReviewVersion);
         Assert.Equal(CorrectionApplicationStatus.Deferred, deferred.ApplicationStatus);
-        Assert.Contains("未準備", deferred.Reason);
+        Assert.Contains("未準備", deferred.Reason!);
     }
 }
