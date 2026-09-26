@@ -7,7 +7,7 @@ namespace YourSinger.Process.Processing.Dataset;
 
 public sealed class AutoCorrectionService
 {
-    public const string StageVersion = "v1-08.5";
+    public const string StageVersion = "v1-08.6";
     private readonly UniversalVoiceDatasetRepository _datasetRepository;
     private readonly AutoCorrectionRepository _correctionRepository;
     private readonly TranscriptCorrectionService _transcriptCorrection;
@@ -79,19 +79,28 @@ public sealed class AutoCorrectionService
             });
         }
         var rejectedIds = result.Where(x => x.State == CorrectionState.Rejected).Select(x => x.SegmentId).ToHashSet(StringComparer.Ordinal);
-        // 観測音素の不足は、生成候補を採用しても観測済みに書き換えない。
-        foreach (var group in dataset.Segments.Where(x => !rejectedIds.Contains(x.SegmentId) && x.SpeakerId is not null)
-                     .GroupBy(x => x.SpeakerId!, StringComparer.Ordinal).OrderBy(x => x.Key, StringComparer.Ordinal))
+        // 未観測(0回)と少量(1〜2回)を区別し、どちらも生成補助の候補として追跡する。
+        foreach (var speakerId in dataset.Segments.Where(x => x.SpeakerId is not null)
+                     .Select(x => x.SpeakerId!).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
         {
-            var observed = group.SelectMany(x => x.Phonemes).Select(x => x.Phoneme).ToHashSet(StringComparer.Ordinal);
-            foreach (var phone in JapaneseCoverageCatalog.CorePhonemes.Where(x => !observed.Contains(x)).Order(StringComparer.Ordinal))
+            if (!PhonemeSupplementService.References(dataset, speakerId).Any()) continue;
+            var counts = PhonemeSupplementService.ReliablePhonemeCounts(dataset, speakerId);
+            foreach (var phone in PhonemeSupplementService.SupplementTargets(dataset, speakerId))
+            {
+                var count = counts.GetValueOrDefault(phone);
                 result.Add(new CorrectionRecord
                 {
-                    SegmentId = "__dataset__", SpeakerId = group.Key, Phoneme = phone,
-                    State = CorrectionState.Estimated, Method = "missing-phoneme-generation",
+                    SegmentId = "__dataset__", SpeakerId = speakerId, Phoneme = phone,
+                    State = count == 0 ? CorrectionState.Estimated : CorrectionState.WeakObserved,
+                    Method = count == 0 ? "missing-phoneme-generation" : "sparse-phoneme-generation",
                     ApplicationStatus = CorrectionApplicationStatus.Deferred,
-                    Reason = "この話者に未観測の音素です。生成データの採用記録は観測とは別に保持します。"
+                    Confidence = Math.Min(1, count / (double)PhonemeSupplementService.MinimumObservedCount),
+                    OriginalValue = count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    Reason = count == 0
+                        ? "この話者に未観測の音素です。生成データの採用記録は観測とは別に保持します。"
+                        : $"この話者では観測{count}回の少量音素です。録音値を保持したまま生成補助を追加できます。"
                 });
+            }
         }
         foreach (var segment in dataset.Segments.Where(x => !rejectedIds.Contains(x.SegmentId)))
             foreach (var phone in segment.Phonemes.Where(x => x.Confidence < 0.35).Select(x => x.Phoneme).Distinct(StringComparer.Ordinal))
