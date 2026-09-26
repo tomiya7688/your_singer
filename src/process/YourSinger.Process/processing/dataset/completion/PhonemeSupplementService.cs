@@ -9,7 +9,8 @@ namespace YourSinger.Process.Processing.Dataset.Completion;
 
 public sealed class PhonemeSupplementService
 {
-    public const string GeneratorVersion = "speaker-phoneme-candidate-1";
+    public const string GeneratorVersion = "speaker-phoneme-candidate-2";
+    public const int AssistThreshold = 3;
     private static readonly SemaphoreSlim SelectionLock = new(1, 1);
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -42,6 +43,15 @@ public sealed class PhonemeSupplementService
         dataset.Segments.Where(x => x.SpeakerId == speakerId && x.ContentType == SegmentContentType.Speech &&
             x.AsrConfidence >= 0.65 && x.AlignmentConfidence >= 0.65);
 
+    public static IReadOnlyDictionary<string, int> ObservedPhonemeCounts(
+        UniversalVoiceDatasetRecord dataset, string speakerId) =>
+        References(dataset, speakerId)
+            .SelectMany(x => x.Phonemes)
+            .Where(x => x.Confidence >= 0.65)
+            .GroupBy(x => x.Phoneme, StringComparer.Ordinal)
+            .OrderBy(x => x.Key, StringComparer.Ordinal)
+            .ToDictionary(x => x.Key, x => x.Count(), StringComparer.Ordinal);
+
     public static string ObservationFingerprint(UniversalVoiceDatasetRecord dataset, string speakerId) =>
         Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
         {
@@ -72,8 +82,8 @@ public sealed class PhonemeSupplementService
             {
                 text, model_speaker = modelSpeaker, model_directory = Path.GetFullPath(modelDirectory),
                 reference_audio_path = referencePath, output_path = Path.Combine(directory, "candidate.wav"),
-                observed_phonemes = References(snapshot, speakerId).SelectMany(x => x.Phonemes)
-                    .Where(x => x.Confidence >= 0.65).Select(x => x.Phoneme).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray(),
+                observed_phoneme_counts = ObservedPhonemeCounts(snapshot, speakerId),
+                assist_threshold = AssistThreshold,
                 resources_root = Path.Combine(AppContext.BaseDirectory, "workers", "models", "phoneme-supplement")
             }, cancellationToken);
             var verification = response.Deserialize<PhonemeSupplementVerification>(Json)
@@ -179,7 +189,7 @@ public sealed class PhonemeSupplementService
                 Method = GeneratorVersion, ApplicationStatus = CorrectionApplicationStatus.Applied,
                 InputFingerprint = candidate.ObservationFingerprint, ResultFeaturePath = candidate.AudioPath,
                 CorrectedValue = candidate.Verification.AudioSha256,
-                Reason = "機械検証を通過し、利用者が採用した生成会話です。観測音素としては集計しません。"
+                Reason = $"機械検証を通過し、利用者が採用した生成会話です。補助対象: {string.Join(" ", candidate.Verification.AssistedPhonemes)}。観測音素としては集計しません。"
             });
         }
         return result;
@@ -189,9 +199,21 @@ public sealed class PhonemeSupplementService
         PhonemeSupplementCandidate candidate, CancellationToken token)
     {
         var v = candidate.Verification;
+        var counts = ObservedPhonemeCounts(snapshot, candidate.SpeakerId);
+        var expectedAssisted = v.ExpectedPhonemes.Distinct(StringComparer.Ordinal)
+            .Where(x => counts.GetValueOrDefault(x) < AssistThreshold)
+            .Order(StringComparer.Ordinal).ToArray();
+        var expectedMissing = expectedAssisted.Where(x => counts.GetValueOrDefault(x) == 0)
+            .Order(StringComparer.Ordinal).ToArray();
+        var expectedSparse = expectedAssisted.Where(x => counts.GetValueOrDefault(x) is > 0 and < AssistThreshold)
+            .Order(StringComparer.Ordinal).ToArray();
+
         if (v.GeneratorVersion != GeneratorVersion || !v.MachinePassed || v.Reasons.Count != 0 ||
             v.ExpectedPhonemes.Count == 0 || !v.ExpectedPhonemes.SequenceEqual(v.RecognizedPhonemes, StringComparer.Ordinal) ||
-            v.MissingPhonemes.Count == 0 || v.MissingPhonemes.Any(x => !v.ExpectedPhonemes.Contains(x, StringComparer.Ordinal)) ||
+            v.AssistedPhonemes.Count == 0 ||
+            !v.AssistedPhonemes.SequenceEqual(expectedAssisted, StringComparer.Ordinal) ||
+            !v.MissingPhonemes.SequenceEqual(expectedMissing, StringComparer.Ordinal) ||
+            !v.SparsePhonemes.SequenceEqual(expectedSparse, StringComparer.Ordinal) ||
             !double.IsFinite(v.AsrAvgLogprob) || v.AsrAvgLogprob < -0.50 || v.AsrAvgLogprob > 0 ||
             !InRange(v.SpeakerSimilarity, 0.80, 1) || !InRange(v.NoSpeechProbability, 0, 0.20) ||
             !InRange(v.DurationSec, 2, 14) || !InRange(v.Rms, 0.008, 1) ||
