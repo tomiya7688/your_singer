@@ -10,6 +10,9 @@ public sealed class PhonemeSupplementCandidate
     public required string ReferenceSegmentId { get; init; }
     public required string ObservationFingerprint { get; init; }
     public required string AudioPath { get; init; }
+    // 0回の未観測音素と、1〜2回だけ観測された少量音素を同じ候補で補助できる。
+    public List<string> TargetPhonemes { get; init; } = [];
+    public Dictionary<string, int> ObservedCountByPhoneme { get; init; } = new(StringComparer.Ordinal);
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     public required PhonemeSupplementVerification Verification { get; init; }
 }
@@ -25,6 +28,8 @@ public sealed class PhonemeSupplementVerification
     public required List<string> ExpectedPhonemes { get; init; }
     public required List<string> RecognizedPhonemes { get; init; }
     public required List<string> MissingPhonemes { get; init; }
+    // MissingPhonemesは0回の音素だけ。TargetPhonemesには少量音素も含める。
+    public List<string> TargetPhonemes { get; init; } = [];
     public required double SpeakerSimilarity { get; init; }
     public required double AsrAvgLogprob { get; init; }
     public required double NoSpeechProbability { get; init; }
