@@ -34,7 +34,10 @@ public sealed class AutoCorrectionService
         var rejected = corrections.Where(x => x.State == CorrectionState.Rejected && x.ApplicationStatus == CorrectionApplicationStatus.Applied)
             .Select(x => x.SegmentId).ToHashSet(StringComparer.Ordinal);
         if (settings.Enabled)
+        {
             corrections.AddRange(await _transcriptCorrection.ApplyAsync(workspace, dataset, cancellationToken));
+            AppendPhonemeNeedCorrections(dataset, corrections, rejected);
+        }
         if (settings.Enabled && settings.PitchCompletion.Enabled)
         {
             var completer = new PitchFeatureCompletionService();
@@ -79,7 +82,15 @@ public sealed class AutoCorrectionService
             });
         }
         var rejectedIds = result.Where(x => x.State == CorrectionState.Rejected).Select(x => x.SegmentId).ToHashSet(StringComparer.Ordinal);
-        // 未観測(0回)と少量(1〜2回)を区別し、どちらも生成補助の候補として追跡する。
+        return result;
+    }
+
+    private static void AppendPhonemeNeedCorrections(
+        UniversalVoiceDatasetRecord dataset,
+        List<CorrectionRecord> result,
+        IReadOnlySet<string> rejectedIds)
+    {
+        // 文字起こし補正後の音素列で未観測(0回)と少量(1〜2回)を判定する。
         foreach (var speakerId in dataset.Segments.Where(x => x.SpeakerId is not null)
                      .Select(x => x.SpeakerId!).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
         {
@@ -102,6 +113,7 @@ public sealed class AutoCorrectionService
                 });
             }
         }
+
         foreach (var segment in dataset.Segments.Where(x => !rejectedIds.Contains(x.SegmentId)))
             foreach (var phone in segment.Phonemes.Where(x => x.Confidence < 0.35).Select(x => x.Phoneme).Distinct(StringComparer.Ordinal))
                 result.Add(new CorrectionRecord
@@ -111,6 +123,5 @@ public sealed class AutoCorrectionService
                     ApplicationStatus = CorrectionApplicationStatus.Deferred, OriginalValue = phone,
                     Reason = "音素ラベルは低信頼です。自動で修正したことにはせず、元のラベルを保持します。"
                 });
-        return result;
     }
 }
