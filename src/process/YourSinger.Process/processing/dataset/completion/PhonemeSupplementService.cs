@@ -188,8 +188,17 @@ public sealed class PhonemeSupplementService
         finally { SelectionLock.Release(); }
     }
 
-    public async Task<IReadOnlyList<CorrectionRecord>> AppendAcceptedAsync(ProjectWorkspace workspace,
-        UniversalVoiceDatasetRecord dataset, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<CorrectionRecord>> AppendAcceptedAsync(
+        ProjectWorkspace workspace,
+        UniversalVoiceDatasetRecord dataset,
+        CancellationToken cancellationToken = default) =>
+        AppendAcceptedAsync(workspace, dataset, dataset, cancellationToken);
+
+    public async Task<IReadOnlyList<CorrectionRecord>> AppendAcceptedAsync(
+        ProjectWorkspace workspace,
+        UniversalVoiceDatasetRecord dataset,
+        UniversalVoiceDatasetRecord validationDataset,
+        CancellationToken cancellationToken = default)
     {
         var selection = await LoadSelectionAsync(workspace, cancellationToken);
         var result = new List<CorrectionRecord>();
@@ -199,7 +208,7 @@ public sealed class PhonemeSupplementService
         {
             var candidate = await LoadAsync(workspace, id, cancellationToken);
             if (candidate.SpeakerId != speaker) throw new InvalidDataException("補完候補の話者が一致しません。");
-            await ValidateAsync(workspace, dataset, candidate, cancellationToken);
+            await ValidateAsync(workspace, validationDataset, candidate, cancellationToken);
             candidates.Add(candidate);
         }
         foreach (var candidate in candidates)
@@ -217,7 +226,7 @@ public sealed class PhonemeSupplementService
             var effectiveTargets = candidate.TargetPhonemes.Count > 0
                 ? candidate.TargetPhonemes
                 : candidate.Verification.MissingPhonemes;
-            var currentCounts = ReliablePhonemeCounts(dataset, candidate.SpeakerId);
+            var currentCounts = ReliablePhonemeCounts(validationDataset, candidate.SpeakerId);
             foreach (var phoneme in effectiveTargets)
             {
                 var observedCount = candidate.ObservedCountByPhoneme.Count > 0
