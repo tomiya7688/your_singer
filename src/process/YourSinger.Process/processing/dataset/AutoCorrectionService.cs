@@ -44,9 +44,15 @@ public sealed class AutoCorrectionService
             foreach (var segment in dataset.Segments.Where(x => !rejected.Contains(x.SegmentId)))
                 corrections.AddRange(await completer.ApplyAsync(workspace, segment, settings.PitchCompletion, cancellationToken));
         }
-        // 生成はここでは行わない。利用者が採用した検証済み会話だけを学習用の投影へ追加する。
+        // 候補の出自検証は自動補正後の投影ではなく、保存済み観測データ＋手動編集を基準にする。
+        // 生成自体はここでは行わず、利用者が採用した検証済み会話だけを投影へ追加する。
         if (settings.Enabled)
-            corrections.AddRange(await new PhonemeSupplementService().AppendAcceptedAsync(workspace, dataset, cancellationToken));
+        {
+            var observedForSupplement = await new TrainingDatasetSnapshotService(_datasetRepository)
+                .LoadAsync(workspace, cancellationToken);
+            corrections.AddRange(await new PhonemeSupplementService()
+                .AppendAcceptedAsync(workspace, dataset, observedForSupplement, cancellationToken));
+        }
         var fingerprint = TrainingDatasetSnapshotService.CreateFingerprint(dataset, settings.Enabled, corrections, settings.PitchCompletion);
         await _correctionRepository.SaveAsync(workspace, settings, corrections, cancellationToken);
         return new CorrectedDatasetView
