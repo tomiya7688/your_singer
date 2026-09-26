@@ -59,8 +59,11 @@ public sealed class PhonemeSupplementWindow : Window
             _reviewed.IsChecked = false;
             if (_candidates.SelectedItem is not CandidateRow row) { _details.Text = "候補を選択してください。"; return; }
             var v = row.Candidate.Verification;
+            var targets = row.Candidate.TargetPhonemes.Count > 0
+                ? row.Candidate.TargetPhonemes
+                : v.MissingPhonemes;
             _details.Text = $"対象: {row.Candidate.SpeakerId} / 文章: {row.Candidate.Text}\n" +
-                $"補助対象音素: {string.Join(" ", row.Candidate.TargetPhonemes)}\n" +
+                $"補助対象音素: {string.Join(" ", targets)}\n" +
                 $"元の観測回数: {string.Join(", ", row.Candidate.ObservedCountByPhoneme.OrderBy(x => x.Key).Select(x => $"{x.Key}={x.Value}"))}\n" +
                 $"未観測音素: {string.Join(" ", v.MissingPhonemes)}\n再認識: {v.RecognizedText}\n" +
                 $"話者類似度: {v.SpeakerSimilarity:0.000}（本人の確率ではありません）\n" + string.Join("\n", v.Reasons);
