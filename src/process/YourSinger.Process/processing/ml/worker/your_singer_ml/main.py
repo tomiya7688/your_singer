@@ -24,6 +24,7 @@ COMMANDS = {
     "train_style_bert_vits2": ("style_bert_vits2_training", "train_style_bert_vits2"),
     "generate_phoneme_candidate": ("phoneme_supplement", "generate_phoneme_candidate"),
     "phoneme_supplement_preflight": ("runtime_preflight", "check_phoneme_supplement_runtime"),
+    "review_transcript": ("transcript_correction", "review_transcript"),
 }
 
 

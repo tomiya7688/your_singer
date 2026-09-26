@@ -7,15 +7,19 @@ namespace YourSinger.Process.Processing.Dataset;
 
 public sealed class AutoCorrectionService
 {
-    public const string StageVersion = "v1-08.4";
+    public const string StageVersion = "v1-08.5";
     private readonly UniversalVoiceDatasetRepository _datasetRepository;
     private readonly AutoCorrectionRepository _correctionRepository;
+    private readonly TranscriptCorrectionService _transcriptCorrection;
 
-    public AutoCorrectionService(UniversalVoiceDatasetRepository datasetRepository,
-        AutoCorrectionRepository correctionRepository)
+    public AutoCorrectionService(
+        UniversalVoiceDatasetRepository datasetRepository,
+        AutoCorrectionRepository correctionRepository,
+        TranscriptCorrectionService? transcriptCorrection = null)
     {
         _datasetRepository = datasetRepository;
         _correctionRepository = correctionRepository;
+        _transcriptCorrection = transcriptCorrection ?? new TranscriptCorrectionService();
     }
 
     public async Task<CorrectedDatasetView> BuildAsync(ProjectWorkspace workspace, bool? enabled = null,
@@ -29,6 +33,8 @@ public sealed class AutoCorrectionService
         var corrections = settings.Enabled ? BuildCorrections(dataset) : BuildObservedOnly(dataset);
         var rejected = corrections.Where(x => x.State == CorrectionState.Rejected && x.ApplicationStatus == CorrectionApplicationStatus.Applied)
             .Select(x => x.SegmentId).ToHashSet(StringComparer.Ordinal);
+        if (settings.Enabled)
+            corrections.AddRange(await _transcriptCorrection.ApplyAsync(workspace, dataset, cancellationToken));
         if (settings.Enabled && settings.PitchCompletion.Enabled)
         {
             var completer = new PitchFeatureCompletionService();
