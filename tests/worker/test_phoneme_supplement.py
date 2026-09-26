@@ -48,6 +48,21 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(before, file_hash(self.reference))
         json.dumps(result, allow_nan=False)
 
+
+    def test_sparse_observed_phone_can_be_targeted(self):
+        self.payload['observed_phonemes'] = ['a', 'k']
+        self.payload['target_phonemes'] = ['k']
+        result = self.run_candidate()
+        self.assertEqual([], result['missing_phonemes'])
+        self.assertEqual(['k'], result['target_phonemes'])
+        self.assertTrue(result['machine_passed'])
+
+    def test_text_without_requested_target_is_rejected(self):
+        self.payload['target_phonemes'] = ['s']
+        with self.assertRaisesRegex(ValueError, '補助対象音素'):
+            self.run_candidate()
+        self.assertFalse(Path(self.payload['output_path']).exists())
+
     def test_wrong_transcript_is_not_adoptable(self):
         class Wrong(FakeModels):
             def recognize(self, path): return 'さ', -0.1, 0.01

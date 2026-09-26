@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using YourSinger.Data.Models;
+using YourSinger.Data.Repositories;
+using YourSinger.Process.Processing.Dataset;
 using YourSinger.Process.Processing.Dataset.Completion;
 using YourSinger.Process.Processing.Talk;
 
@@ -23,13 +25,105 @@ public sealed class PhonemeSupplementTests
             reference_sha256 = Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(reference, token))),
             audio_sha256 = Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(path, token))),
             recognized_text = "か", expected_phonemes = new[] { "k", "a" }, recognized_phonemes = new[] { "k", "a" },
-            missing_phonemes = new[] { "k" }, speaker_similarity = 0.95, asr_avg_logprob = -0.1,
+            missing_phonemes = new[] { "k" }, target_phonemes = new[] { "k", "a" },
+            speaker_similarity = 0.95, asr_avg_logprob = -0.1,
             no_speech_probability = 0.01, duration_sec = 3, rms = 0.1, clipping_ratio = 0,
             silence_ratio = 0.1, machine_passed = passed, reasons = passed ? Array.Empty<string>() : ["検証不合格"]
         });
     });
     private static Task<PhonemeSupplementCandidate> Generate(TestProject p, PhonemeSupplementService s) =>
         s.GenerateAsync(p.Workspace, "spk_a", "reference", p.Workspace.RootPath, "話者A", "か", Token);
+
+
+    [Fact]
+    public async Task SparseObservedPhonemeCanBeSupplementedWithoutChangingObservedCount()
+    {
+        using var p = new TestProject();
+        await p.SeedAsync(p.Segment("reference"));
+        var service = Service();
+        var candidate = await Generate(p, service);
+
+        Assert.Contains("a", candidate.TargetPhonemes);
+        Assert.Equal(1, candidate.ObservedCountByPhoneme["a"]);
+        await service.SetAcceptedAsync(p.Workspace, candidate.CandidateId, true, Token);
+
+        var view = await p.Correction().BuildAsync(p.Workspace, true, Token);
+        var applied = Assert.Single(view.AppliedCorrections, x =>
+            x.Method == "sparse-phoneme-generation" &&
+            x.Phoneme == "a" &&
+            x.ApplicationStatus == CorrectionApplicationStatus.Applied);
+        Assert.Equal("1", applied.OriginalValue);
+
+        var observed = Assert.Single((await p.DatasetRepository.LoadAsync(p.Workspace, Token))!.Segments);
+        Assert.Equal(1, observed.Phonemes.Count(x => x.Phoneme == "a"));
+        Assert.DoesNotContain(observed.Phonemes, x => x.Phoneme == "k");
+    }
+
+    [Fact]
+    public async Task PhonemeWithThreeReliableObservationsIsNotSupplementTarget()
+    {
+        using var p = new TestProject();
+        var segment = p.Segment("reference");
+        segment.Phonemes.Add(new() { Phoneme = "a", StartSec = 0.1, EndSec = 0.2, Confidence = 0.95 });
+        segment.Phonemes.Add(new() { Phoneme = "a", StartSec = 0.2, EndSec = 0.3, Confidence = 0.95 });
+        await p.SeedAsync(segment);
+        var snapshot = await new TrainingDatasetSnapshotService(p.DatasetRepository).LoadAsync(p.Workspace, Token);
+
+        Assert.Equal(3, PhonemeSupplementService.ReliablePhonemeCounts(snapshot, "spk_a")["a"]);
+        Assert.DoesNotContain("a", PhonemeSupplementService.SupplementTargets(snapshot, "spk_a"));
+    }
+
+
+    [Fact]
+    public async Task SparsePhonemeIsTrackedAsDeferredBeforeCandidateAcceptance()
+    {
+        using var p = new TestProject();
+        await p.SeedAsync(p.Segment("reference"));
+        var view = await p.Correction().BuildAsync(p.Workspace, true, Token);
+
+        var sparse = Assert.Single(view.AppliedCorrections, x =>
+            x.Method == "sparse-phoneme-generation" &&
+            x.Phoneme == "a" &&
+            x.ApplicationStatus == CorrectionApplicationStatus.Deferred);
+        Assert.Equal("1", sparse.OriginalValue);
+        Assert.Equal(CorrectionState.WeakObserved, sparse.State);
+    }
+
+    [Fact]
+    public async Task AcceptedCandidateRemainsValidWhenTranscriptProjectionIsAutoCorrected()
+    {
+        using var p = new TestProject();
+        var reference = p.Segment("reference");
+        var weak = p.Segment("weak", confidence: 0.50);
+        weak.Transcript = "かき";
+        await p.SeedAsync(reference, weak);
+
+        var supplements = Service();
+        var candidate = await Generate(p, supplements);
+        await supplements.SetAcceptedAsync(p.Workspace, candidate.CandidateId, true, Token);
+
+        var transcript = new TranscriptCorrectionService(
+            (_, _, _) => Task.FromResult(JsonSerializer.SerializeToElement(new
+            {
+                review_version = TranscriptCorrectionService.ReviewVersion,
+                candidate_transcript = "かぎ",
+                candidate_phonemes = new[] { "k", "a", "g", "i" },
+                confidence = 0.90,
+                duration_sec = 2.0,
+                changed = true,
+                machine_passed = true,
+                reasons = Array.Empty<string>()
+            })),
+            () => true);
+        var correction = new AutoCorrectionService(
+            p.DatasetRepository,
+            new AutoCorrectionRepository(),
+            transcript);
+
+        var view = await correction.BuildAsync(p.Workspace, true, Token);
+        Assert.Contains(view.Segments, x => x.SegmentId == "generated_" + candidate.CandidateId);
+        Assert.Equal("かぎ", Assert.Single(view.Segments, x => x.SegmentId == "weak").Transcript);
+    }
 
     [Fact]
     public async Task GeneratedCandidateIsNotAutomaticallyUsed()

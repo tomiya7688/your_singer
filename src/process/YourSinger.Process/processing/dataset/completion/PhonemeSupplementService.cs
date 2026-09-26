@@ -9,7 +9,9 @@ namespace YourSinger.Process.Processing.Dataset.Completion;
 
 public sealed class PhonemeSupplementService
 {
-    public const string GeneratorVersion = "speaker-phoneme-candidate-1";
+    public const string GeneratorVersion = "speaker-phoneme-candidate-2";
+    public const string LegacyGeneratorVersion = "speaker-phoneme-candidate-1";
+    public const int MinimumObservedCount = 3;
     private static readonly SemaphoreSlim SelectionLock = new(1, 1);
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -42,10 +44,36 @@ public sealed class PhonemeSupplementService
         dataset.Segments.Where(x => x.SpeakerId == speakerId && x.ContentType == SegmentContentType.Speech &&
             x.AsrConfidence >= 0.65 && x.AlignmentConfidence >= 0.65);
 
+    public static Dictionary<string, int> ReliablePhonemeCounts(UniversalVoiceDatasetRecord dataset, string speakerId) =>
+        References(dataset, speakerId)
+            .SelectMany(x => x.Phonemes)
+            .Where(x => x.Confidence >= 0.65 && !string.IsNullOrWhiteSpace(x.Phoneme))
+            .Select(x => x.Phoneme is "I" or "U" ? x.Phoneme.ToLowerInvariant() : x.Phoneme)
+            .GroupBy(x => x, StringComparer.Ordinal)
+            .ToDictionary(x => x.Key, x => x.Count(), StringComparer.Ordinal);
+
+    public static IReadOnlyList<string> SupplementTargets(UniversalVoiceDatasetRecord dataset, string speakerId)
+    {
+        var counts = ReliablePhonemeCounts(dataset, speakerId);
+        return JapaneseCoverageCatalog.CorePhonemes
+            .Concat(JapaneseCoverageCatalog.Palatalized)
+            .Concat(JapaneseCoverageCatalog.Foreign)
+            .Distinct(StringComparer.Ordinal)
+            .Where(x => counts.GetValueOrDefault(x) < MinimumObservedCount)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+    }
+
     public static string ObservationFingerprint(UniversalVoiceDatasetRecord dataset, string speakerId) =>
+        ObservationFingerprint(dataset, speakerId, GeneratorVersion);
+
+    private static string ObservationFingerprint(
+        UniversalVoiceDatasetRecord dataset,
+        string speakerId,
+        string generatorVersion) =>
         Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
         {
-            version = GeneratorVersion, dataset.SchemaVersion, dataset.StageVersion, speakerId,
+            version = generatorVersion, dataset.SchemaVersion, dataset.StageVersion, speakerId,
             segments = References(dataset, speakerId).OrderBy(x => x.SegmentId, StringComparer.Ordinal).ToArray()
         })));
 
@@ -60,6 +88,10 @@ public sealed class PhonemeSupplementService
         var source = References(snapshot, speakerId).SingleOrDefault(x => x.SegmentId == referenceSegmentId)
             ?? throw new InvalidOperationException("参照用の会話区間がありません。手動除外・話者・信頼度を確認してください。");
         var fingerprint = ObservationFingerprint(snapshot, speakerId);
+        var counts = ReliablePhonemeCounts(snapshot, speakerId);
+        var supplementTargets = SupplementTargets(snapshot, speakerId);
+        if (supplementTargets.Count == 0)
+            throw new InvalidOperationException("この話者には未観測または少量の補助対象音素がありません。");
         var referencePath = Path.GetFullPath(source.AudioPath, workspace.RootPath);
         var referenceHash = await HashAsync(referencePath, cancellationToken);
         var id = Guid.NewGuid().ToString("N");
@@ -72,8 +104,8 @@ public sealed class PhonemeSupplementService
             {
                 text, model_speaker = modelSpeaker, model_directory = Path.GetFullPath(modelDirectory),
                 reference_audio_path = referencePath, output_path = Path.Combine(directory, "candidate.wav"),
-                observed_phonemes = References(snapshot, speakerId).SelectMany(x => x.Phonemes)
-                    .Where(x => x.Confidence >= 0.65).Select(x => x.Phoneme).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray(),
+                observed_phonemes = counts.Keys.Order(StringComparer.Ordinal).ToArray(),
+                target_phonemes = supplementTargets,
                 resources_root = Path.Combine(AppContext.BaseDirectory, "workers", "models", "phoneme-supplement")
             }, cancellationToken);
             var verification = response.Deserialize<PhonemeSupplementVerification>(Json)
@@ -83,11 +115,20 @@ public sealed class PhonemeSupplementService
                 verification.AudioSha256 != await HashAsync(Path.Combine(directory, "candidate.wav"), cancellationToken) ||
                 fingerprint != ObservationFingerprint(await LoadSnapshotAsync(workspace, cancellationToken), speakerId))
                 throw new InvalidDataException("補完処理中に入力が変わりました。候補は採用しません。");
+            var targets = verification.TargetPhonemes.Count > 0
+                ? verification.TargetPhonemes
+                : verification.MissingPhonemes;
+            if (targets.Count == 0 || targets.Any(x => counts.GetValueOrDefault(x) >= MinimumObservedCount))
+                throw new InvalidDataException("生成結果に現在の補助対象ではない音素が含まれています。");
             var candidate = new PhonemeSupplementCandidate
             {
                 CandidateId = id, SpeakerId = speakerId, ReferenceSegmentId = referenceSegmentId,
                 ModelDirectory = Path.GetFullPath(modelDirectory), ModelSpeaker = modelSpeaker, Text = text,
-                ObservationFingerprint = fingerprint, AudioPath = relativeAudio, Verification = verification
+                ObservationFingerprint = fingerprint, AudioPath = relativeAudio,
+                TargetPhonemes = targets.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList(),
+                ObservedCountByPhoneme = targets.Distinct(StringComparer.Ordinal)
+                    .ToDictionary(x => x, x => counts.GetValueOrDefault(x), StringComparer.Ordinal),
+                Verification = verification
             };
             await WriteAsync(Path.Combine(directory, "candidate.json"), candidate, cancellationToken);
             return candidate;
@@ -147,8 +188,17 @@ public sealed class PhonemeSupplementService
         finally { SelectionLock.Release(); }
     }
 
-    public async Task<IReadOnlyList<CorrectionRecord>> AppendAcceptedAsync(ProjectWorkspace workspace,
-        UniversalVoiceDatasetRecord dataset, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<CorrectionRecord>> AppendAcceptedAsync(
+        ProjectWorkspace workspace,
+        UniversalVoiceDatasetRecord dataset,
+        CancellationToken cancellationToken = default) =>
+        AppendAcceptedAsync(workspace, dataset, dataset, cancellationToken);
+
+    public async Task<IReadOnlyList<CorrectionRecord>> AppendAcceptedAsync(
+        ProjectWorkspace workspace,
+        UniversalVoiceDatasetRecord dataset,
+        UniversalVoiceDatasetRecord validationDataset,
+        CancellationToken cancellationToken = default)
     {
         var selection = await LoadSelectionAsync(workspace, cancellationToken);
         var result = new List<CorrectionRecord>();
@@ -158,7 +208,7 @@ public sealed class PhonemeSupplementService
         {
             var candidate = await LoadAsync(workspace, id, cancellationToken);
             if (candidate.SpeakerId != speaker) throw new InvalidDataException("補完候補の話者が一致しません。");
-            await ValidateAsync(workspace, dataset, candidate, cancellationToken);
+            await ValidateAsync(workspace, validationDataset, candidate, cancellationToken);
             candidates.Add(candidate);
         }
         foreach (var candidate in candidates)
@@ -173,14 +223,30 @@ public sealed class PhonemeSupplementService
                 Transcript = candidate.Text
                 // 音素の時刻・観測ASR信頼度・F0を捏造しない。トーク前処理が本文から音素を作る。
             });
-            result.Add(new CorrectionRecord
+            var effectiveTargets = candidate.TargetPhonemes.Count > 0
+                ? candidate.TargetPhonemes
+                : candidate.Verification.MissingPhonemes;
+            var currentCounts = ReliablePhonemeCounts(validationDataset, candidate.SpeakerId);
+            foreach (var phoneme in effectiveTargets)
             {
-                SegmentId = segmentId, SpeakerId = candidate.SpeakerId, State = CorrectionState.Estimated,
-                Method = GeneratorVersion, ApplicationStatus = CorrectionApplicationStatus.Applied,
-                InputFingerprint = candidate.ObservationFingerprint, ResultFeaturePath = candidate.AudioPath,
-                CorrectedValue = candidate.Verification.AudioSha256,
-                Reason = "機械検証を通過し、利用者が採用した生成会話です。観測音素としては集計しません。"
-            });
+                var observedCount = candidate.ObservedCountByPhoneme.Count > 0
+                    ? candidate.ObservedCountByPhoneme.GetValueOrDefault(phoneme)
+                    : currentCounts.GetValueOrDefault(phoneme);
+                result.Add(new CorrectionRecord
+                {
+                    SegmentId = segmentId, SpeakerId = candidate.SpeakerId, Phoneme = phoneme,
+                    State = CorrectionState.Estimated,
+                    Method = observedCount == 0 ? "missing-phoneme-generation" : "sparse-phoneme-generation",
+                    ApplicationStatus = CorrectionApplicationStatus.Applied,
+                    Confidence = candidate.Verification.SpeakerSimilarity,
+                    OriginalValue = observedCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    InputFingerprint = candidate.ObservationFingerprint, ResultFeaturePath = candidate.AudioPath,
+                    CorrectedValue = candidate.Verification.AudioSha256,
+                    Reason = observedCount == 0
+                        ? "未観測音素を含む、機械検証・利用者確認済みの生成会話です。観測回数には加算しません。"
+                        : $"観測{observedCount}回の少量音素を補助する、機械検証・利用者確認済みの生成会話です。観測回数には加算しません。"
+                });
+            }
         }
         return result;
     }
@@ -189,16 +255,29 @@ public sealed class PhonemeSupplementService
         PhonemeSupplementCandidate candidate, CancellationToken token)
     {
         var v = candidate.Verification;
-        if (v.GeneratorVersion != GeneratorVersion || !v.MachinePassed || v.Reasons.Count != 0 ||
+        var legacy = v.GeneratorVersion == LegacyGeneratorVersion;
+        var targets = candidate.TargetPhonemes.Count > 0 ? candidate.TargetPhonemes : v.MissingPhonemes;
+        var counts = ReliablePhonemeCounts(snapshot, candidate.SpeakerId);
+        if ((!legacy && v.GeneratorVersion != GeneratorVersion) || !v.MachinePassed || v.Reasons.Count != 0 ||
             v.ExpectedPhonemes.Count == 0 || !v.ExpectedPhonemes.SequenceEqual(v.RecognizedPhonemes, StringComparer.Ordinal) ||
-            v.MissingPhonemes.Count == 0 || v.MissingPhonemes.Any(x => !v.ExpectedPhonemes.Contains(x, StringComparer.Ordinal)) ||
+            targets.Count == 0 || targets.Any(x => !v.ExpectedPhonemes.Contains(x, StringComparer.Ordinal)) ||
+            targets.Any(x => counts.GetValueOrDefault(x) >= MinimumObservedCount) ||
+            v.MissingPhonemes.Any(x => counts.GetValueOrDefault(x) != 0 || !targets.Contains(x, StringComparer.Ordinal)) ||
             !double.IsFinite(v.AsrAvgLogprob) || v.AsrAvgLogprob < -0.50 || v.AsrAvgLogprob > 0 ||
             !InRange(v.SpeakerSimilarity, 0.80, 1) || !InRange(v.NoSpeechProbability, 0, 0.20) ||
             !InRange(v.DurationSec, 2, 14) || !InRange(v.Rms, 0.008, 1) ||
             !InRange(v.ClippingRatio, 0, 0.001) || !InRange(v.SilenceRatio, 0, 0.60) ||
             !IsHash(v.ModelFingerprint) || !IsHash(v.ReferenceSha256) || !IsHash(v.AudioSha256))
             throw new InvalidDataException("この補完候補は検証条件を満たしません。学習には採用できません。");
-        if (candidate.ObservationFingerprint != ObservationFingerprint(snapshot, candidate.SpeakerId))
+        if (candidate.ObservedCountByPhoneme.Count > 0 &&
+            candidate.ObservedCountByPhoneme.Any(x =>
+                !targets.Contains(x.Key, StringComparer.Ordinal) || counts.GetValueOrDefault(x.Key) != x.Value))
+            throw new InvalidOperationException("補助対象音素の観測回数が変わっています。候補を作り直してください。");
+        var expectedObservationFingerprint = ObservationFingerprint(
+            snapshot,
+            candidate.SpeakerId,
+            legacy ? LegacyGeneratorVersion : GeneratorVersion);
+        if (candidate.ObservationFingerprint != expectedObservationFingerprint)
             throw new InvalidOperationException("観測データや手動編集が変わっています。補完候補を作り直すか、採用を解除してください。");
         var reference = References(snapshot, candidate.SpeakerId).SingleOrDefault(x => x.SegmentId == candidate.ReferenceSegmentId)
             ?? throw new InvalidDataException("補完の参照区間がありません。");
