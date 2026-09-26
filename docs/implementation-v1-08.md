@@ -90,3 +90,44 @@ features/completion/short-vowel-gap-1/<入力指紋>/
 - 音素候補生成のAPI・モデル資料は `docs/phoneme-supplements.md` に記載。
 
 音高補完はPraatアルゴリズムの再実装ではなく、候補周期の限定的な検証である。
+
+
+## 文字起こしの自動再確認（v1-08.5）
+
+低信頼の文字起こしを即座に別文字列へ置き換えない。
+自動補正ON時に限り、ASR信頼度0.35以上0.65未満かつalignment confidence 0.35以上の観測会話・歌唱区間を再確認する。
+0.35未満の区間は従来どおり外れ値として除外し、この再確認で救済しない。
+
+同梱ASRを次の2条件で再実行する。
+
+- beam size 5
+- beam size 1
+
+両結果をpyopenjtalkで音素化し、音素列が完全一致した場合だけ補正候補とする。
+さらに次をすべて満たす必要がある。
+
+- 2方式のうち低い方の再認識信頼度が0.72以上
+- 観測ASR confidenceから0.12以上改善
+- 正規化後の文字起こしが元観測と異なる
+- 候補文字列・音素列・音声長が有効
+
+条件を満たした場合、学習用投影の `Transcript`、`Phonemes`、`AsrConfidence`、`AlignmentConfidence` だけを更新する。
+観測UVDは保存し直さない。
+補正OFFにすると観測値へ戻る。
+
+CorrectionRecordには次を保存する。
+
+- state: corrected または weak_observed
+- method: transcript-consensus-1
+- application_status: applied または deferred
+- original_value
+- corrected_value
+- confidence
+- 採用・保留理由
+
+手動transcript overrideがある区間は対象外とし、利用者の編集を自動補正で上書きしない。
+同梱workerまたはASRモデルがない場合も処理全体を失敗させず、deferredとして観測値を保持する。
+worker自体の破損や不正応答など、単なる未配置ではない異常は成功扱いにせずエラーとする。
+
+この方式は2つの独立した認識モデルによる多数決ではなく、同じローカルASRのdecode条件違いによる整合確認である。
+そのため自動補正が常に正しいことを意味しない。実素材での誤訂正率・改善率の評価は#15の実測対象とする。
