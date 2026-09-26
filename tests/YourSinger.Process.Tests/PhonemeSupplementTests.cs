@@ -141,6 +141,28 @@ public sealed class PhonemeSupplementTests
     }
 
     [Fact]
+    public async Task DevoicedVowelsShareCountsWithRegularVowels()
+    {
+        using var p = new TestProject();
+        var reference = p.Segment("reference");
+        reference.Phonemes.Clear();
+        reference.Phonemes.Add(new() { Phoneme = "I", StartSec = 0, EndSec = 0.3, Confidence = 0.95 });
+        reference.Phonemes.Add(new() { Phoneme = "i", StartSec = 0.3, EndSec = 0.6, Confidence = 0.95 });
+        reference.Phonemes.Add(new() { Phoneme = "U", StartSec = 0.6, EndSec = 0.9, Confidence = 0.95 });
+        reference.Phonemes.Add(new() { Phoneme = "u", StartSec = 0.9, EndSec = 1.2, Confidence = 0.95 });
+        await p.SeedAsync(reference);
+
+        var snapshot = await new TrainingDatasetSnapshotService(p.DatasetRepository)
+            .LoadAsync(p.Workspace, Token);
+        var counts = PhonemeSupplementService.ObservedPhonemeCounts(snapshot, "spk_a");
+
+        Assert.Equal(2, counts["i"]);
+        Assert.Equal(2, counts["u"]);
+        Assert.False(counts.ContainsKey("I"));
+        Assert.False(counts.ContainsKey("U"));
+    }
+
+    [Fact]
     public async Task FailedMachineValidationCannotBeAccepted()
     {
         using var p = new TestProject(); await p.SeedAsync(p.Segment("reference"));
