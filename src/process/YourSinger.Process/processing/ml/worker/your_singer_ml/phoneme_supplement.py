@@ -57,7 +57,8 @@ def _phones(values) -> list[str]:
     if not isinstance(values, list) or not values or len(values) > 512 or any(
             not isinstance(x, str) or not x.strip() for x in values):
         raise ValueError("音素列を取得できませんでした。文字列への代替処理は行いません。")
-    return [x for x in values if x not in {"sil", "pau", "sp", "_"}]
+    return [("i" if x == "I" else "u" if x == "U" else x)
+            for x in values if x not in {"sil", "pau", "sp", "_"}]
 
 
 def generate_phoneme_candidate(payload: dict, backend_factory=None) -> dict:
