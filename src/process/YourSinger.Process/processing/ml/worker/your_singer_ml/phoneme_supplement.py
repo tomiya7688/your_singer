@@ -10,7 +10,7 @@ import sys
 import wave
 from pathlib import Path
 
-VERSION = "speaker-phoneme-candidate-1"
+VERSION = "speaker-phoneme-candidate-2"
 MIN_SIMILARITY = 0.80  # 未校正の採用基準。本人である確率ではない。
 MIN_LOGPROB = -0.50
 MAX_NO_SPEECH = 0.20
@@ -72,6 +72,12 @@ def generate_phoneme_candidate(payload: dict, backend_factory=None) -> dict:
     observed = payload.get("observed_phonemes")
     if not isinstance(observed, list) or not all(isinstance(x, str) for x in observed):
         raise ValueError("観測音素の一覧が不正です。")
+    requested_targets = payload.get("target_phonemes")
+    if requested_targets is not None and (
+            not isinstance(requested_targets, list)
+            or not requested_targets
+            or any(not isinstance(x, str) or not x.strip() for x in requested_targets)):
+        raise ValueError("補助対象音素の一覧が不正です。")
     if backend_factory is None:
         from .runtime_preflight import check_phoneme_supplement_runtime
         runtime = check_phoneme_supplement_runtime({
@@ -95,8 +101,13 @@ def generate_phoneme_candidate(payload: dict, backend_factory=None) -> dict:
     backend = (backend_factory or LocalModels)(payload)
     expected = _phones(backend.phonemize(text))
     missing = sorted(set(expected).difference(observed))
-    if not missing:
-        raise ValueError("指定文章には、この話者に未観測の音素がありません。")
+    if requested_targets is None:
+        targets = list(missing)
+    else:
+        requested = set(requested_targets)
+        targets = list(dict.fromkeys(x for x in expected if x in requested))
+    if not targets:
+        raise ValueError("指定文章には、この話者の補助対象音素がありません。")
     created = False
     try:
         rate, samples = backend.synthesize(text, speaker)
@@ -135,6 +146,7 @@ def generate_phoneme_candidate(payload: dict, backend_factory=None) -> dict:
                 "reference_sha256": reference_hash, "audio_sha256": file_hash(output),
                 "recognized_text": recognized, "expected_phonemes": expected,
                 "recognized_phonemes": actual, "missing_phonemes": missing,
+                "target_phonemes": targets,
                 "speaker_similarity": similarity, "asr_avg_logprob": avg_logprob,
                 "no_speech_probability": no_speech, "machine_passed": not reasons,
                 "reasons": reasons, **facts}
