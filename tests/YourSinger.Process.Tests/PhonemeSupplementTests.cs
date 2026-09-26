@@ -72,6 +72,58 @@ public sealed class PhonemeSupplementTests
         Assert.DoesNotContain("a", PhonemeSupplementService.SupplementTargets(snapshot, "spk_a"));
     }
 
+
+    [Fact]
+    public async Task SparsePhonemeIsTrackedAsDeferredBeforeCandidateAcceptance()
+    {
+        using var p = new TestProject();
+        await p.SeedAsync(p.Segment("reference"));
+        var view = await p.Correction().BuildAsync(p.Workspace, true, Token);
+
+        var sparse = Assert.Single(view.AppliedCorrections, x =>
+            x.Method == "sparse-phoneme-generation" &&
+            x.Phoneme == "a" &&
+            x.ApplicationStatus == CorrectionApplicationStatus.Deferred);
+        Assert.Equal("1", sparse.OriginalValue);
+        Assert.Equal(CorrectionState.WeakObserved, sparse.State);
+    }
+
+    [Fact]
+    public async Task AcceptedCandidateRemainsValidWhenTranscriptProjectionIsAutoCorrected()
+    {
+        using var p = new TestProject();
+        var reference = p.Segment("reference");
+        var weak = p.Segment("weak", confidence: 0.50);
+        weak.Transcript = "かき";
+        await p.SeedAsync(reference, weak);
+
+        var supplements = Service();
+        var candidate = await Generate(p, supplements);
+        await supplements.SetAcceptedAsync(p.Workspace, candidate.CandidateId, true, Token);
+
+        var transcript = new TranscriptCorrectionService(
+            (_, _, _) => Task.FromResult(JsonSerializer.SerializeToElement(new
+            {
+                review_version = TranscriptCorrectionService.ReviewVersion,
+                candidate_transcript = "かぎ",
+                candidate_phonemes = new[] { "k", "a", "g", "i" },
+                confidence = 0.90,
+                duration_sec = 2.0,
+                changed = true,
+                machine_passed = true,
+                reasons = Array.Empty<string>()
+            })),
+            () => true);
+        var correction = new AutoCorrectionService(
+            p.DatasetRepository,
+            new AutoCorrectionRepository(),
+            transcript);
+
+        var view = await correction.BuildAsync(p.Workspace, true, Token);
+        Assert.Contains(view.Segments, x => x.SegmentId == "generated_" + candidate.CandidateId);
+        Assert.Equal("かぎ", Assert.Single(view.Segments, x => x.SegmentId == "weak").Transcript);
+    }
+
     [Fact]
     public async Task GeneratedCandidateIsNotAutomaticallyUsed()
     {
