@@ -35,10 +35,10 @@ public sealed class PhonemeSupplementWindow : Window
     public PhonemeSupplementWindow(ProjectWorkspace workspace)
     {
         _workspace = workspace;
-        Title = "音素補完候補（実験）"; Width = 800; Height = 790; MinWidth = 600; MinHeight = 580;
+        Title = "音素補完・少量音素補助（実験）"; Width = 800; Height = 790; MinWidth = 600; MinHeight = 580;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Content = new ScrollViewer { Content = _panel, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
-        AddText("対象話者の学習済みStyle-Bert-VITS2モデルから会話の補完候補を生成します。初回モデルを作る機能ではありません。信頼できるモデルだけを指定してください。");
+        AddText("対象話者の学習済みStyle-Bert-VITS2モデルから、未観測または信頼できる観測が1～2回しかない音素を補助する会話候補を生成します。初回モデルを作る機能ではありません。信頼できるモデルだけを指定してください。");
         _panel.Children.Add(_runtimeStatus);
         AddButton("補完環境を確認", CheckRuntimeAsync);
         AddText("参照する観測会話（同じ話者の、2～14秒の明瞭な区間）");
@@ -46,7 +46,7 @@ public sealed class PhonemeSupplementWindow : Window
         AddText("生成モデルのフォルダ（config.json・style_vectors.npy・safetensors 1件）");
         _panel.Children.Add(_modelPath); AddButton("生成モデルを選ぶ", SelectModelAsync);
         AddText("モデル内の話者名"); _panel.Children.Add(_modelSpeaker);
-        AddText("未観測の音素を含む日本語文章（120文字以内）"); _panel.Children.Add(_text);
+        AddText("未観測または出現量が少ない音素を含む日本語文章（120文字以内）"); _panel.Children.Add(_text);
         AddButton("補完候補を生成・検証する", GenerateAsync);
         AddText("候補一覧。機械検証の通過だけでは学習に追加しません。");
         _panel.Children.Add(_candidates); _panel.Children.Add(_details);
@@ -56,7 +56,9 @@ public sealed class PhonemeSupplementWindow : Window
             if (_candidates.SelectedItem is not CandidateRow row) { _details.Text = "候補を選択してください。"; return; }
             var v = row.Candidate.Verification;
             _details.Text = $"対象: {row.Candidate.SpeakerId} / 文章: {row.Candidate.Text}\n" +
-                $"未観測音素: {string.Join(" ", v.MissingPhonemes)}\n再認識: {v.RecognizedText}\n" +
+                $"補助対象: {string.Join(" ", v.AssistedPhonemes)}\n" +
+                $"未観測: {string.Join(" ", v.MissingPhonemes)} / 少量(1～2回): {string.Join(" ", v.SparsePhonemes)}\n" +
+                $"再認識: {v.RecognizedText}\n" +
                 $"話者類似度: {v.SpeakerSimilarity:0.000}（本人の確率ではありません）\n" + string.Join("\n", v.Reasons);
         };
         AddButton("選択した候補を試聴", async _ =>
@@ -65,7 +67,7 @@ public sealed class PhonemeSupplementWindow : Window
             System.Diagnostics.Process.Start(new ProcessStartInfo(Path.Combine(_workspace.RootPath, candidate.AudioPath)) { UseShellExecute = true });
         });
         _panel.Children.Add(_reviewed);
-        AddText("採用は話者ごとに1文章までです。別候補を採用すると切り替わります。補完ONのトーク学習だけに追加し、録音済み音素の数は増やしません。");
+        AddText("採用は話者ごとに1文章までです。1文章で複数の不足・少量音素を補助できます。別候補を採用すると切り替わります。補完ONのトーク学習だけに追加し、録音済み音素の数や50音カバレッジは増やしません。");
         AddButton("確認した候補をトーク学習へ採用", async token =>
         {
             if (_reviewed.IsChecked != true) throw new InvalidOperationException("先に試聴して、発音と話者を確認してください。");
