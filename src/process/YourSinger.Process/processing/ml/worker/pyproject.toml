@@ -6,8 +6,13 @@ dependencies = [
   "demucs==4.0.1",
   "speechbrain==1.1.1",
   "scikit-learn==1.9.1",
-  "faster-whisper>=1.1,<2",
+  "faster-whisper==1.1.1",
   "pyopenjtalk==0.4.1"
+]
+
+[project.optional-dependencies]
+phoneme-supplement = [
+  "style-bert-vits2 @ https://github.com/litagin02/Style-Bert-VITS2/archive/d8148f3090ee5038ca7b4e4b327116c64467f952.zip"
 ]
 
 [project.scripts]
@@ -16,3 +21,7 @@ your-singer-ml-worker = "your_singer_ml.main:main"
 [build-system]
 requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
+
+
+[tool.setuptools.packages.find]
+include = ["your_singer_ml*"]

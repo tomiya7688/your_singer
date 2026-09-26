@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "resources": [
+    {
+      "name": "japanese-bert",
+      "repo_id": "ku-nlp/deberta-v2-large-japanese-char-wwm",
+      "revision": "dfd9b4461979b281b3b9f162e50066cc88f08ed3",
+      "license": "CC-BY-SA-4.0",
+      "allow_patterns": ["README.md","config.json","model.safetensors","special_tokens_map.json","tokenizer_config.json","vocab.txt"]
+    },
+    {
+      "name": "asr",
+      "repo_id": "Systran/faster-whisper-small",
+      "revision": "536b0662742c02347bc0e980a01041f333bce120",
+      "license": "MIT",
+      "allow_patterns": ["README.md","config.json","model.bin","tokenizer.json","vocabulary.txt"]
+    },
+    {
+      "name": "speaker",
+      "repo_id": "speechbrain/spkrec-ecapa-voxceleb",
+      "revision": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
+      "license": "Apache-2.0",
+      "allow_patterns": ["README.md","classifier.ckpt","config.json","embedding_model.ckpt","hyperparams.yaml","label_encoder.txt","mean_var_norm_emb.ckpt"]
+    }
+  ]
+}
