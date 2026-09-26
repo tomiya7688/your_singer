@@ -31,7 +31,8 @@ class CandidateTests(unittest.TestCase):
         self.reference = self.root / 'reference.wav'
         with wave.open(str(self.reference), 'wb') as w:
             w.setnchannels(1); w.setsampwidth(2); w.setframerate(48000); w.writeframes(tone().tobytes())
-        self.payload = {'text': 'か', 'model_speaker': '話者', 'observed_phonemes': ['a'],
+        self.payload = {'text': 'か', 'model_speaker': '話者',
+                        'observed_phoneme_counts': {'a': 1}, 'assist_threshold': 3,
                         'reference_audio_path': str(self.reference), 'output_path': str(self.root / 'candidate.wav')}
 
     def run_candidate(self, cls=FakeModels):
@@ -43,10 +44,22 @@ class CandidateTests(unittest.TestCase):
         self.assertTrue(result['machine_passed'])
         self.assertNotIn('accepted', result)
         self.assertEqual(['k'], result['missing_phonemes'])
+        self.assertEqual(['a'], result['sparse_phonemes'])
+        self.assertEqual(['a', 'k'], result['assisted_phonemes'])
         self.assertEqual(3.0, result['duration_sec'])
         self.assertEqual(file_hash(Path(self.payload['output_path'])), result['audio_sha256'])
         self.assertEqual(before, file_hash(self.reference))
         json.dumps(result, allow_nan=False)
+
+    def test_devoiced_vowels_are_normalized(self):
+        class Devoiced(FakeModels):
+            def phonemize(self, text): return ['I', 'U']
+            def recognize(self, path): return 'か', -0.1, 0.01
+        self.payload['observed_phoneme_counts'] = {'i': 1, 'u': 3}
+        result = self.run_candidate(Devoiced)
+        self.assertEqual(['i', 'u'], result['expected_phonemes'])
+        self.assertEqual(['i'], result['sparse_phonemes'])
+        self.assertEqual(['i'], result['assisted_phonemes'])
 
     def test_wrong_transcript_is_not_adoptable(self):
         class Wrong(FakeModels):
@@ -90,10 +103,24 @@ class CandidateTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.run_candidate(Changed)
         self.assertFalse(Path(self.payload['output_path']).exists())
 
-    def test_no_missing_phone_does_not_generate(self):
-        self.payload['observed_phonemes'] = ['a','k']
+    def test_sparse_phone_can_generate_without_missing_phone(self):
+        self.payload['observed_phoneme_counts'] = {'a': 3, 'k': 1}
+        result = self.run_candidate()
+        self.assertEqual([], result['missing_phonemes'])
+        self.assertEqual(['k'], result['sparse_phonemes'])
+        self.assertEqual(['k'], result['assisted_phonemes'])
+
+    def test_no_assist_target_does_not_generate(self):
+        self.payload['observed_phoneme_counts'] = {'a': 3, 'k': 3}
         with self.assertRaises(ValueError): self.run_candidate()
         self.assertFalse(Path(self.payload['output_path']).exists())
+
+    def test_invalid_counts_or_threshold_fail_before_models(self):
+        for counts, threshold in [([], 3), ({'a': -1}, 3), ({'a': True}, 3), ({'a': 1}, 4)]:
+            with self.subTest(counts=counts, threshold=threshold):
+                self.payload['observed_phoneme_counts'] = counts
+                self.payload['assist_threshold'] = threshold
+                with self.assertRaises(ValueError): self.run_candidate()
 
     def test_existing_output_is_preserved(self):
         path = Path(self.payload['output_path']); path.write_bytes(b'original')

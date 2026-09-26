@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using YourSinger.Data.Models;
+using YourSinger.Process.Processing.Dataset;
 using YourSinger.Process.Processing.Dataset.Completion;
 using YourSinger.Process.Processing.Talk;
 
@@ -16,14 +17,24 @@ public sealed class PhonemeSupplementTests
         var path = input.GetProperty("output_path").GetString()!;
         TestProject.WriteWave(path);
         var reference = input.GetProperty("reference_audio_path").GetString()!;
+        var counts = input.GetProperty("observed_phoneme_counts").EnumerateObject()
+            .ToDictionary(x => x.Name, x => x.Value.GetInt32(), StringComparer.Ordinal);
+        var expected = new[] { "k", "a" };
+        var assisted = expected.Distinct(StringComparer.Ordinal)
+            .Where(x => counts.GetValueOrDefault(x) < PhonemeSupplementService.AssistThreshold)
+            .Order(StringComparer.Ordinal).ToArray();
+        var missing = assisted.Where(x => counts.GetValueOrDefault(x) == 0).Order(StringComparer.Ordinal).ToArray();
+        var sparse = assisted.Where(x => counts.GetValueOrDefault(x) is > 0 and < PhonemeSupplementService.AssistThreshold)
+            .Order(StringComparer.Ordinal).ToArray();
         return JsonSerializer.SerializeToElement(new
         {
             generator_version = PhonemeSupplementService.GeneratorVersion,
             model_fingerprint = new string('a', 64),
             reference_sha256 = Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(reference, token))),
             audio_sha256 = Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(path, token))),
-            recognized_text = "か", expected_phonemes = new[] { "k", "a" }, recognized_phonemes = new[] { "k", "a" },
-            missing_phonemes = new[] { "k" }, speaker_similarity = 0.95, asr_avg_logprob = -0.1,
+            recognized_text = "か", expected_phonemes = expected, recognized_phonemes = expected,
+            missing_phonemes = missing, sparse_phonemes = sparse, assisted_phonemes = assisted,
+            speaker_similarity = 0.95, asr_avg_logprob = -0.1,
             no_speech_probability = 0.01, duration_sec = 3, rms = 0.1, clipping_ratio = 0,
             silence_ratio = 0.1, machine_passed = passed, reasons = passed ? Array.Empty<string>() : ["検証不合格"]
         });
@@ -70,6 +81,85 @@ public sealed class PhonemeSupplementTests
         await service.SetAcceptedAsync(p.Workspace, candidate.CandidateId, true, Token);
         Assert.Single((await p.Correction().BuildAsync(p.Workspace, false, Token)).Segments);
         Assert.Equal(2, (await p.Correction().BuildAsync(p.Workspace, true, Token)).Segments.Count);
+    }
+
+    [Fact]
+    public async Task SparseOnlyPhonemeCanBeSupplementedWithoutMissingPhoneme()
+    {
+        using var p = new TestProject();
+        var reference = p.Segment("reference");
+        reference.Phonemes.Add(new() { Phoneme = "k", StartSec = 0, EndSec = 0.2, Confidence = 0.95 });
+        reference.Phonemes.Add(new() { Phoneme = "k", StartSec = 0.2, EndSec = 0.4, Confidence = 0.95 });
+        reference.Phonemes.Add(new() { Phoneme = "k", StartSec = 0.4, EndSec = 0.6, Confidence = 0.95 });
+        await p.SeedAsync(reference);
+
+        var service = Service();
+        var candidate = await Generate(p, service);
+
+        Assert.Empty(candidate.Verification.MissingPhonemes);
+        Assert.Equal(new[] { "a" }, candidate.Verification.SparsePhonemes);
+        Assert.Equal(new[] { "a" }, candidate.Verification.AssistedPhonemes);
+
+        await service.SetAcceptedAsync(p.Workspace, candidate.CandidateId, true, Token);
+        var view = await p.Correction().BuildAsync(p.Workspace, true, Token);
+        Assert.Contains(view.Segments, x => x.SegmentId == "generated_" + candidate.CandidateId);
+        Assert.Contains(view.AppliedCorrections, x =>
+            x.Method == "sparse-phoneme-generation" &&
+            x.Phoneme == "a" &&
+            x.ApplicationStatus == CorrectionApplicationStatus.Deferred);
+        Assert.Contains(view.AppliedCorrections, x =>
+            x.Method == PhonemeSupplementService.GeneratorVersion &&
+            x.Reason!.Contains("補助対象: a", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SingingObservationsDoNotSatisfyTalkSparseThreshold()
+    {
+        using var p = new TestProject();
+        var speech = p.Segment("reference");
+        speech.Phonemes.Add(new() { Phoneme = "k", StartSec = 0, EndSec = 0.2, Confidence = 0.95 });
+        speech.Phonemes.Add(new() { Phoneme = "k", StartSec = 0.2, EndSec = 0.4, Confidence = 0.95 });
+        speech.Phonemes.Add(new() { Phoneme = "k", StartSec = 0.4, EndSec = 0.6, Confidence = 0.95 });
+        var singing = p.Segment("song", type: SegmentContentType.Singing);
+        singing.Phonemes.Clear();
+        singing.Phonemes.Add(new() { Phoneme = "a", StartSec = 0, EndSec = 0.4, Confidence = 0.95 });
+        singing.Phonemes.Add(new() { Phoneme = "a", StartSec = 0.4, EndSec = 0.8, Confidence = 0.95 });
+        singing.Phonemes.Add(new() { Phoneme = "a", StartSec = 0.8, EndSec = 1.2, Confidence = 0.95 });
+        await p.SeedAsync(speech, singing);
+
+        var counts = PhonemeSupplementService.ObservedPhonemeCounts(
+            await new TrainingDatasetSnapshotService(p.DatasetRepository).LoadAsync(p.Workspace, Token),
+            "spk_a");
+
+        Assert.Equal(1, counts["a"]);
+        Assert.Equal(3, counts["k"]);
+
+        var service = Service();
+        var candidate = await Generate(p, service);
+        Assert.Empty(candidate.Verification.MissingPhonemes);
+        Assert.Equal(new[] { "a" }, candidate.Verification.SparsePhonemes);
+    }
+
+    [Fact]
+    public async Task DevoicedVowelsShareCountsWithRegularVowels()
+    {
+        using var p = new TestProject();
+        var reference = p.Segment("reference");
+        reference.Phonemes.Clear();
+        reference.Phonemes.Add(new() { Phoneme = "I", StartSec = 0, EndSec = 0.3, Confidence = 0.95 });
+        reference.Phonemes.Add(new() { Phoneme = "i", StartSec = 0.3, EndSec = 0.6, Confidence = 0.95 });
+        reference.Phonemes.Add(new() { Phoneme = "U", StartSec = 0.6, EndSec = 0.9, Confidence = 0.95 });
+        reference.Phonemes.Add(new() { Phoneme = "u", StartSec = 0.9, EndSec = 1.2, Confidence = 0.95 });
+        await p.SeedAsync(reference);
+
+        var snapshot = await new TrainingDatasetSnapshotService(p.DatasetRepository)
+            .LoadAsync(p.Workspace, Token);
+        var counts = PhonemeSupplementService.ObservedPhonemeCounts(snapshot, "spk_a");
+
+        Assert.Equal(2, counts["i"]);
+        Assert.Equal(2, counts["u"]);
+        Assert.False(counts.ContainsKey("I"));
+        Assert.False(counts.ContainsKey("U"));
     }
 
     [Fact]
