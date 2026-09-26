@@ -112,6 +112,34 @@ public sealed class PhonemeSupplementTests
     }
 
     [Fact]
+    public async Task SingingObservationsDoNotSatisfyTalkSparseThreshold()
+    {
+        using var p = new TestProject();
+        var speech = p.Segment("reference");
+        speech.Phonemes.Add(new() { Phoneme = "k", StartSec = 0, EndSec = 0.2, Confidence = 0.95 });
+        speech.Phonemes.Add(new() { Phoneme = "k", StartSec = 0.2, EndSec = 0.4, Confidence = 0.95 });
+        speech.Phonemes.Add(new() { Phoneme = "k", StartSec = 0.4, EndSec = 0.6, Confidence = 0.95 });
+        var singing = p.Segment("song", type: SegmentContentType.Singing);
+        singing.Phonemes.Clear();
+        singing.Phonemes.Add(new() { Phoneme = "a", StartSec = 0, EndSec = 0.4, Confidence = 0.95 });
+        singing.Phonemes.Add(new() { Phoneme = "a", StartSec = 0.4, EndSec = 0.8, Confidence = 0.95 });
+        singing.Phonemes.Add(new() { Phoneme = "a", StartSec = 0.8, EndSec = 1.2, Confidence = 0.95 });
+        await p.SeedAsync(speech, singing);
+
+        var counts = PhonemeSupplementService.ObservedPhonemeCounts(
+            await new TrainingDatasetSnapshotService(p.DatasetRepository).LoadAsync(p.Workspace, Token),
+            "spk_a");
+
+        Assert.Equal(1, counts["a"]);
+        Assert.Equal(3, counts["k"]);
+
+        var service = Service();
+        var candidate = await Generate(p, service);
+        Assert.Empty(candidate.Verification.MissingPhonemes);
+        Assert.Equal(new[] { "a" }, candidate.Verification.SparsePhonemes);
+    }
+
+    [Fact]
     public async Task FailedMachineValidationCannotBeAccepted()
     {
         using var p = new TestProject(); await p.SeedAsync(p.Segment("reference"));
