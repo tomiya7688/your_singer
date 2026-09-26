@@ -7,7 +7,7 @@ namespace YourSinger.Process.Processing.Dataset;
 
 public sealed class AutoCorrectionService
 {
-    public const string StageVersion = "v1-08.6";
+    public const string StageVersion = "v1-08.7";
     private readonly UniversalVoiceDatasetRepository _datasetRepository;
     private readonly AutoCorrectionRepository _correctionRepository;
     private readonly TranscriptCorrectionService _transcriptCorrection;
