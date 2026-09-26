@@ -80,34 +80,36 @@ public sealed class AutoCorrectionService
         }
         var rejectedIds = result.Where(x => x.State == CorrectionState.Rejected).Select(x => x.SegmentId).ToHashSet(StringComparer.Ordinal);
         // 観測音素の不足は、生成候補を採用しても観測済みに書き換えない。
-        foreach (var group in dataset.Segments.Where(x => !rejectedIds.Contains(x.SegmentId) && x.SpeakerId is not null)
-                     .GroupBy(x => x.SpeakerId!, StringComparer.Ordinal).OrderBy(x => x.Key, StringComparer.Ordinal))
+        foreach (var speakerId in dataset.Segments
+                     .Where(x => !rejectedIds.Contains(x.SegmentId) && x.SpeakerId is not null)
+                     .Select(x => x.SpeakerId!)
+                     .Distinct(StringComparer.Ordinal)
+                     .Order(StringComparer.Ordinal))
         {
-            var counts = group.SelectMany(x => x.Phonemes)
-                .Where(x => x.Confidence >= 0.65)
-                .GroupBy(x => x.Phoneme, StringComparer.Ordinal)
-                .ToDictionary(x => x.Key, x => x.Count(), StringComparer.Ordinal);
+            // 生成会話はトーク学習だけへ追加するため、候補生成と同じく
+            // 信頼できるSpeech観測だけで不足・少量を判定する。
+            var counts = PhonemeSupplementService.ObservedPhonemeCounts(dataset, speakerId);
             foreach (var phone in JapaneseCoverageCatalog.CorePhonemes.Order(StringComparer.Ordinal))
             {
                 var count = counts.GetValueOrDefault(phone);
                 if (count == 0)
                     result.Add(new CorrectionRecord
                     {
-                        SegmentId = "__dataset__", SpeakerId = group.Key, Phoneme = phone,
+                        SegmentId = "__dataset__", SpeakerId = speakerId, Phoneme = phone,
                         State = CorrectionState.Estimated, Method = "missing-phoneme-generation",
                         ApplicationStatus = CorrectionApplicationStatus.Deferred,
                         Confidence = 0,
-                        Reason = "この話者に未観測の音素です。生成データの採用記録は観測とは別に保持します。"
+                        Reason = "この話者の信頼できる会話観測にない音素です。生成データの採用記録は観測とは別に保持します。"
                     });
                 else if (count < PhonemeSupplementService.AssistThreshold)
                     result.Add(new CorrectionRecord
                     {
-                        SegmentId = "__dataset__", SpeakerId = group.Key, Phoneme = phone,
+                        SegmentId = "__dataset__", SpeakerId = speakerId, Phoneme = phone,
                         State = CorrectionState.WeakObserved, Method = "sparse-phoneme-generation",
                         ApplicationStatus = CorrectionApplicationStatus.Deferred,
                         Confidence = count / (double)PhonemeSupplementService.AssistThreshold,
                         OriginalValue = count.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        Reason = $"この話者で信頼できる観測が{count}回だけの音素です。採用した生成会話で補助できますが、観測回数自体は増やしません。"
+                        Reason = $"この話者の信頼できる会話観測が{count}回だけの音素です。採用した生成会話で補助できますが、観測回数自体は増やしません。"
                     });
             }
         }
