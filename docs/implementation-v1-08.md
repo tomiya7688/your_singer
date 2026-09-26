@@ -131,3 +131,27 @@ worker自体の破損や不正応答など、単なる未配置ではない異�
 
 この方式は2つの独立した認識モデルによる多数決ではなく、同じローカルASRのdecode条件違いによる整合確認である。
 そのため自動補正が常に正しいことを意味しない。実素材での誤訂正率・改善率の評価は#15の実測対象とする。
+
+
+## 他音素からの話者特徴推定（v1-08.7）
+
+採用済み生成会話には、生成器が出した音声から直接抽出した値を「観測済みSpeakerEmbedding」として保存しない。
+同じ話者の信頼できる観測区間から、補助対象音素以外を含む区間だけを参照し、話者特徴を推定する。
+
+`SpeakerFeatureEstimator` は次を満たす観測区間を使う。
+
+- 同一話者
+- source_id が `generated:` ではない
+- ASR / alignment confidence が0.65以上
+- SpeakerEmbeddingが存在し有限値
+- confidence 0.65以上の音素に、今回の補助対象以外の音素が少なくとも1つある
+
+参照特徴の次元が一致する場合だけ平均し、L2正規化して生成区間の学習用 `SpeakerEmbedding` へ設定する。
+CorrectionRecordには `estimated / applied`、method `cross-phoneme-speaker-feature-estimation`、推定ベクトル、候補生成時の話者類似度をconfidenceとして保存する。
+
+対象音素しか含まない観測しかない、特徴がない、次元が不一致、不正値、平均ノルムが0の場合は `estimated / deferred` とし、空のSpeakerEmbeddingを維持する。
+生成区間は推定元から除外するため、生成データを使って次の生成データの話者特徴を再帰的に補強しない。
+
+この値は本人性を保証する埋め込みではなく、既存の話者クラスタで保持している特徴を「別音素の観測から引き継いだ推定値」と明示するための構造である。
+現在のStyle-Bert-VITS2/DiffSinger Dataset Builderがこの埋め込みを直接学習条件として消費するわけではない。
+将来の共通モデル・独自Exporterが利用できる中間特徴として保持する。
