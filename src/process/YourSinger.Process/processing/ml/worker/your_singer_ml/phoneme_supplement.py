@@ -10,7 +10,8 @@ import sys
 import wave
 from pathlib import Path
 
-VERSION = "speaker-phoneme-candidate-1"
+VERSION = "speaker-phoneme-candidate-2"
+ASSIST_THRESHOLD = 3
 MIN_SIMILARITY = 0.80  # 未校正の採用基準。本人である確率ではない。
 MIN_LOGPROB = -0.50
 MAX_NO_SPEECH = 0.20
@@ -69,9 +70,15 @@ def generate_phoneme_candidate(payload: dict, backend_factory=None) -> dict:
     speaker = payload.get("model_speaker")
     if not isinstance(speaker, str) or not speaker.strip():
         raise ValueError("生成モデルの話者名を選択してください。")
-    observed = payload.get("observed_phonemes")
-    if not isinstance(observed, list) or not all(isinstance(x, str) for x in observed):
-        raise ValueError("観測音素の一覧が不正です。")
+    counts = payload.get("observed_phoneme_counts")
+    if not isinstance(counts, dict) or any(
+            not isinstance(phone, str) or not phone.strip() or
+            not isinstance(count, int) or isinstance(count, bool) or count < 0 or count > 1_000_000
+            for phone, count in counts.items()):
+        raise ValueError("観測音素の回数が不正です。")
+    threshold = payload.get("assist_threshold")
+    if threshold != ASSIST_THRESHOLD:
+        raise ValueError("少量音素の補助閾値がこの生成器の版と一致しません。")
     if backend_factory is None:
         from .runtime_preflight import check_phoneme_supplement_runtime
         runtime = check_phoneme_supplement_runtime({
@@ -94,9 +101,11 @@ def generate_phoneme_candidate(payload: dict, backend_factory=None) -> dict:
         raise ValueError("参照音声の音量・無音率・音割れを確認してください。")
     backend = (backend_factory or LocalModels)(payload)
     expected = _phones(backend.phonemize(text))
-    missing = sorted(set(expected).difference(observed))
-    if not missing:
-        raise ValueError("指定文章には、この話者に未観測の音素がありません。")
+    assisted = sorted({phone for phone in expected if counts.get(phone, 0) < threshold})
+    missing = sorted(phone for phone in assisted if counts.get(phone, 0) == 0)
+    sparse = sorted(phone for phone in assisted if 0 < counts.get(phone, 0) < threshold)
+    if not assisted:
+        raise ValueError("指定文章には、この話者で未観測または出現量が少ない音素がありません。")
     created = False
     try:
         rate, samples = backend.synthesize(text, speaker)
@@ -135,6 +144,7 @@ def generate_phoneme_candidate(payload: dict, backend_factory=None) -> dict:
                 "reference_sha256": reference_hash, "audio_sha256": file_hash(output),
                 "recognized_text": recognized, "expected_phonemes": expected,
                 "recognized_phonemes": actual, "missing_phonemes": missing,
+                "sparse_phonemes": sparse, "assisted_phonemes": assisted,
                 "speaker_similarity": similarity, "asr_avg_logprob": avg_logprob,
                 "no_speech_probability": no_speech, "machine_passed": not reasons,
                 "reasons": reasons, **facts}
