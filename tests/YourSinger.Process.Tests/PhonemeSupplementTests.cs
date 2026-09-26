@@ -16,14 +16,24 @@ public sealed class PhonemeSupplementTests
         var path = input.GetProperty("output_path").GetString()!;
         TestProject.WriteWave(path);
         var reference = input.GetProperty("reference_audio_path").GetString()!;
+        var counts = input.GetProperty("observed_phoneme_counts").EnumerateObject()
+            .ToDictionary(x => x.Name, x => x.Value.GetInt32(), StringComparer.Ordinal);
+        var expected = new[] { "k", "a" };
+        var assisted = expected.Distinct(StringComparer.Ordinal)
+            .Where(x => counts.GetValueOrDefault(x) < PhonemeSupplementService.AssistThreshold)
+            .Order(StringComparer.Ordinal).ToArray();
+        var missing = assisted.Where(x => counts.GetValueOrDefault(x) == 0).Order(StringComparer.Ordinal).ToArray();
+        var sparse = assisted.Where(x => counts.GetValueOrDefault(x) is > 0 and < PhonemeSupplementService.AssistThreshold)
+            .Order(StringComparer.Ordinal).ToArray();
         return JsonSerializer.SerializeToElement(new
         {
             generator_version = PhonemeSupplementService.GeneratorVersion,
             model_fingerprint = new string('a', 64),
             reference_sha256 = Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(reference, token))),
             audio_sha256 = Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(path, token))),
-            recognized_text = "か", expected_phonemes = new[] { "k", "a" }, recognized_phonemes = new[] { "k", "a" },
-            missing_phonemes = new[] { "k" }, speaker_similarity = 0.95, asr_avg_logprob = -0.1,
+            recognized_text = "か", expected_phonemes = expected, recognized_phonemes = expected,
+            missing_phonemes = missing, sparse_phonemes = sparse, assisted_phonemes = assisted,
+            speaker_similarity = 0.95, asr_avg_logprob = -0.1,
             no_speech_probability = 0.01, duration_sec = 3, rms = 0.1, clipping_ratio = 0,
             silence_ratio = 0.1, machine_passed = passed, reasons = passed ? Array.Empty<string>() : ["検証不合格"]
         });
@@ -70,6 +80,31 @@ public sealed class PhonemeSupplementTests
         await service.SetAcceptedAsync(p.Workspace, candidate.CandidateId, true, Token);
         Assert.Single((await p.Correction().BuildAsync(p.Workspace, false, Token)).Segments);
         Assert.Equal(2, (await p.Correction().BuildAsync(p.Workspace, true, Token)).Segments.Count);
+    }
+
+    [Fact]
+    public async Task SparseOnlyPhonemeCanBeSupplementedWithoutMissingPhoneme()
+    {
+        using var p = new TestProject();
+        var reference = p.Segment("reference");
+        reference.Phonemes.Add(new() { Phoneme = "k", StartSec = 0, EndSec = 0.2, Confidence = 0.95 });
+        reference.Phonemes.Add(new() { Phoneme = "k", StartSec = 0.2, EndSec = 0.4, Confidence = 0.95 });
+        reference.Phonemes.Add(new() { Phoneme = "k", StartSec = 0.4, EndSec = 0.6, Confidence = 0.95 });
+        await p.SeedAsync(reference);
+
+        var service = Service();
+        var candidate = await Generate(p, service);
+
+        Assert.Empty(candidate.Verification.MissingPhonemes);
+        Assert.Equal(new[] { "a" }, candidate.Verification.SparsePhonemes);
+        Assert.Equal(new[] { "a" }, candidate.Verification.AssistedPhonemes);
+
+        await service.SetAcceptedAsync(p.Workspace, candidate.CandidateId, true, Token);
+        var view = await p.Correction().BuildAsync(p.Workspace, true, Token);
+        Assert.Contains(view.Segments, x => x.SegmentId == "generated_" + candidate.CandidateId);
+        Assert.Contains(view.AppliedCorrections, x =>
+            x.Method == PhonemeSupplementService.GeneratorVersion &&
+            x.Reason!.Contains("補助対象: a", StringComparison.Ordinal));
     }
 
     [Fact]
