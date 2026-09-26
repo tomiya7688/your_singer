@@ -25,6 +25,9 @@ public sealed class PhonemeSupplementVerification
     public required List<string> ExpectedPhonemes { get; init; }
     public required List<string> RecognizedPhonemes { get; init; }
     public required List<string> MissingPhonemes { get; init; }
+    // 旧候補とのJSON互換性のためrequiredにしない。v2候補では必ず埋める。
+    public List<string> SparsePhonemes { get; init; } = [];
+    public List<string> AssistedPhonemes { get; init; } = [];
     public required double SpeakerSimilarity { get; init; }
     public required double AsrAvgLogprob { get; init; }
     public required double NoSpeechProbability { get; init; }
