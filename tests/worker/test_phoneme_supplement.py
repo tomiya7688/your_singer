@@ -51,6 +51,16 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(before, file_hash(self.reference))
         json.dumps(result, allow_nan=False)
 
+    def test_devoiced_vowels_are_normalized(self):
+        class Devoiced(FakeModels):
+            def phonemize(self, text): return ['I', 'U']
+            def recognize(self, path): return 'か', -0.1, 0.01
+        self.payload['observed_phoneme_counts'] = {'i': 1, 'u': 3}
+        result = self.run_candidate(Devoiced)
+        self.assertEqual(['i', 'u'], result['expected_phonemes'])
+        self.assertEqual(['i'], result['sparse_phonemes'])
+        self.assertEqual(['i'], result['assisted_phonemes'])
+
     def test_wrong_transcript_is_not_adoptable(self):
         class Wrong(FakeModels):
             def recognize(self, path): return 'さ', -0.1, 0.01
