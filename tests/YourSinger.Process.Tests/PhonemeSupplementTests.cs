@@ -103,6 +103,10 @@ public sealed class PhonemeSupplementTests
         var view = await p.Correction().BuildAsync(p.Workspace, true, Token);
         Assert.Contains(view.Segments, x => x.SegmentId == "generated_" + candidate.CandidateId);
         Assert.Contains(view.AppliedCorrections, x =>
+            x.Method == "sparse-phoneme-generation" &&
+            x.Phoneme == "a" &&
+            x.ApplicationStatus == CorrectionApplicationStatus.Deferred);
+        Assert.Contains(view.AppliedCorrections, x =>
             x.Method == PhonemeSupplementService.GeneratorVersion &&
             x.Reason!.Contains("補助対象: a", StringComparison.Ordinal));
     }
