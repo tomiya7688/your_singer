@@ -48,7 +48,8 @@ public sealed class PhonemeSupplementService
         References(dataset, speakerId)
             .SelectMany(x => x.Phonemes)
             .Where(x => x.Confidence >= 0.65)
-            .GroupBy(x => x.Phoneme, StringComparer.Ordinal)
+            .Select(x => NormalizePhoneme(x.Phoneme))
+            .GroupBy(x => x, StringComparer.Ordinal)
             .OrderBy(x => x.Key, StringComparer.Ordinal)
             .ToDictionary(x => x.Key, x => x.Count(), StringComparer.Ordinal);
 
@@ -228,6 +229,13 @@ public sealed class PhonemeSupplementService
             await HashAsync(Path.Combine(workspace.RootPath, candidate.AudioPath), token) != v.AudioSha256)
             throw new InvalidDataException("参照音声または補完音声が変更・破損しています。");
     }
+
+    private static string NormalizePhoneme(string phoneme) => phoneme switch
+    {
+        "I" => "i",
+        "U" => "u",
+        _ => phoneme
+    };
 
     private static bool InRange(double x, double min, double max) => double.IsFinite(x) && x >= min && x <= max;
     private static bool IsHash(string x) => x.Length == 64 && x.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
