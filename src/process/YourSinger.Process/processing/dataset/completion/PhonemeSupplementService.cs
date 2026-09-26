@@ -10,6 +10,7 @@ namespace YourSinger.Process.Processing.Dataset.Completion;
 public sealed class PhonemeSupplementService
 {
     public const string GeneratorVersion = "speaker-phoneme-candidate-2";
+    public const string LegacyGeneratorVersion = "speaker-phoneme-candidate-1";
     public const int MinimumObservedCount = 3;
     private static readonly SemaphoreSlim SelectionLock = new(1, 1);
     private static readonly JsonSerializerOptions Json = new()
@@ -64,9 +65,15 @@ public sealed class PhonemeSupplementService
     }
 
     public static string ObservationFingerprint(UniversalVoiceDatasetRecord dataset, string speakerId) =>
+        ObservationFingerprint(dataset, speakerId, GeneratorVersion);
+
+    private static string ObservationFingerprint(
+        UniversalVoiceDatasetRecord dataset,
+        string speakerId,
+        string generatorVersion) =>
         Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
         {
-            version = GeneratorVersion, dataset.SchemaVersion, dataset.StageVersion, speakerId,
+            version = generatorVersion, dataset.SchemaVersion, dataset.StageVersion, speakerId,
             segments = References(dataset, speakerId).OrderBy(x => x.SegmentId, StringComparer.Ordinal).ToArray()
         })));
 
@@ -207,9 +214,15 @@ public sealed class PhonemeSupplementService
                 Transcript = candidate.Text
                 // 音素の時刻・観測ASR信頼度・F0を捏造しない。トーク前処理が本文から音素を作る。
             });
-            foreach (var phoneme in candidate.TargetPhonemes)
+            var effectiveTargets = candidate.TargetPhonemes.Count > 0
+                ? candidate.TargetPhonemes
+                : candidate.Verification.MissingPhonemes;
+            var currentCounts = ReliablePhonemeCounts(dataset, candidate.SpeakerId);
+            foreach (var phoneme in effectiveTargets)
             {
-                var observedCount = candidate.ObservedCountByPhoneme.GetValueOrDefault(phoneme);
+                var observedCount = candidate.ObservedCountByPhoneme.Count > 0
+                    ? candidate.ObservedCountByPhoneme.GetValueOrDefault(phoneme)
+                    : currentCounts.GetValueOrDefault(phoneme);
                 result.Add(new CorrectionRecord
                 {
                     SegmentId = segmentId, SpeakerId = candidate.SpeakerId, Phoneme = phoneme,
@@ -233,9 +246,10 @@ public sealed class PhonemeSupplementService
         PhonemeSupplementCandidate candidate, CancellationToken token)
     {
         var v = candidate.Verification;
+        var legacy = v.GeneratorVersion == LegacyGeneratorVersion;
         var targets = candidate.TargetPhonemes.Count > 0 ? candidate.TargetPhonemes : v.MissingPhonemes;
         var counts = ReliablePhonemeCounts(snapshot, candidate.SpeakerId);
-        if (v.GeneratorVersion != GeneratorVersion || !v.MachinePassed || v.Reasons.Count != 0 ||
+        if ((!legacy && v.GeneratorVersion != GeneratorVersion) || !v.MachinePassed || v.Reasons.Count != 0 ||
             v.ExpectedPhonemes.Count == 0 || !v.ExpectedPhonemes.SequenceEqual(v.RecognizedPhonemes, StringComparer.Ordinal) ||
             targets.Count == 0 || targets.Any(x => !v.ExpectedPhonemes.Contains(x, StringComparer.Ordinal)) ||
             targets.Any(x => counts.GetValueOrDefault(x) >= MinimumObservedCount) ||
@@ -250,7 +264,11 @@ public sealed class PhonemeSupplementService
             candidate.ObservedCountByPhoneme.Any(x =>
                 !targets.Contains(x.Key, StringComparer.Ordinal) || counts.GetValueOrDefault(x.Key) != x.Value))
             throw new InvalidOperationException("補助対象音素の観測回数が変わっています。候補を作り直してください。");
-        if (candidate.ObservationFingerprint != ObservationFingerprint(snapshot, candidate.SpeakerId))
+        var expectedObservationFingerprint = ObservationFingerprint(
+            snapshot,
+            candidate.SpeakerId,
+            legacy ? LegacyGeneratorVersion : GeneratorVersion);
+        if (candidate.ObservationFingerprint != expectedObservationFingerprint)
             throw new InvalidOperationException("観測データや手動編集が変わっています。補完候補を作り直すか、採用を解除してください。");
         var reference = References(snapshot, candidate.SpeakerId).SingleOrDefault(x => x.SegmentId == candidate.ReferenceSegmentId)
             ?? throw new InvalidDataException("補完の参照区間がありません。");
