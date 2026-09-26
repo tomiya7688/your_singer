@@ -23,13 +23,53 @@ public sealed class PhonemeSupplementTests
             reference_sha256 = Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(reference, token))),
             audio_sha256 = Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(path, token))),
             recognized_text = "か", expected_phonemes = new[] { "k", "a" }, recognized_phonemes = new[] { "k", "a" },
-            missing_phonemes = new[] { "k" }, speaker_similarity = 0.95, asr_avg_logprob = -0.1,
+            missing_phonemes = new[] { "k" }, target_phonemes = new[] { "k", "a" },
+            speaker_similarity = 0.95, asr_avg_logprob = -0.1,
             no_speech_probability = 0.01, duration_sec = 3, rms = 0.1, clipping_ratio = 0,
             silence_ratio = 0.1, machine_passed = passed, reasons = passed ? Array.Empty<string>() : ["検証不合格"]
         });
     });
     private static Task<PhonemeSupplementCandidate> Generate(TestProject p, PhonemeSupplementService s) =>
         s.GenerateAsync(p.Workspace, "spk_a", "reference", p.Workspace.RootPath, "話者A", "か", Token);
+
+
+    [Fact]
+    public async Task SparseObservedPhonemeCanBeSupplementedWithoutChangingObservedCount()
+    {
+        using var p = new TestProject();
+        await p.SeedAsync(p.Segment("reference"));
+        var service = Service();
+        var candidate = await Generate(p, service);
+
+        Assert.Contains("a", candidate.TargetPhonemes);
+        Assert.Equal(1, candidate.ObservedCountByPhoneme["a"]);
+        await service.SetAcceptedAsync(p.Workspace, candidate.CandidateId, true, Token);
+
+        var view = await p.Correction().BuildAsync(p.Workspace, true, Token);
+        var applied = Assert.Single(view.AppliedCorrections, x =>
+            x.Method == "sparse-phoneme-generation" &&
+            x.Phoneme == "a" &&
+            x.ApplicationStatus == CorrectionApplicationStatus.Applied);
+        Assert.Equal("1", applied.OriginalValue);
+
+        var observed = Assert.Single((await p.DatasetRepository.LoadAsync(p.Workspace, Token))!.Segments);
+        Assert.Equal(1, observed.Phonemes.Count(x => x.Phoneme == "a"));
+        Assert.Empty(observed.Phonemes.Where(x => x.Phoneme == "k"));
+    }
+
+    [Fact]
+    public async Task PhonemeWithThreeReliableObservationsIsNotSupplementTarget()
+    {
+        using var p = new TestProject();
+        var segment = p.Segment("reference");
+        segment.Phonemes.Add(new() { Phoneme = "a", StartSec = 0.1, EndSec = 0.2, Confidence = 0.95 });
+        segment.Phonemes.Add(new() { Phoneme = "a", StartSec = 0.2, EndSec = 0.3, Confidence = 0.95 });
+        await p.SeedAsync(segment);
+        var snapshot = await new TrainingDatasetSnapshotService(p.DatasetRepository).LoadAsync(p.Workspace, Token);
+
+        Assert.Equal(3, PhonemeSupplementService.ReliablePhonemeCounts(snapshot, "spk_a")["a"]);
+        Assert.DoesNotContain("a", PhonemeSupplementService.SupplementTargets(snapshot, "spk_a"));
+    }
 
     [Fact]
     public async Task GeneratedCandidateIsNotAutomaticallyUsed()
