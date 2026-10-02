@@ -43,8 +43,8 @@ def preprocess_audio(payload: dict) -> dict:
 
     history: list[dict] = []
 
-    separation_used = _separate_vocals(input_path, separated_path)
-    history.append(_history("separation", "demucs-v4" if separation_used else "passthrough-v1", separated_path, workspace))
+    _separate_vocals(input_path, separated_path)
+    history.append(_history("separation", "demucs-v4", separated_path, workspace))
 
     _clean_audio(separated_path, cleaned_path)
     history.append(_history("denoise_normalize", "ffmpeg-afftdn-loudnorm-v1", cleaned_path, workspace))
@@ -63,11 +63,7 @@ def preprocess_audio(payload: dict) -> dict:
 
     # BGM漏れはv1-02では完全な知覚モデルではなく、分離前後のRMS差を
     # 品質上の注意値として保存する。後続で専用評価器へ差し替え可能。
-    music_leak = _clamp(
-        separated_stats.rms / max(raw_stats.rms, 1e-9)
-        if separation_used
-        else 1.0
-    )
+    music_leak = _clamp(separated_stats.rms / max(raw_stats.rms, 1e-9))
 
     noise_score = _estimate_noise_score(cleaned_path)
     overall = _clamp(
@@ -101,12 +97,13 @@ def preprocess_audio(payload: dict) -> dict:
     }
 
 
-def _separate_vocals(input_path: Path, output_path: Path) -> bool:
+def _separate_vocals(input_path: Path, output_path: Path) -> None:
     try:
         from demucs.separate import main as demucs_main
-    except ImportError:
-        shutil.copy2(input_path, output_path)
-        return False
+    except ImportError as error:
+        raise RuntimeError(
+            "歌声分離に必要なDemucsが利用できません。伴奏入り音声を分離済みとして扱わないため、処理を中止しました。"
+        ) from error
 
     temp_root = output_path.parent / f".demucs-{output_path.stem}"
     if temp_root.exists():
@@ -129,7 +126,6 @@ def _separate_vocals(input_path: Path, output_path: Path) -> bool:
             raise RuntimeError("Demucsのvocals.wavが生成されませんでした。")
 
         shutil.move(str(candidates[0]), output_path)
-        return True
     finally:
         shutil.rmtree(temp_root, ignore_errors=True)
 
