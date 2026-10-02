@@ -99,7 +99,8 @@ def preprocess_audio(payload: dict) -> dict:
 
 def _separate_vocals(input_path: Path, output_path: Path) -> None:
     try:
-        from demucs.separate import main as demucs_main
+        from demucs import audio as demucs_audio
+        from demucs import separate as demucs_separate
     except ImportError as error:
         raise RuntimeError(
             "歌声分離に必要なDemucsが利用できません。伴奏入り音声を分離済みとして扱わないため、処理を中止しました。"
@@ -110,8 +111,43 @@ def _separate_vocals(input_path: Path, output_path: Path) -> None:
         shutil.rmtree(temp_root)
     temp_root.mkdir(parents=True)
 
+    original_save = demucs_audio.ta.save
+
+    def save_pcm16_wav(path, waveform, sample_rate, **kwargs):
+        if Path(path).suffix.lower() != ".wav":
+            return original_save(path, waveform, sample_rate=sample_rate, **kwargs)
+
+        encoding = kwargs.get("encoding", "PCM_S")
+        bits_per_sample = kwargs.get("bits_per_sample", 16)
+        if encoding != "PCM_S" or bits_per_sample != 16:
+            raise RuntimeError("Demucs出力はPCM16 WAVで保存する必要があります。")
+
+        import torch
+
+        samples = waveform.detach().to(device="cpu", dtype=torch.float32)
+        if samples.ndim == 1:
+            samples = samples.unsqueeze(0)
+        if samples.ndim != 2:
+            raise ValueError("Demucs出力の音声テンソルは[channels, frames]である必要があります。")
+
+        pcm = (
+            samples.clamp(-1.0, 1.0)
+            .mul(32768.0)
+            .round()
+            .clamp(-32768, 32767)
+            .to(dtype=torch.int16)
+            .transpose(0, 1)
+            .contiguous()
+        )
+        with wave.open(str(path), "wb") as output:
+            output.setnchannels(int(samples.shape[0]))
+            output.setsampwidth(2)
+            output.setframerate(int(sample_rate))
+            output.writeframes(pcm.numpy().astype("<i2", copy=False).tobytes())
+
+    demucs_audio.ta.save = save_pcm16_wav
     try:
-        demucs_main(
+        demucs_separate.main(
             [
                 "--two-stems=vocals",
                 "--name=htdemucs",
@@ -127,6 +163,7 @@ def _separate_vocals(input_path: Path, output_path: Path) -> None:
 
         shutil.move(str(candidates[0]), output_path)
     finally:
+        demucs_audio.ta.save = original_save
         shutil.rmtree(temp_root, ignore_errors=True)
 
 
