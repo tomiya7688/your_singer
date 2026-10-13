@@ -10,7 +10,8 @@ import sys
 import wave
 from pathlib import Path
 
-VERSION = "speaker-phoneme-candidate-1"
+VERSION = "speaker-phoneme-candidate-2"
+LOW_COUNT_THRESHOLD = 3  # カバレッジ診断と同じ閾値。1～2回は少数観測。
 MIN_SIMILARITY = 0.80  # 未校正の採用基準。本人である確率ではない。
 MIN_LOGPROB = -0.50
 MAX_NO_SPEECH = 0.20
@@ -59,6 +60,29 @@ def _phones(values) -> list[str]:
     return [x for x in values if x not in {"sil", "pau", "sp", "_"}]
 
 
+def _observed_counts(payload: dict) -> dict[str, int]:
+    """実録音の信頼できる音素だけを数える。生成済み音声を観測回数に加えない。"""
+    counts = payload.get("observed_phoneme_counts")
+    legacy = payload.get("observed_phonemes")
+    if counts is None:
+        # 旧プロトコルは「観測済み」しか区別しない。誤って少数観測へ格下げしない。
+        if not isinstance(legacy, list) or any(not isinstance(x, str) or not x.strip() for x in legacy):
+            raise ValueError("観測音素の一覧が不正です。")
+        return {x: LOW_COUNT_THRESHOLD for x in legacy}
+
+    if (not isinstance(counts, dict) or len(counts) > 4096 or
+            any(not isinstance(phone, str) or not phone.strip() or
+                not isinstance(count, int) or isinstance(count, bool) or
+                count < 0 or count > 10000000 for phone, count in counts.items())):
+        raise ValueError("観測音素の回数が不正です。")
+
+    if legacy is not None and (not isinstance(legacy, list) or
+            any(not isinstance(x, str) or not x.strip() for x in legacy) or
+            set(legacy) != {x for x, count in counts.items() if count > 0}):
+        raise ValueError("観測音素の一覧と回数が一致しません。")
+    return counts
+
+
 def generate_phoneme_candidate(payload: dict, backend_factory=None) -> dict:
     """backend_factoryはテスト差し替え専用。JSONから実装名や任意コードは受け取らない。"""
     if not isinstance(payload, dict):
@@ -69,9 +93,7 @@ def generate_phoneme_candidate(payload: dict, backend_factory=None) -> dict:
     speaker = payload.get("model_speaker")
     if not isinstance(speaker, str) or not speaker.strip():
         raise ValueError("生成モデルの話者名を選択してください。")
-    observed = payload.get("observed_phonemes")
-    if not isinstance(observed, list) or not all(isinstance(x, str) for x in observed):
-        raise ValueError("観測音素の一覧が不正です。")
+    observed_counts = _observed_counts(payload)
     if backend_factory is None:
         from .runtime_preflight import check_phoneme_supplement_runtime
         runtime = check_phoneme_supplement_runtime({
@@ -94,9 +116,11 @@ def generate_phoneme_candidate(payload: dict, backend_factory=None) -> dict:
         raise ValueError("参照音声の音量・無音率・音割れを確認してください。")
     backend = (backend_factory or LocalModels)(payload)
     expected = _phones(backend.phonemize(text))
-    missing = sorted(set(expected).difference(observed))
-    if not missing:
-        raise ValueError("指定文章には、この話者に未観測の音素がありません。")
+    phones = set(expected)
+    missing = sorted(p for p in phones if observed_counts.get(p, 0) == 0)
+    weak = sorted(p for p in phones if 0 < observed_counts.get(p, 0) < LOW_COUNT_THRESHOLD)
+    if not missing and not weak:
+        raise ValueError("指定文章には、この話者に未観測・少数観測の音素がありません。")
     created = False
     try:
         rate, samples = backend.synthesize(text, speaker)
@@ -135,6 +159,7 @@ def generate_phoneme_candidate(payload: dict, backend_factory=None) -> dict:
                 "reference_sha256": reference_hash, "audio_sha256": file_hash(output),
                 "recognized_text": recognized, "expected_phonemes": expected,
                 "recognized_phonemes": actual, "missing_phonemes": missing,
+                "weak_observed_phonemes": weak,
                 "speaker_similarity": similarity, "asr_avg_logprob": avg_logprob,
                 "no_speech_probability": no_speech, "machine_passed": not reasons,
                 "reasons": reasons, **facts}
