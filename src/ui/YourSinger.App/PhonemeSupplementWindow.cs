@@ -26,6 +26,8 @@ public sealed class PhonemeSupplementWindow : Window
     private readonly ListBox _candidates = new() { Height = 170 };
     private readonly TextBlock _details = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _runtimeStatus = new() { TextWrapping = TextWrapping.Wrap, Text = "補完環境を確認していません。" };
+    private readonly TextBlock _weakCoverage = new() { TextWrapping = TextWrapping.Wrap, Text = "参照会話を選ぶと少数観測音素を表示します。" };
+    private UniversalVoiceDatasetRecord? _snapshot;
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Text = "準備完了" };
     private readonly CheckBox _reviewed = new() { Content = "生成音声を試聴し、発音と話者を確認しました" };
     private readonly ProgressBar _progress = new() { IsVisible = false, IsIndeterminate = true };
@@ -43,10 +45,26 @@ public sealed class PhonemeSupplementWindow : Window
         AddButton("補完環境を確認", CheckRuntimeAsync);
         AddText("参照する観測会話（同じ話者の、2～14秒の明瞭な区間）");
         _panel.Children.Add(_reference);
+        _panel.Children.Add(_weakCoverage);
+        _reference.SelectionChanged += (_, _) =>
+        {
+            if (_snapshot is null || _reference.SelectedItem is not ReferenceRow row)
+            {
+                _weakCoverage.Text = "参照会話を選ぶと少数観測音素を表示します。";
+                return;
+            }
+            var counts = PhonemeSupplementService.ObservedPhoneCounts(_snapshot, row.Segment.SpeakerId!);
+            var weak = JapaneseCoverageCatalog.CorePhonemes
+                .Where(x => counts.GetValueOrDefault(x) is > 0 and < PhonemeCoverageDiagnosticService.LowCountThreshold)
+                .Order(StringComparer.Ordinal).ToArray();
+            _weakCoverage.Text = "この話者の少数観測音素（1～2回）: " +
+                (weak.Length == 0 ? "基本音素には該当なし" : string.Join(" ", weak)) +
+                "。生成データを元録音の回数には加えません。";
+        };
         AddText("生成モデルのフォルダ（config.json・style_vectors.npy・safetensors 1件）");
         _panel.Children.Add(_modelPath); AddButton("生成モデルを選ぶ", SelectModelAsync);
         AddText("モデル内の話者名"); _panel.Children.Add(_modelSpeaker);
-        AddText("未観測の音素を含む日本語文章（120文字以内）"); _panel.Children.Add(_text);
+        AddText("未録音または少数観測（1～2回）の音素を含む日本語文章（120文字以内）"); _panel.Children.Add(_text);
         AddButton("補完候補を生成・検証する", GenerateAsync);
         AddText("候補一覧。機械検証の通過だけでは学習に追加しません。");
         _panel.Children.Add(_candidates); _panel.Children.Add(_details);
@@ -56,7 +74,8 @@ public sealed class PhonemeSupplementWindow : Window
             if (_candidates.SelectedItem is not CandidateRow row) { _details.Text = "候補を選択してください。"; return; }
             var v = row.Candidate.Verification;
             _details.Text = $"対象: {row.Candidate.SpeakerId} / 文章: {row.Candidate.Text}\n" +
-                $"未観測音素: {string.Join(" ", v.MissingPhonemes)}\n再認識: {v.RecognizedText}\n" +
+                $"未録音音素: {string.Join(" ", v.MissingPhonemes)}\n" +
+                $"少数観測音素: {string.Join(" ", v.WeakObservedPhonemes)}\n再認識: {v.RecognizedText}\n" +
                 $"話者類似度: {v.SpeakerSimilarity:0.000}（本人の確率ではありません）\n" + string.Join("\n", v.Reasons);
         };
         AddButton("選択した候補を試聴", async _ =>
@@ -65,7 +84,7 @@ public sealed class PhonemeSupplementWindow : Window
             System.Diagnostics.Process.Start(new ProcessStartInfo(Path.Combine(_workspace.RootPath, candidate.AudioPath)) { UseShellExecute = true });
         });
         _panel.Children.Add(_reviewed);
-        AddText("採用は話者ごとに1文章までです。別候補を採用すると切り替わります。補完ONのトーク学習だけに追加し、録音済み音素の数は増やしません。");
+        AddText("採用は話者ごとに1文章までです。別候補を採用すると切り替わります。補完ONのトーク学習だけに追加し、録音済み音素・50音カバレッジの数は増やしません。");
         AddButton("確認した候補をトーク学習へ採用", async token =>
         {
             if (_reviewed.IsChecked != true) throw new InvalidOperationException("先に試聴して、発音と話者を確認してください。");
@@ -84,6 +103,7 @@ public sealed class PhonemeSupplementWindow : Window
         {
             await CheckRuntimeAsync(token);
             var snapshot = await new TrainingDatasetSnapshotService(new UniversalVoiceDatasetRepository()).LoadAsync(_workspace, token);
+            _snapshot = snapshot;
             _reference.ItemsSource = snapshot.Segments.Where(x => x.SpeakerId is not null &&
                     x.ContentType == SegmentContentType.Speech && x.AsrConfidence >= 0.65 && x.AlignmentConfidence >= 0.65)
                 .Select(x => new ReferenceRow(x)).ToArray();
