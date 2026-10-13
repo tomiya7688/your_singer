@@ -90,6 +90,39 @@ class CandidateTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.run_candidate(Changed)
         self.assertFalse(Path(self.payload['output_path']).exists())
 
+    def test_weak_observed_only_generates_a_candidate(self):
+        self.payload['observed_phonemes'] = ['a', 'k']
+        self.payload['observed_phoneme_counts'] = {'a': 3, 'k': 1}
+        result = self.run_candidate()
+        self.assertTrue(result['machine_passed'])
+        self.assertEqual([], result['missing_phonemes'])
+        self.assertEqual(['k'], result['weak_observed_phonemes'])
+
+    def test_missing_and_weak_are_recorded_separately(self):
+        self.payload['observed_phonemes'] = ['a']
+        self.payload['observed_phoneme_counts'] = {'a': 2}
+        result = self.run_candidate()
+        self.assertEqual(['k'], result['missing_phonemes'])
+        self.assertEqual(['a'], result['weak_observed_phonemes'])
+
+    def test_well_observed_only_does_not_generate_a_candidate(self):
+        self.payload['observed_phonemes'] = ['a', 'k']
+        self.payload['observed_phoneme_counts'] = {'a': 3, 'k': 3}
+        with self.assertRaisesRegex(ValueError, '未観測・少数観測'):
+            self.run_candidate()
+        self.assertFalse(Path(self.payload['output_path']).exists())
+
+    def test_invalid_observed_counts_are_rejected_before_generation(self):
+        self.payload['observed_phonemes'] = ['a', 'k']
+        for counts in ({'a': 3, 'k': -1}, {'a': 3, 'k': 1.5},
+                       {'a': 3, 'k': True}, {'a': 3, 'k': '1'},
+                       {'a': 3}, [], {'a': 3, 'k': 10000001}):
+            with self.subTest(counts=counts):
+                self.payload['observed_phoneme_counts'] = counts
+                with self.assertRaises(ValueError):
+                    self.run_candidate()
+                self.assertFalse(Path(self.payload['output_path']).exists())
+
     def test_no_missing_phone_does_not_generate(self):
         self.payload['observed_phonemes'] = ['a','k']
         with self.assertRaises(ValueError): self.run_candidate()
