@@ -118,6 +118,12 @@ public sealed class PhonemeSupplementTests
         var generated = Assert.Single(view.Segments, x => x.SourceId.StartsWith("generated:", StringComparison.Ordinal));
         Assert.Equal(SegmentContentType.Speech, generated.ContentType);
         Assert.Empty(generated.Phonemes); Assert.Equal(0, generated.AlignmentConfidence);
+        Assert.Equal([1.0, 0.0], generated.SpeakerEmbedding);
+        var speakerEstimation = Assert.Single(view.AppliedCorrections, x =>
+            x.SegmentId == generated.SegmentId && x.Method == SpeakerFeatureEstimator.Method);
+        Assert.Equal(CorrectionState.Estimated, speakerEstimation.State);
+        Assert.Equal(CorrectionApplicationStatus.Applied, speakerEstimation.ApplicationStatus);
+        Assert.Equal([1.0, 0.0], speakerEstimation.ResultValues);
         Assert.Contains(view.AppliedCorrections, x => x.SegmentId == generated.SegmentId && x.ApplicationStatus == CorrectionApplicationStatus.Applied);
         var job = Assert.Single((await p.Planner().CreateBatchAsync(p.Workspace,
             [new() { SpeakerId = "spk_a", Target = TrainingTarget.Talk }], Token)).Jobs);
@@ -133,7 +139,9 @@ public sealed class PhonemeSupplementTests
         using var p = new TestProject(); await p.SeedAsync(p.Segment("reference"));
         var service = Service(); var candidate = await Generate(p, service);
         await service.SetAcceptedAsync(p.Workspace, candidate.CandidateId, true, Token);
-        Assert.Single((await p.Correction().BuildAsync(p.Workspace, false, Token)).Segments);
+        var disabled = await p.Correction().BuildAsync(p.Workspace, false, Token);
+        Assert.Single(disabled.Segments);
+        Assert.DoesNotContain(disabled.AppliedCorrections, x => x.Method == SpeakerFeatureEstimator.Method);
         Assert.Equal(2, (await p.Correction().BuildAsync(p.Workspace, true, Token)).Segments.Count);
     }
 
