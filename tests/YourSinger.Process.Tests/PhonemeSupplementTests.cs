@@ -109,7 +109,11 @@ public sealed class PhonemeSupplementTests
     [Fact]
     public async Task AcceptedSpeechReachesTalkBuilderButDoesNotRewriteObservation()
     {
-        using var p = new TestProject(); await p.SeedAsync(p.Segment("reference"));
+        using var p = new TestProject();
+        var reference = p.Segment("reference");
+        // 補助対象k/a以外の信頼できる観測音素を1つ含め、話者特徴推定の適用経路を検証する。
+        reference.Phonemes.Add(new() { Phoneme = "i", StartSec = 0.5, EndSec = 1.0, Confidence = 0.95 });
+        await p.SeedAsync(reference);
         var originalPath = Path.Combine(p.Workspace.MetadataPath, "universal-voice-dataset.json");
         var original = await File.ReadAllBytesAsync(originalPath, Token);
         var service = Service(); var candidate = await Generate(p, service);
