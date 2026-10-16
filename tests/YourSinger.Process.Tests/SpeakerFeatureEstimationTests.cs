@@ -32,7 +32,7 @@ public sealed class SpeakerFeatureEstimationTests
         Assert.Equal(0.93, correction.Confidence, 3);
         Assert.Equal(new[] { 1.0, 0.0 }, generated.SpeakerEmbedding);
         Assert.Equal(generated.SpeakerEmbedding, correction.ResultValues);
-        Assert.Contains("観測区間1件", correction.Reason!);
+        Assert.Contains("観測会話1件", correction.Reason!);
 
         var saved = Assert.Single((await p.DatasetRepository.LoadAsync(p.Workspace, Token))!.Segments);
         Assert.Empty(saved.SpeakerEmbedding);
