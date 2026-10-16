@@ -179,14 +179,23 @@ public sealed class PhonemeSupplementService
         {
             var segmentId = "generated_" + candidate.CandidateId;
             if (dataset.Segments.Any(x => x.SegmentId == segmentId)) throw new InvalidDataException("生成区間IDが重複しています。");
-            dataset.Segments.Add(new UniversalVoiceSegment
+            var generated = new UniversalVoiceSegment
             {
                 SegmentId = segmentId, SourceId = "generated:" + candidate.CandidateId,
                 SpeakerId = candidate.SpeakerId, ContentType = SegmentContentType.Speech,
                 AudioPath = candidate.AudioPath, CacheKey = candidate.Verification.AudioSha256,
                 Transcript = candidate.Text
                 // 音素の時刻・観測ASR信頼度・F0を捏造しない。トーク前処理が本文から音素を作る。
-            });
+            };
+            dataset.Segments.Add(generated);
+            // 他の観測音素からの推定結果は生成区間の学習用投影にだけ保持する。
+            // 検証された補助対象音素だけを使い、生成済み区間から推定し直さない。
+            var assistedPhonemes = candidate.Verification.MissingPhonemes
+                .Concat(candidate.Verification.WeakObservedPhonemes)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            result.Add(SpeakerFeatureEstimator.Apply(
+                dataset, generated, assistedPhonemes, candidate.Verification.SpeakerSimilarity));
             result.Add(new CorrectionRecord
             {
                 SegmentId = segmentId, SpeakerId = candidate.SpeakerId, State = CorrectionState.Estimated,
