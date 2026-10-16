@@ -109,7 +109,11 @@ public sealed class PhonemeSupplementTests
     [Fact]
     public async Task AcceptedSpeechReachesTalkBuilderButDoesNotRewriteObservation()
     {
-        using var p = new TestProject(); await p.SeedAsync(p.Segment("reference"));
+        using var p = new TestProject();
+        var reference = p.Segment("reference");
+        // 補助対象k/a以外の信頼できる観測音素を1つ含め、話者特徴推定の適用経路を検証する。
+        reference.Phonemes.Add(new() { Phoneme = "i", StartSec = 0.5, EndSec = 1.0, Confidence = 0.95 });
+        await p.SeedAsync(reference);
         var originalPath = Path.Combine(p.Workspace.MetadataPath, "universal-voice-dataset.json");
         var original = await File.ReadAllBytesAsync(originalPath, Token);
         var service = Service(); var candidate = await Generate(p, service);
@@ -118,6 +122,12 @@ public sealed class PhonemeSupplementTests
         var generated = Assert.Single(view.Segments, x => x.SourceId.StartsWith("generated:", StringComparison.Ordinal));
         Assert.Equal(SegmentContentType.Speech, generated.ContentType);
         Assert.Empty(generated.Phonemes); Assert.Equal(0, generated.AlignmentConfidence);
+        Assert.Equal([1.0, 0.0], generated.SpeakerEmbedding);
+        var speakerEstimation = Assert.Single(view.AppliedCorrections, x =>
+            x.SegmentId == generated.SegmentId && x.Method == SpeakerFeatureEstimator.Method);
+        Assert.Equal(CorrectionState.Estimated, speakerEstimation.State);
+        Assert.Equal(CorrectionApplicationStatus.Applied, speakerEstimation.ApplicationStatus);
+        Assert.Equal([1.0, 0.0], speakerEstimation.ResultValues);
         Assert.Contains(view.AppliedCorrections, x => x.SegmentId == generated.SegmentId && x.ApplicationStatus == CorrectionApplicationStatus.Applied);
         var job = Assert.Single((await p.Planner().CreateBatchAsync(p.Workspace,
             [new() { SpeakerId = "spk_a", Target = TrainingTarget.Talk }], Token)).Jobs);
@@ -133,7 +143,9 @@ public sealed class PhonemeSupplementTests
         using var p = new TestProject(); await p.SeedAsync(p.Segment("reference"));
         var service = Service(); var candidate = await Generate(p, service);
         await service.SetAcceptedAsync(p.Workspace, candidate.CandidateId, true, Token);
-        Assert.Single((await p.Correction().BuildAsync(p.Workspace, false, Token)).Segments);
+        var disabled = await p.Correction().BuildAsync(p.Workspace, false, Token);
+        Assert.Single(disabled.Segments);
+        Assert.DoesNotContain(disabled.AppliedCorrections, x => x.Method == SpeakerFeatureEstimator.Method);
         Assert.Equal(2, (await p.Correction().BuildAsync(p.Workspace, true, Token)).Segments.Count);
     }
 
