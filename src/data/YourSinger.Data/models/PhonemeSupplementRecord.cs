@@ -25,6 +25,9 @@ public sealed class PhonemeSupplementVerification
     public required List<string> ExpectedPhonemes { get; init; }
     public required List<string> RecognizedPhonemes { get; init; }
     public required List<string> MissingPhonemes { get; init; }
+    // 未観測とは別。元録音に1～2回出現する弱い音素の追加学習候補。
+    // 旧candidate.jsonには存在しないため既定は空とする。
+    public List<string> WeakObservedPhonemes { get; init; } = [];
     public required double SpeakerSimilarity { get; init; }
     public required double AsrAvgLogprob { get; init; }
     public required double NoSpeechProbability { get; init; }

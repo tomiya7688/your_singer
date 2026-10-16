@@ -10,7 +10,7 @@ namespace YourSinger.Process.Tests;
 public sealed class PhonemeSupplementTests
 {
     private static CancellationToken Token => TestProject.Token;
-    private static PhonemeSupplementService Service(bool passed = true) => new(async (_, payload, token) =>
+    private static PhonemeSupplementService Service(bool passed = true, bool weakOnly = false, bool legacy = false) => new(async (_, payload, token) =>
     {
         var input = JsonSerializer.SerializeToElement(payload);
         var path = input.GetProperty("output_path").GetString()!;
@@ -18,18 +18,83 @@ public sealed class PhonemeSupplementTests
         var reference = input.GetProperty("reference_audio_path").GetString()!;
         return JsonSerializer.SerializeToElement(new
         {
-            generator_version = PhonemeSupplementService.GeneratorVersion,
+            generator_version = legacy ? PhonemeSupplementService.LegacyGeneratorVersion : PhonemeSupplementService.GeneratorVersion,
             model_fingerprint = new string('a', 64),
             reference_sha256 = Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(reference, token))),
             audio_sha256 = Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(path, token))),
-            recognized_text = "か", expected_phonemes = new[] { "k", "a" }, recognized_phonemes = new[] { "k", "a" },
-            missing_phonemes = new[] { "k" }, speaker_similarity = 0.95, asr_avg_logprob = -0.1,
+            recognized_text = weakOnly ? "あ" : "か",
+            expected_phonemes = weakOnly ? new[] { "a" } : ["k", "a"],
+            recognized_phonemes = weakOnly ? new[] { "a" } : ["k", "a"],
+            missing_phonemes = weakOnly ? Array.Empty<string>() : ["k"],
+            weak_observed_phonemes = legacy ? Array.Empty<string>() : ["a"],
+            speaker_similarity = 0.95, asr_avg_logprob = -0.1,
             no_speech_probability = 0.01, duration_sec = 3, rms = 0.1, clipping_ratio = 0,
             silence_ratio = 0.1, machine_passed = passed, reasons = passed ? Array.Empty<string>() : ["検証不合格"]
         });
     });
-    private static Task<PhonemeSupplementCandidate> Generate(TestProject p, PhonemeSupplementService s) =>
-        s.GenerateAsync(p.Workspace, "spk_a", "reference", p.Workspace.RootPath, "話者A", "か", Token);
+    private static Task<PhonemeSupplementCandidate> Generate(TestProject p, PhonemeSupplementService s, string text = "か") =>
+        s.GenerateAsync(p.Workspace, "spk_a", "reference", p.Workspace.RootPath, "話者A", text, Token);
+
+    [Fact]
+    public async Task WeakObservedCandidateIsSeparateFromMissingAndRequiresAcceptance()
+    {
+        using var p = new TestProject(); await p.SeedAsync(p.Segment("reference"));
+        var service = Service(weakOnly: true);
+        var candidate = await Generate(p, service, "あ");
+        Assert.Empty(candidate.Verification.MissingPhonemes);
+        Assert.Equal(["a"], candidate.Verification.WeakObservedPhonemes);
+        var counts = PhonemeSupplementService.ObservedPhoneCounts(
+            (await p.DatasetRepository.LoadAsync(p.Workspace, Token))!, "spk_a");
+        Assert.Equal(1, counts["a"]);
+        Assert.Single((await p.Correction().BuildAsync(p.Workspace, true, Token)).Segments);
+        await service.SetAcceptedAsync(p.Workspace, candidate.CandidateId, true, Token);
+        var view = await p.Correction().BuildAsync(p.Workspace, true, Token);
+        Assert.Equal(2, view.Segments.Count);
+        Assert.Contains(view.AppliedCorrections, x =>
+            x.State == CorrectionState.Estimated && x.SegmentId == "generated_" + candidate.CandidateId);
+        Assert.Equal(1, PhonemeSupplementService.ObservedPhoneCounts(
+            (await p.DatasetRepository.LoadAsync(p.Workspace, Token))!, "spk_a")["a"]);
+        Assert.Single((await p.Correction().BuildAsync(p.Workspace, false, Token)).Segments);
+    }
+
+    [Fact]
+    public async Task ReportedWeakObservedCannotBeForgedForWellCoveredPhoneme()
+    {
+        using var p = new TestProject();
+        await p.SeedAsync(p.Segment("reference"), p.Segment("second"), p.Segment("third"));
+        var counts = PhonemeSupplementService.ObservedPhoneCounts(
+            (await p.DatasetRepository.LoadAsync(p.Workspace, Token))!, "spk_a");
+        Assert.Equal(3, counts["a"]);
+        var service = Service(weakOnly: true);
+        var candidate = await Generate(p, service, "あ");
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            service.SetAcceptedAsync(p.Workspace, candidate.CandidateId, true, Token));
+        Assert.Equal(3, (await p.Correction().BuildAsync(p.Workspace, true, Token)).Segments.Count);
+    }
+
+    [Fact]
+    public async Task WeakCountIsBasedOnHighConfidenceObservedSpeechOnly()
+    {
+        using var p = new TestProject();
+        var excluded = p.Segment("excluded", confidence: 0.50);
+        var singing = p.Segment("singing", type: SegmentContentType.Singing);
+        await p.SeedAsync(p.Segment("reference"), excluded, singing);
+        var snapshot = await new YourSinger.Process.Processing.Dataset.TrainingDatasetSnapshotService(
+            p.DatasetRepository).LoadAsync(p.Workspace, Token);
+        Assert.Equal(1, PhonemeSupplementService.ObservedPhoneCounts(snapshot, "spk_a")["a"]);
+    }
+
+    [Fact]
+    public async Task ExistingVersionOneCandidateRemainsAdoptable()
+    {
+        using var p = new TestProject(); await p.SeedAsync(p.Segment("reference"));
+        var service = Service(legacy: true);
+        var candidate = await Generate(p, service);
+        Assert.Equal(PhonemeSupplementService.LegacyGeneratorVersion, candidate.Verification.GeneratorVersion);
+        Assert.Empty(candidate.Verification.WeakObservedPhonemes);
+        await service.SetAcceptedAsync(p.Workspace, candidate.CandidateId, true, Token);
+        Assert.Equal(2, (await p.Correction().BuildAsync(p.Workspace, true, Token)).Segments.Count);
+    }
 
     [Fact]
     public async Task GeneratedCandidateIsNotAutomaticallyUsed()
