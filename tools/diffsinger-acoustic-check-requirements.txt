@@ -1,0 +1,5 @@
+# 公式AcousticBinarizerの項目別検証用。歌唱Trainer全体の依存lockではない。
+praat-parselmouth==0.4.3
+pyworld==0.3.4
+h5py==3.11.0
+einops==0.8.0

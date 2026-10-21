@@ -1,4 +1,5 @@
 using YourSinger.Data.Models;
+using YourSinger.Process.Processing.Dataset;
 using YourSinger.Process.Processing.Singing;
 using YourSinger.Process.Processing.Speaker;
 using YourSinger.Process.Processing.Talk;
@@ -57,6 +58,44 @@ public sealed class TrainingGuardrailTests
         await p.SeedAsync(p.Segment("a"));
         await Assert.ThrowsAsync<InvalidOperationException>(() => p.Planner().CreateBatchAsync(p.Workspace,
             [Selection(target: TrainingTarget.Both)], Token));
+        Assert.False(Directory.Exists(Path.Combine(p.Workspace.MetadataPath, "training-jobs")));
+    }
+
+    [Fact]
+    public async Task EstimatedPhoneDurationsCannotEnterDiffSingerTrainingInput()
+    {
+        using var p = new TestProject();
+        var segment = p.Segment("estimated", type: SegmentContentType.Singing);
+        segment.AlignmentMethod = "asr-word-boundary-proportional";
+        await p.SeedAsync(segment);
+        var view = await p.Correction().BuildAsync(p.Workspace, false, Token);
+        var job = new TrainingJobRecord
+        {
+            JobId = "estimated-direct", SpeakerId = "spk_a", Target = TrainingTarget.Singing,
+            AutoCorrectionEnabled = false,
+            DatasetFingerprint = TrainingDatasetSnapshotService.CreateJobFingerprint(
+                view.Fingerprint, "spk_a", TrainingTarget.Singing, ["estimated"]),
+            SegmentIds = ["estimated"]
+        };
+
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            new DiffSingerDatasetBuilder(p.DatasetRepository).BuildAsync(p.Workspace, job, Token));
+
+        Assert.Contains("音素時刻が推定値", error.Message);
+        Assert.False(Directory.Exists(Path.Combine(p.Workspace.RootPath, "training")));
+    }
+
+    [Fact]
+    public async Task EstimatedPhoneDurationsCannotBePlannedForSingingTraining()
+    {
+        using var p = new TestProject();
+        var segment = p.Segment("estimated", type: SegmentContentType.Singing);
+        segment.AlignmentMethod = "asr-word-boundary-proportional";
+        await p.SeedAsync(segment);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => p.Planner().CreateBatchAsync(
+            p.Workspace, [Selection(target: TrainingTarget.Singing)], Token));
+
         Assert.False(Directory.Exists(Path.Combine(p.Workspace.MetadataPath, "training-jobs")));
     }
 

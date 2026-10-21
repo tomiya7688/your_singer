@@ -38,7 +38,10 @@ PACKAGES = {
     "style-bert-vits2": "2.7.0",
     "speechbrain": "1.1.1",
     "faster-whisper": "1.1.1",
-    "pyopenjtalk": "0.4.1",
+    "pyopenjtalk-dict": "0.3.4.dev2",
+    "numpy": "1.26.4",
+    "accelerate": "0.34.2",
+    "setuptools": "80.9.0",
 }
 
 

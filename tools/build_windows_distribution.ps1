@@ -1,13 +1,46 @@
 param(
     [string]$OutputDirectory = "artifacts/windows-distribution",
-    [switch]$IncludePhonemeModels
+    [switch]$IncludePhonemeModels,
+    [string]$MfaBundleDirectory = "artifacts/mfa-bundle",
+    [string]$TalkTrainerBundleDirectory = "artifacts/style-bert-vits2-bundle",
+    [string]$DiffSingerTrainerBundleDirectory = "artifacts/diffsinger-runtime",
+    [string]$PythonExecutable = "python"
 )
 
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
-$output = Join-Path $repo $OutputDirectory
-$workerOutput = Join-Path $repo "artifacts/_windows-worker"
-$appOutput = Join-Path $repo "artifacts/_windows-app"
+. (Join-Path $PSScriptRoot "BuildPathSafety.ps1")
+$output = Resolve-ArtifactBuildPath $repo $OutputDirectory
+$workerOutput = Resolve-ArtifactBuildPath $repo "artifacts/_windows-worker"
+$appOutput = Resolve-ArtifactBuildPath $repo "artifacts/_windows-app"
+$mfaBundle = [IO.Path]::GetFullPath($MfaBundleDirectory, $repo)
+Assert-IndependentBuildSource $mfaBundle @($output, $workerOutput, $appOutput)
+$talkTrainerBundle = [IO.Path]::GetFullPath($TalkTrainerBundleDirectory, $repo)
+Assert-IndependentBuildSource $talkTrainerBundle @($output, $workerOutput, $appOutput)
+$diffSingerTrainerBundle = [IO.Path]::GetFullPath($DiffSingerTrainerBundleDirectory, $repo)
+Assert-IndependentBuildSource $diffSingerTrainerBundle @($output, $workerOutput, $appOutput)
+$sourcePython = (Get-Command $PythonExecutable -CommandType Application -ErrorAction Stop).Source
+Assert-IndependentBuildSource (Split-Path -Parent $sourcePython) @($output, $workerOutput, $appOutput)
+$env:TEMP = Join-Path $repo "artifacts/temp"
+$env:TMP = $env:TEMP
+$env:DOTNET_CLI_HOME = Join-Path $repo "artifacts/dotnet-cli-home"
+$env:NUGET_PACKAGES = Join-Path $repo "artifacts/nuget-packages"
+$env:NUGET_HTTP_CACHE_PATH = Join-Path $repo "artifacts/nuget-http-cache"
+$env:LOCALAPPDATA = Join-Path $repo "artifacts/local-app-data"
+$env:APPDATA = Join-Path $repo "artifacts/app-data"
+$env:AVALONIA_TELEMETRY_OPTOUT = "1"
+New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
+
+# 固定資源の不足がある場合は既存の配布物を消す前に失敗する。
+& $sourcePython (Join-Path $PSScriptRoot 'prepare_mfa_bundle.py') --output $mfaBundle --verify-only
+if ($LASTEXITCODE -ne 0) { throw '固定版MFA bundleを構築してから配布物を作成してください。' }
+& $sourcePython (Join-Path $PSScriptRoot 'prepare_style_bert_vits2_bundle.py') --output $talkTrainerBundle --verify-only
+if ($LASTEXITCODE -ne 0) { throw '固定版トークTrainer bundleを構築してから配布物を作成してください。' }
+foreach ($relativePath in @('runtime/python.exe', 'source/scripts/train.py', 'bundle-manifest.json', 'diffsinger-source.lock.json')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $diffSingerTrainerBundle $relativePath) -PathType Leaf)) {
+        throw "固定版DiffSinger Trainer bundleが不足しています: $relativePath"
+    }
+}
 
 Remove-Item $output -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $workerOutput -Recurse -Force -ErrorAction SilentlyContinue
@@ -15,9 +48,9 @@ Remove-Item $appOutput -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $output | Out-Null
 
 if ($IncludePhonemeModels) {
-    & (Join-Path $repo "tools/build_ml_worker.ps1") -OutputDirectory "artifacts/_windows-worker" -PrepareModels
+    & (Join-Path $repo "tools/build_ml_worker.ps1") -OutputDirectory "artifacts/_windows-worker" -PrepareModels -MfaBundleDirectory $mfaBundle -PythonExecutable $sourcePython
 } else {
-    & (Join-Path $repo "tools/build_ml_worker.ps1") -OutputDirectory "artifacts/_windows-worker"
+    & (Join-Path $repo "tools/build_ml_worker.ps1") -OutputDirectory "artifacts/_windows-worker" -MfaBundleDirectory $mfaBundle -PythonExecutable $sourcePython
 }
 if ($LASTEXITCODE -ne 0) { throw "MLワーカーの構築に失敗しました。" }
 
@@ -28,6 +61,8 @@ Copy-Item (Join-Path $appOutput "*") $output -Recurse -Force
 $workers = Join-Path $output "workers"
 New-Item -ItemType Directory -Path $workers -Force | Out-Null
 Copy-Item (Join-Path $workerOutput "*") $workers -Recurse -Force
+Copy-Item -LiteralPath $talkTrainerBundle -Destination (Join-Path $workers 'style-bert-vits2') -Recurse
+Copy-Item -LiteralPath $diffSingerTrainerBundle -Destination (Join-Path $workers 'diffsinger') -Recurse
 Copy-Item (Join-Path $repo "LICENSE") $output -Force
 Copy-Item (Join-Path $repo "THIRD_PARTY_NOTICES.md") $output -Force
 Copy-Item (Join-Path $repo "docs/license-policy.md") (Join-Path $output "LICENSE-POLICY-ja.md") -Force
@@ -36,6 +71,17 @@ $required = @(
     (Join-Path $output "YourSinger.exe"),
     (Join-Path $output "coreclr.dll"),
     (Join-Path $workers "YourSinger.ML.exe"),
+    (Join-Path $workers "mfa/runtime/python.exe"),
+    (Join-Path $workers "mfa/models/japanese_mfa.zip"),
+    (Join-Path $workers "mfa/MODEL-NOTICE.txt"),
+    (Join-Path $workers "style-bert-vits2/runtime/python.exe"),
+    (Join-Path $workers "style-bert-vits2/bundle-manifest.json"),
+    (Join-Path $workers "style-bert-vits2/resource-lock.json"),
+    (Join-Path $workers "style-bert-vits2/MODEL-NOTICES.json"),
+    (Join-Path $workers "diffsinger/runtime/python.exe"),
+    (Join-Path $workers "diffsinger/source/scripts/train.py"),
+    (Join-Path $workers "diffsinger/bundle-manifest.json"),
+    (Join-Path $workers "diffsinger/diffsinger-source.lock.json"),
     (Join-Path $output "LICENSE"),
     (Join-Path $output "THIRD_PARTY_NOTICES.md")
 )
@@ -74,6 +120,8 @@ $manifest = Get-ChildItem $output -File -Recurse | Sort-Object FullName | ForEac
     public_entrypoint = "YourSinger.exe"
     worker_entrypoint = "workers/YourSinger.ML.exe"
     includes_phoneme_models = [bool]$IncludePhonemeModels
+    includes_talk_trainer = $true
+    includes_diffsinger_trainer = $true
     files = $manifest
 } | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 (Join-Path $output "distribution-manifest.json")
 

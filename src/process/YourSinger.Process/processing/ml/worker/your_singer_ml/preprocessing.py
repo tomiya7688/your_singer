@@ -1,82 +1,81 @@
 from __future__ import annotations
 
-import array
-import json
-import math
-import shutil
+import re
 import subprocess
-import wave
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-
-@dataclass(frozen=True)
-class WaveStats:
-    duration_sec: float
-    rms: float
-    peak: float
-    clipping_ratio: float
-    silence_ratio: float
-    reverb_score: float
+from .audio_quality import AudioQualityAnalyzer
+from .vocal_separation import DemucsVocalSeparator
+from .voice_activity_segmentation import VoiceActivitySegmenter
 
 
+# {
+#   責務: [
+#     preprocess_audio: 入力音声を分離・整音し学習候補区間と品質情報を作る
+#   ]
+#   処理: [
+#     1: 要求値と出力先を検証する
+#     2: 歌声分離・整音・区間分割を行う
+#     3: 品質情報と処理履歴を返す
+#   ]
+#   引数: [payload: source_id、input_path、workspace_path、stage_versionを含む要求]
+#   戻り値: [音声パス、候補区間、品質情報、処理履歴を含む抽出結果]
+#   エラー: [入力音声またはsource_idが不正な場合や前処理に失敗した場合に失敗する]
+# }
 def preprocess_audio(payload: dict) -> dict:
+    # 出力ファイル名へ安全に使えるsource_idだけを受け付ける。
     source_id = str(payload["source_id"])
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", source_id) is None:
+        raise ValueError("source_idは英数字、アンダースコア、ハイフンで構成してください。")
+
+    # 入力と作業領域を絶対パスに正規化してから存在確認する。
     input_path = Path(payload["input_path"]).resolve()
     workspace = Path(payload["workspace_path"]).resolve()
     stage_version = str(payload["stage_version"])
-
     if not input_path.exists():
         raise FileNotFoundError(f"入力音声が見つかりません: {input_path}")
 
+    # 前処理段階ごとに出力先を分ける。
     separated_dir = workspace / "separated"
     cleaned_dir = workspace / "cleaned"
     segments_dir = workspace / "segments"
-
     separated_dir.mkdir(parents=True, exist_ok=True)
     cleaned_dir.mkdir(parents=True, exist_ok=True)
     segments_dir.mkdir(parents=True, exist_ok=True)
 
     separated_path = separated_dir / f"{source_id}.wav"
     cleaned_path = cleaned_dir / f"{source_id}.wav"
-
     history: list[dict] = []
 
+    # 混合音声を歌声として誤用しないよう、分離に失敗したらここで中止する。
     _separate_vocals(input_path, separated_path)
     history.append(_history("separation", "demucs-v4", separated_path, workspace))
 
+    # 歌声トラックをノイズ低減・音量正規化して保存する。
     _clean_audio(separated_path, cleaned_path)
-    history.append(_history("denoise_normalize", "ffmpeg-afftdn-loudnorm-v1", cleaned_path, workspace))
+    history.append(
+        _history("denoise_normalize", "ffmpeg-afftdn-loudnorm-v1", cleaned_path, workspace)
+    )
 
-    stats = _read_wave_stats(cleaned_path)
-    segments = _detect_and_export_segments(
+    # 整音済み音声から学習候補区間を検出する。
+    segments = VoiceActivitySegmenter.detect_and_export(
         cleaned_path,
         segments_dir,
         source_id,
         workspace,
+        _run,
     )
     history.append(_history("vad_segmentation", "energy-vad-v1", segments_dir, workspace))
 
-    raw_stats = _read_wave_stats(input_path)
-    separated_stats = _read_wave_stats(separated_path)
-
-    # BGM漏れはv1-02では完全な知覚モデルではなく、分離前後のRMS差を
-    # 品質上の注意値として保存する。後続で専用評価器へ差し替え可能。
-    music_leak = _clamp(separated_stats.rms / max(raw_stats.rms, 1e-9))
-
-    noise_score = _estimate_noise_score(cleaned_path)
-    overall = _clamp(
-        1.0
-        - (
-            0.30 * noise_score
-            + 0.20 * music_leak
-            + 0.20 * stats.reverb_score
-            + 0.20 * min(1.0, stats.clipping_ratio * 100.0)
-            + 0.10 * stats.silence_ratio
-        )
+    # 波形指標を専用分析器へ渡し品質レポートを作る。
+    quality = AudioQualityAnalyzer.analyze(
+        input_path,
+        separated_path,
+        cleaned_path,
     )
 
+    # 後段が利用する品質値、相対パス、処理履歴を返す。
     return {
         "source_id": source_id,
         "stage_version": stage_version,
@@ -84,89 +83,31 @@ def preprocess_audio(payload: dict) -> dict:
         "separated_audio_path": _relative(separated_path, workspace),
         "cleaned_audio_path": _relative(cleaned_path, workspace),
         "segments": segments,
-        "quality": {
-            "overall": overall,
-            "noise": noise_score,
-            "music_leak": music_leak,
-            "reverb": stats.reverb_score,
-            "clipping": stats.clipping_ratio,
-            "silence": stats.silence_ratio,
-        },
+        "quality": quality,
         "history": history,
         "error_message": None,
     }
 
-
+# {
+#   責務: [
+#     _separate_vocals: DemucsVocalSeparatorへ歌声分離を委譲する
+#   ]
+#   処理: [1: 既存の前処理呼び出し点を保ったまま専用分離器を呼ぶ]
+#   引数: [input_path: 分離する音声, output_path: 歌声の保存先]
+#   戻り値: []
+#   エラー: [歌声分離に失敗した場合に分離器から伝播する]
+# }
 def _separate_vocals(input_path: Path, output_path: Path) -> None:
-    try:
-        from demucs import audio as demucs_audio
-        from demucs import separate as demucs_separate
-    except ImportError as error:
-        raise RuntimeError(
-            "歌声分離に必要なDemucsが利用できません。伴奏入り音声を分離済みとして扱わないため、処理を中止しました。"
-        ) from error
+    DemucsVocalSeparator.separate_vocals(input_path, output_path)
 
-    temp_root = output_path.parent / f".demucs-{output_path.stem}"
-    if temp_root.exists():
-        shutil.rmtree(temp_root)
-    temp_root.mkdir(parents=True)
-
-    original_save = demucs_audio.ta.save
-
-    def save_pcm16_wav(path, waveform, sample_rate, **kwargs):
-        if Path(path).suffix.lower() != ".wav":
-            return original_save(path, waveform, sample_rate=sample_rate, **kwargs)
-
-        encoding = kwargs.get("encoding", "PCM_S")
-        bits_per_sample = kwargs.get("bits_per_sample", 16)
-        if encoding != "PCM_S" or bits_per_sample != 16:
-            raise RuntimeError("Demucs出力はPCM16 WAVで保存する必要があります。")
-
-        import torch
-
-        samples = waveform.detach().to(device="cpu", dtype=torch.float32)
-        if samples.ndim == 1:
-            samples = samples.unsqueeze(0)
-        if samples.ndim != 2:
-            raise ValueError("Demucs出力の音声テンソルは[channels, frames]である必要があります。")
-
-        pcm = (
-            samples.clamp(-1.0, 1.0)
-            .mul(32768.0)
-            .round()
-            .clamp(-32768, 32767)
-            .to(dtype=torch.int16)
-            .transpose(0, 1)
-            .contiguous()
-        )
-        with wave.open(str(path), "wb") as output:
-            output.setnchannels(int(samples.shape[0]))
-            output.setsampwidth(2)
-            output.setframerate(int(sample_rate))
-            output.writeframes(pcm.numpy().astype("<i2", copy=False).tobytes())
-
-    demucs_audio.ta.save = save_pcm16_wav
-    try:
-        demucs_separate.main(
-            [
-                "--two-stems=vocals",
-                "--name=htdemucs",
-                "--out",
-                str(temp_root),
-                str(input_path),
-            ]
-        )
-
-        candidates = list(temp_root.glob("*/**/vocals.wav"))
-        if not candidates:
-            raise RuntimeError("Demucsのvocals.wavが生成されませんでした。")
-
-        shutil.move(str(candidates[0]), output_path)
-    finally:
-        demucs_audio.ta.save = original_save
-        shutil.rmtree(temp_root, ignore_errors=True)
-
-
+# {
+#   責務: [_clean_audio: 歌声WAVへ帯域制限・ノイズ低減・音量正規化を適用する]
+#   処理: [1: ffmpegへPCM16 mono出力を要求する]
+#   引数: [input_path: 整音する歌声, output_path: 整音結果]
+#   戻り値: []
+#   エラー: [ffmpegが失敗した場合にRuntimeErrorを送出する]
+#   副作用: [output_pathへ整音済み音声を書き込む]
+# }
 def _clean_audio(input_path: Path, output_path: Path) -> None:
     _run(
         [
@@ -190,213 +131,13 @@ def _clean_audio(input_path: Path, output_path: Path) -> None:
     )
 
 
-def _detect_and_export_segments(
-    cleaned_path: Path,
-    segments_dir: Path,
-    source_id: str,
-    workspace: Path,
-) -> list[dict]:
-    with wave.open(str(cleaned_path), "rb") as wav:
-        frame_rate = wav.getframerate()
-        channels = wav.getnchannels()
-        sample_width = wav.getsampwidth()
-        if channels != 1 or sample_width != 2:
-            raise ValueError("VAD入力はmono PCM16 WAVである必要があります。")
-
-        samples = array.array("h", wav.readframes(wav.getnframes()))
-
-    window_ms = 30
-    window = max(1, int(frame_rate * window_ms / 1000))
-    min_voice_sec = 0.30
-    max_gap_sec = 0.25
-
-    rms_values: list[float] = []
-    for start in range(0, len(samples), window):
-        block = samples[start : start + window]
-        rms_values.append(_rms(block))
-
-    if not rms_values:
-        return []
-
-    sorted_rms = sorted(rms_values)
-    floor = sorted_rms[max(0, int(len(sorted_rms) * 0.20) - 1)]
-    threshold = max(350.0, floor * 3.0)
-
-    voiced = [value >= threshold for value in rms_values]
-    ranges = _merge_voiced_windows(voiced, window_ms / 1000.0, max_gap_sec)
-
-    result: list[dict] = []
-    segment_index = 0
-
-    for start_sec, end_sec in ranges:
-        if end_sec - start_sec < min_voice_sec:
-            continue
-
-        segment_id = f"seg_{source_id}_{segment_index:05d}"
-        output_path = segments_dir / f"{segment_id}.wav"
-
-        _run(
-            [
-                "ffmpeg",
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-y",
-                "-ss",
-                f"{start_sec:.3f}",
-                "-to",
-                f"{end_sec:.3f}",
-                "-i",
-                str(cleaned_path),
-                "-c:a",
-                "pcm_s16le",
-                str(output_path),
-            ]
-        )
-
-        total_windows = max(1, round((end_sec - start_sec) / (window_ms / 1000.0)))
-        result.append(
-            {
-                "segment_id": segment_id,
-                "start_sec": start_sec,
-                "end_sec": end_sec,
-                "audio_path": _relative(output_path, workspace),
-                "voiced_probability": 1.0,
-                "silence_ratio": 1.0 / total_windows,
-            }
-        )
-        segment_index += 1
-
-    return result
-
-
-def _merge_voiced_windows(
-    voiced: list[bool],
-    window_sec: float,
-    max_gap_sec: float,
-) -> list[tuple[float, float]]:
-    max_gap_windows = max(1, round(max_gap_sec / window_sec))
-    ranges: list[tuple[int, int]] = []
-    start: int | None = None
-    last_voice: int | None = None
-
-    for index, active in enumerate(voiced):
-        if active:
-            if start is None:
-                start = index
-            last_voice = index
-            continue
-
-        if start is not None and last_voice is not None and index - last_voice > max_gap_windows:
-            ranges.append((start, last_voice + 1))
-            start = None
-            last_voice = None
-
-    if start is not None and last_voice is not None:
-        ranges.append((start, last_voice + 1))
-
-    return [
-        (start_index * window_sec, end_index * window_sec)
-        for start_index, end_index in ranges
-    ]
-
-
-def _read_wave_stats(path: Path) -> WaveStats:
-    with wave.open(str(path), "rb") as wav:
-        if wav.getsampwidth() != 2:
-            raise ValueError(f"PCM16 WAVのみ品質解析できます: {path}")
-
-        frame_rate = wav.getframerate()
-        channels = wav.getnchannels()
-        frames = wav.getnframes()
-        samples = array.array("h", wav.readframes(frames))
-
-    if channels > 1:
-        mono = array.array("h")
-        for index in range(0, len(samples), channels):
-            mono.append(int(sum(samples[index : index + channels]) / channels))
-        samples = mono
-
-    count = max(1, len(samples))
-    peak_abs = max((abs(value) for value in samples), default=0)
-    clipping = sum(1 for value in samples if abs(value) >= 32700) / count
-    silence = sum(1 for value in samples if abs(value) <= 180) / count
-
-    return WaveStats(
-        duration_sec=frames / max(1, frame_rate),
-        rms=_rms(samples) / 32768.0,
-        peak=peak_abs / 32768.0,
-        clipping_ratio=clipping,
-        silence_ratio=silence,
-        reverb_score=_estimate_reverb(samples, frame_rate),
-    )
-
-
-def _estimate_noise_score(path: Path) -> float:
-    with wave.open(str(path), "rb") as wav:
-        samples = array.array("h", wav.readframes(wav.getnframes()))
-
-    if not samples:
-        return 1.0
-
-    block = max(1, len(samples) // 200)
-    block_rms = [
-        _rms(samples[index : index + block])
-        for index in range(0, len(samples), block)
-    ]
-    block_rms.sort()
-
-    noise_floor = block_rms[max(0, int(len(block_rms) * 0.10) - 1)]
-    speech_level = block_rms[max(0, int(len(block_rms) * 0.75) - 1)]
-
-    if speech_level <= 1:
-        return 1.0
-
-    ratio = noise_floor / speech_level
-    return _clamp(ratio * 3.0)
-
-
-def _estimate_reverb(samples: array.array, frame_rate: int) -> float:
-    if len(samples) < frame_rate // 2:
-        return 0.0
-
-    stride = max(1, frame_rate // 200)
-    envelope = [
-        abs(samples[index])
-        for index in range(0, len(samples), stride)
-    ]
-
-    if len(envelope) < 20:
-        return 0.0
-
-    peak = max(envelope)
-    if peak <= 0:
-        return 0.0
-
-    threshold = peak * 0.35
-    tail = 0
-    tail_total = 0
-    active = False
-
-    for value in envelope:
-        if value >= threshold:
-            active = True
-            tail = 0
-        elif active:
-            tail += 1
-            tail_total += 1
-            if tail > 20:
-                active = False
-
-    return _clamp(tail_total / max(1, len(envelope)) * 2.0)
-
-
-def _rms(samples: array.array | list[int]) -> float:
-    if not samples:
-        return 0.0
-    return math.sqrt(sum(float(value) * float(value) for value in samples) / len(samples))
-
-
+# {
+#   責務: [_run: 外部コマンドを実行し失敗内容を呼び出し元へ伝える]
+#   処理: [1: 標準出力と標準エラーを取得して終了コードを確認する]
+#   引数: [command: 実行するコマンドと引数]
+#   戻り値: []
+#   エラー: [終了コードが0以外の場合にRuntimeErrorを送出する]
+# }
 def _run(command: list[str]) -> None:
     completed = subprocess.run(
         command,
@@ -412,6 +153,12 @@ def _run(command: list[str]) -> None:
         )
 
 
+# {
+#   責務: [_relative: workspaceを基準に音声パスを表現する]
+#   処理: [1: workspace内ならPOSIX相対パス、外なら絶対パスを返す]
+#   引数: [path: 対象ファイル, workspace: 相対パスの基準]
+#   戻り値: [audio_path: 相対パスまたは絶対パス]
+# }
 def _relative(path: Path, workspace: Path) -> str:
     try:
         return path.resolve().relative_to(workspace.resolve()).as_posix()
@@ -419,6 +166,12 @@ def _relative(path: Path, workspace: Path) -> str:
         return str(path.resolve())
 
 
+# {
+#   責務: [_history: 前処理段階の版・完了時刻・出力先を記録する]
+#   処理: [1: outputをworkspace相対表記へ変換し履歴レコードを作る]
+#   引数: [stage: 処理段階, version: 処理版, output: 出力パス, workspace: 相対パスの基準]
+#   戻り値: [history: 保存可能な処理履歴]
+# }
 def _history(stage: str, version: str, output: Path, workspace: Path) -> dict:
     return {
         "stage": stage,
@@ -426,7 +179,3 @@ def _history(stage: str, version: str, output: Path, workspace: Path) -> dict:
         "completed_at": datetime.now(timezone.utc).isoformat(),
         "output_path": _relative(output, workspace),
     }
-
-
-def _clamp(value: float) -> float:
-    return max(0.0, min(1.0, float(value)))

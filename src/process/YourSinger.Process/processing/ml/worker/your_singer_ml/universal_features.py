@@ -1,15 +1,42 @@
 from __future__ import annotations
 
-import array
-import json
-import math
-import wave
 from pathlib import Path
 
-
-_whisper_model = None
-
-
+from .mfa_alignment import ALIGNMENT_METHOD, MfaForcedAligner
+from .audio_features import (
+    _clamp,
+    _coefficient_of_variation,
+    _extract_frame_features,
+    _load_pcm16_mono,
+    _pitch_range_semitones,
+    _relative,
+    _stddev,
+    _write_feature,
+)
+from .transcription_alignment import (
+    _phonemize,
+    _transcribe,
+    align_phonemes as _align_phonemes_impl,
+)
+# {
+#   責務: [
+#     extract_universal_features: 音声区間から文字起こし・音素・音響特徴量を抽出する
+#   ]
+#   処理: [
+#     1: 入力音声と作業領域を読み込む
+#     2: 文字起こしまたは修正歌詞から音素境界を実測する
+#     3: 音響特徴量を保存し集約値を返す
+#   ]
+#   引数: [
+#     payload: segment ID、音声パス、作業領域、キャッシュキー、任意の修正歌詞を含む要求
+#   ]
+#   戻り値: [
+#     feature: 文字起こし、音素、特徴量パス、品質値を含む抽出結果
+#   ]
+#   エラー: [
+#     音声の読み込みまたは特徴量抽出に失敗した場合に失敗する
+#   ]
+# }
 def extract_universal_features(payload: dict) -> dict:
     segment_id = str(payload["segment_id"])
     source_id = str(payload["source_id"])
@@ -20,19 +47,25 @@ def extract_universal_features(payload: dict) -> dict:
     sample_rate, samples = _load_pcm16_mono(audio_path)
     duration_sec = len(samples) / max(1, sample_rate)
 
-    transcript, asr_confidence = _transcribe(audio_path)
+    transcript_override = payload.get("transcript_override")
+    if transcript_override is None:
+        transcript, asr_confidence, alignment_units = _transcribe(audio_path)
+    else:
+        # 利用者の修正歌詞を再認識結果で上書きせず、その発音列を再実測する。
+        if not isinstance(transcript_override, str):
+            raise ValueError("文字起こし修正は文字列で指定してください。")
+        transcript, asr_confidence, alignment_units = transcript_override, 0.0, []
     phonemes = _phonemize(transcript)
-    phoneme_timings, alignment_confidence = _align_phonemes(
-        phonemes,
-        duration_sec,
-        asr_confidence,
-    )
+    phoneme_timings, alignment_confidence, alignment_method, alignment_warning = _align_training_phonemes(
+        audio_path, workspace, phonemes, duration_sec, asr_confidence, alignment_units)
 
+    # 音声フレームごとのF0、エネルギー、有声判定を抽出する。
     f0_values, energy_values, voicing_values = _extract_frame_features(
         samples,
         sample_rate,
     )
 
+    # 後続工程が個別に読み込めるよう特徴量系列を分けて保存する。
     f0_path = _write_feature(
         workspace / "features" / "f0" / f"{segment_id}.json",
         f0_values,
@@ -67,6 +100,7 @@ def extract_universal_features(payload: dict) -> dict:
         if item["value"] > 0.0
     ) / max(1, len(voiced_f0))
 
+    # 音響系列と音素数から区間全体の韻律要約を作る。
     style = {
         "speaking_rate": len(phonemes) / max(duration_sec, 0.001),
         "pitch_range_semitones": _pitch_range_semitones(voiced_f0),
@@ -76,6 +110,7 @@ def extract_universal_features(payload: dict) -> dict:
         "pause_ratio": 1.0 - voiced_ratio,
     }
 
+    # C#側のUniversalVoiceSegment形式に合わせて抽出結果を返す。
     return {
         "segment_id": segment_id,
         "source_id": source_id,
@@ -87,6 +122,8 @@ def extract_universal_features(payload: dict) -> dict:
         "asr_confidence": asr_confidence,
         "phonemes": phoneme_timings,
         "alignment_confidence": alignment_confidence,
+        "alignment_method": alignment_method,
+        "alignment_warning": alignment_warning,
         "f0_feature_path": f0_path,
         "energy_feature_path": energy_path,
         "voicing_feature_path": voicing_path,
@@ -100,246 +137,49 @@ def extract_universal_features(payload: dict) -> dict:
     }
 
 
-def _transcribe(path: Path) -> tuple[str, float]:
-    global _whisper_model
-
+# {
+#   責務: [_align_training_phonemes: 実測を優先し音素時刻の方式と限界を返す]
+#   処理: [1: 同梱MFAで音素境界を実測する 2: 未対応発音や不正出力を推定値と区別する]
+#   引数: [audio_path: 音声, workspace: 作業領域, phonemes: 内部音素列, duration_sec: 音声長, asr_confidence: 認識信頼度, alignment_units: ASR単語時刻]
+#   戻り値: [alignment: 音素時刻、未校正の信頼度、方式、警告]
+#   エラー: [必須資源の欠落やMFA実行失敗は呼出元へ伝える]
+# }
+def _align_training_phonemes(audio_path: Path, workspace: Path, phonemes: list[str],
+                             duration_sec: float, asr_confidence: float,
+                             alignment_units: list[dict]) -> tuple[list[dict], float, str, str | None]:
+    if not phonemes:
+        return [], 0.0, "unavailable", "文字起こしから音素を取得できませんでした。"
     try:
-        from faster_whisper import WhisperModel
-    except ImportError:
-        return "", 0.0
+        timings = MfaForcedAligner().align(audio_path, phonemes, duration_sec, workspace)
+    except ValueError as error:
+        # 推定値には実測方式を付けず、歌唱学習の既存検証で拒否できるようにする。
+        timings, confidence, method = _align_phonemes(phonemes, duration_sec, asr_confidence, alignment_units)
+        return timings, confidence, method, str(error)
+    return timings, 0.0, ALIGNMENT_METHOD, "MFA境界の正確さは未確認です。信頼度は未校正のため0を記録しています。"
 
-    if _whisper_model is None:
-        _whisper_model = WhisperModel(
-            "small",
-            device="auto",
-            compute_type="auto",
-        )
-
-    segments, _ = _whisper_model.transcribe(
-        str(path),
-        language="ja",
-        vad_filter=False,
-        beam_size=5,
-    )
-
-    texts: list[str] = []
-    logprobs: list[float] = []
-
-    for segment in segments:
-        text = (segment.text or "").strip()
-        if text:
-            texts.append(text)
-        avg_logprob = getattr(segment, "avg_logprob", None)
-        if avg_logprob is not None:
-            logprobs.append(float(avg_logprob))
-
-    transcript = "".join(texts).strip()
-
-    if not logprobs:
-        return transcript, 0.5 if transcript else 0.0
-
-    mean_logprob = sum(logprobs) / len(logprobs)
-    confidence = 1.0 / (1.0 + math.exp(-(mean_logprob + 1.0) * 2.0))
-    return transcript, _clamp(confidence)
-
-
-def _phonemize(text: str) -> list[str]:
-    if not text:
-        return []
-
-    try:
-        import pyopenjtalk
-        phones = pyopenjtalk.g2p(text, kana=False)
-        return [phone for phone in phones.split() if phone]
-    except Exception:
-        return [character for character in text if not character.isspace()]
-
-
+# {
+#   責務: [
+#     _align_phonemes: 互換用音素化関数を注入して音素時刻を推定する
+#   ]
+#   処理: [1: モジュール内のアラインメント処理へ音素化関数を渡す]
+#   引数: [
+#     phonemes: 音素列
+#     duration_sec: 区間長（秒）
+#     asr_confidence: ASR信頼度
+#     alignment_units: ASR単語時刻
+#   ]
+#   戻り値: [alignment: 音素時刻・信頼度・推定方式]
+# }
 def _align_phonemes(
     phonemes: list[str],
     duration_sec: float,
     asr_confidence: float,
-) -> tuple[list[dict], float]:
-    if not phonemes or duration_sec <= 0:
-        return [], 0.0
-
-    step = duration_sec / len(phonemes)
-    result: list[dict] = []
-
-    for index, phoneme in enumerate(phonemes):
-        start = index * step
-        end = duration_sec if index == len(phonemes) - 1 else (index + 1) * step
-        result.append(
-            {
-                "phoneme": phoneme,
-                "start_sec": start,
-                "end_sec": end,
-                "confidence": _clamp(asr_confidence * 0.8),
-            }
-        )
-
-    alignment_confidence = _clamp(asr_confidence * 0.8)
-    return result, alignment_confidence
-
-
-def _extract_frame_features(
-    samples: array.array,
-    sample_rate: int,
-) -> tuple[list[dict], list[dict], list[dict]]:
-    frame_size = max(1, int(sample_rate * 0.040))
-    hop_size = max(1, int(sample_rate * 0.010))
-
-    f0_values: list[dict] = []
-    energy_values: list[dict] = []
-    voicing_values: list[dict] = []
-
-    for start in range(0, max(1, len(samples) - frame_size + 1), hop_size):
-        frame = samples[start:start + frame_size]
-        if len(frame) < frame_size:
-            break
-
-        time_sec = start / sample_rate
-        energy = _rms(frame) / 32768.0
-        pitch, confidence = _estimate_pitch(frame, sample_rate)
-
-        f0_values.append(
-            {
-                "time_sec": time_sec,
-                "value": pitch or 0.0,
-                "confidence": confidence,
-            }
-        )
-        energy_values.append(
-            {
-                "time_sec": time_sec,
-                "value": energy,
-            }
-        )
-        voicing_values.append(
-            {
-                "time_sec": time_sec,
-                "value": 1.0 if pitch is not None and confidence >= 0.55 else 0.0,
-            }
-        )
-
-    return f0_values, energy_values, voicing_values
-
-
-def _estimate_pitch(frame: array.array, sample_rate: int) -> tuple[float | None, float]:
-    if _rms(frame) < 250.0:
-        return None, 0.0
-
-    min_hz = 60.0
-    max_hz = 1200.0
-    min_lag = max(1, int(sample_rate / max_hz))
-    max_lag = min(len(frame) - 2, int(sample_rate / min_hz))
-
-    mean = sum(frame) / len(frame)
-    centered = [float(value) - mean for value in frame]
-
-    best_lag = 0
-    best_corr = 0.0
-
-    for lag in range(min_lag, max_lag + 1):
-        numerator = 0.0
-        a_energy = 0.0
-        b_energy = 0.0
-
-        for index in range(len(centered) - lag):
-            a = centered[index]
-            b = centered[index + lag]
-            numerator += a * b
-            a_energy += a * a
-            b_energy += b * b
-
-        denominator = math.sqrt(a_energy * b_energy)
-        if denominator <= 1e-9:
-            continue
-
-        correlation = numerator / denominator
-        if correlation > best_corr:
-            best_corr = correlation
-            best_lag = lag
-
-    if best_lag == 0 or best_corr < 0.45:
-        return None, _clamp(best_corr)
-
-    return sample_rate / best_lag, _clamp(best_corr)
-
-
-def _load_pcm16_mono(path: Path) -> tuple[int, array.array]:
-    with wave.open(str(path), "rb") as wav:
-        if wav.getsampwidth() != 2:
-            raise ValueError(f"PCM16 WAVのみ特徴抽出できます: {path}")
-
-        sample_rate = wav.getframerate()
-        channels = wav.getnchannels()
-        samples = array.array("h", wav.readframes(wav.getnframes()))
-
-    if channels == 1:
-        return sample_rate, samples
-
-    mono = array.array("h")
-    for index in range(0, len(samples), channels):
-        mono.append(int(sum(samples[index:index + channels]) / channels))
-
-    return sample_rate, mono
-
-
-def _write_feature(path: Path, values: list[dict], workspace: Path) -> str:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(values, ensure_ascii=False, separators=(",", ":")),
-        encoding="utf-8",
+    alignment_units: list[dict] | None = None,
+) -> tuple[list[dict], float, str]:
+    return _align_phonemes_impl(
+        phonemes,
+        duration_sec,
+        asr_confidence,
+        alignment_units,
+        _phonemize,
     )
-    return _relative(path, workspace)
-
-
-def _relative(path: Path, workspace: Path) -> str:
-    return path.resolve().relative_to(workspace.resolve()).as_posix()
-
-
-def _pitch_range_semitones(values: list[float]) -> float:
-    positive = sorted(value for value in values if value > 0)
-    if len(positive) < 2:
-        return 0.0
-
-    low = positive[max(0, int(len(positive) * 0.10) - 1)]
-    high = positive[min(len(positive) - 1, int(len(positive) * 0.90))]
-    if low <= 0 or high <= low:
-        return 0.0
-
-    return 12.0 * math.log2(high / low)
-
-
-def _coefficient_of_variation(values: list[float]) -> float:
-    if not values:
-        return 0.0
-
-    mean = sum(values) / len(values)
-    if mean <= 1e-9:
-        return 0.0
-
-    return _stddev(values) / mean
-
-
-def _stddev(values: list[float]) -> float:
-    if len(values) < 2:
-        return 0.0
-
-    mean = sum(values) / len(values)
-    return math.sqrt(
-        sum((value - mean) ** 2 for value in values) / len(values)
-    )
-
-
-def _rms(samples: array.array) -> float:
-    if not samples:
-        return 0.0
-    return math.sqrt(
-        sum(float(value) * float(value) for value in samples) / len(samples)
-    )
-
-
-def _clamp(value: float) -> float:
-    return max(0.0, min(1.0, float(value)))

@@ -3,15 +3,20 @@ name = "your-singer-ml-worker"
 version = "0.1.0"
 requires-python = ">=3.11,<3.13"
 dependencies = [
+  "numpy==1.26.4",
   "demucs==4.0.1",
   "speechbrain==1.1.1",
   "scikit-learn==1.9.1",
   "faster-whisper==1.1.1",
-  "pyopenjtalk==0.4.1"
+  "av>=11,<19",
+  "pyopenjtalk-dict==0.3.4.dev2",
+  "setuptools==80.9.0"
 ]
 
 [project.optional-dependencies]
 phoneme-supplement = [
+  "accelerate==0.34.2",
+  "transformers==4.44.2",
   "style-bert-vits2 @ https://github.com/litagin02/Style-Bert-VITS2/archive/d8148f3090ee5038ca7b4e4b327116c64467f952.zip"
 ]
 

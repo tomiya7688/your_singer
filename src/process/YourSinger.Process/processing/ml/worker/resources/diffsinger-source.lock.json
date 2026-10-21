@@ -1,0 +1,19 @@
+{
+  "schema": "your-singer-diffsinger-source-v1",
+  "version": "2.5.1",
+  "commit": "323a5693245b827caba0ab1a7371fe5ca885b061",
+  "archive_url": "https://codeload.github.com/openvpi/DiffSinger/zip/323a5693245b827caba0ab1a7371fe5ca885b061",
+  "archive_sha256": "2a4b6761076608568748b29c10c1b7c0d8ca8513a0e13c156240bf755922989d",
+  "license": "Apache-2.0",
+  "contract": "acoustic-input-only",
+  "openutau_render_verified": false,
+  "files": {
+    "configs/base.yaml": "5cc98aaeaa1a28229c24829491fe9a3eb6da229272e1018742cd54acc332a5bb",
+    "configs/acoustic.yaml": "ae7c509bea25ed2d8ea036800ebb4071a9988878d5a0b059c9758ded52383600",
+    "preprocessing/acoustic_binarizer.py": "f3ba6a1ceecc78c4e173e0b0a50f6578b0bd311ec3ad6bea25499d35d020c5f4",
+    "utils/phoneme_utils.py": "b63a9de8f547a632eda1a34848da448eb59ba940a87c2282a9a4a8c388aecdba",
+    "scripts/binarize.py": "63e1a08a49c7fcf08c6ad8b74f487ff6166db3f1ae436ba124b9a1aae5574122",
+    "scripts/train.py": "660de72d632dc1af356f71931a5d997358b06755e606a479bf0cedc006a619a2",
+    "LICENSE": "4e99b4693e8b8aa3f29ada6f80e62dba136958987a6d5eea9ecc2451528d4f83"
+  }
+}
