@@ -23,13 +23,9 @@ Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
 $version = & $sourcePython -c "import platform; print(platform.python_version())"
 if ($LASTEXITCODE -ne 0 -or $version.Trim() -ne '3.12.10') { throw "Python 3.12.10が必要です。" }
-# 同名の日本語辞書実装を持つ既存環境を複製しない。
-& $sourcePython -c "import importlib.metadata as m; extra={d.metadata['Name'].lower() for d in m.distributions()}-{'pip','setuptools','wheel'}; assert not extra, extra"
-if ($LASTEXITCODE -ne 0) { throw "ビルド元には追加ライブラリを導入していない完全なPython runtimeを指定してください。" }
-
-# ライブラリを混在させず、入力のPythonと標準ライブラリを専用フォルダへ複製する。
-& $sourcePython -c "import shutil,sys; shutil.copytree(sys.argv[1],sys.argv[2],ignore=shutil.ignore_patterns('__pycache__','*.pyc'))" $source $output
-if ($LASTEXITCODE -ne 0) { throw "専用Pythonの複製に失敗しました。未完成フォルダを配布しないでください。" }
+# 元Pythonの第三者依存を除外し、標準runtimeとpipだけを専用配置する。
+& $sourcePython (Join-Path $PSScriptRoot 'prepare_trainer_python.py') --source $source --output $output
+if ($LASTEXITCODE -ne 0) { throw "専用Pythonの複製と初期化に失敗しました。" }
 $python = Join-Path $output 'python.exe'
 & $python -m pip install --no-compile 'torch==2.3.1+cu121' 'torchaudio==2.3.1+cu121' --index-url https://download.pytorch.org/whl/cu121 --report (Join-Path $output 'torch-install-report.json')
 if ($LASTEXITCODE -ne 0) { throw "CUDA用PyTorchの取得に失敗しました。" }

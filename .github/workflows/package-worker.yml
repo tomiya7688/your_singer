@@ -7,6 +7,8 @@ on:
       - "tools/build_ml_worker.ps1"
       - "tools/build_windows_distribution.ps1"
       - "tools/prepare_phoneme_supplement_resources.py"
+      - "tools/prepare_trainer_python.py"
+      - "tests/tools/test_prepare_trainer_python.py"
       - "tools/prepare_mfa_bundle.py"
       - "tools/prepare_style_bert_vits2_bundle.py"
       - "tools/build_style_bert_vits2_runtime.ps1"
@@ -47,6 +49,15 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: 専用Pythonの依存分離を検証
+        shell: pwsh
+        run: |
+          $env:YOURSINGER_TRAINER_PYTHON_SOURCE = (python -c "import sys; print(sys.base_prefix)").Trim()
+          $env:TEMP = Join-Path $env:GITHUB_WORKSPACE "artifacts/temp"
+          $env:TMP = $env:TEMP
+          New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
+          python -m unittest discover -s tests/tools -v
+          if ($LASTEXITCODE -ne 0) { throw "専用Pythonの複製・初期化・依存分離に失敗しました。" }
       - uses: mamba-org/setup-micromamba@v3
         with:
           environment-name: mfa-runtime

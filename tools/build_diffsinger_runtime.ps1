@@ -30,9 +30,6 @@ New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
 
 $version = & $sourcePython -c "import platform; print(platform.python_version())"
 if ($LASTEXITCODE -ne 0 -or $version.Trim() -ne '3.12.10') { throw "Python 3.12.10が必要です。" }
-# DiffSinger用へ複製するPythonは標準構成だけにし、他のMLフレームワークを混ぜない。
-& $sourcePython -c "import importlib.metadata as m; extra={d.metadata['Name'].lower() for d in m.distributions()}-{'pip','setuptools','wheel'}; assert not extra, extra"
-if ($LASTEXITCODE -ne 0) { throw "入力Pythonは追加パッケージのない完全なruntimeにしてください。" }
 $sourceProbe = Join-Path $PSScriptRoot 'prepare_diffsinger_source.py'
 & $sourcePython $sourceProbe --archive (Join-Path $repo 'artifacts/diffsinger-source/v2.5.1.zip') --output $diffSingerSource --verify-only
 if ($LASTEXITCODE -ne 0) { throw "固定DiffSingerソースを検証できません。" }
@@ -41,7 +38,7 @@ try {
 New-Item -ItemType Directory -Path $staging | Out-Null
 # Python本体と固定ソースを専用の一時領域へ複製して検証する。
 $runtimeDirectory = Join-Path $staging 'runtime'
-& $sourcePython -c "import shutil,sys; shutil.copytree(sys.argv[1],sys.argv[2],ignore=shutil.ignore_patterns('__pycache__','*.pyc'))" $sourceRuntime $runtimeDirectory
+& $sourcePython (Join-Path $PSScriptRoot 'prepare_trainer_python.py') --source $sourceRuntime --output $runtimeDirectory
 if ($LASTEXITCODE -ne 0) { throw "DiffSinger runtime用Pythonの複製に失敗しました。" }
 $python = Join-Path $runtimeDirectory 'python.exe'
 $bundleSource = Join-Path $staging 'source'

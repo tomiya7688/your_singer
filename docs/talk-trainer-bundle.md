@@ -33,6 +33,11 @@ Style-Bert-VITS2 2.7.0の学習では、PyTorch・NumPy・日本語辞書APIの�
 
 以下はリポジトリ直下で実行してください。
 構築用の完全なWindows Python 3.12.10の保存先を指定してください。venvは使用できません。
+
+構築処理は`tools/prepare_trainer_python.py`でPython本体と標準ライブラリだけを複製し、同梱の`ensurepip`からpipを初期化します。
+入力Pythonにある`site-packages`と`Scripts`は引き継がず、複製先のPython版・探索先・初期依存がpipだけであることを確認します。
+その後に各Trainerの固定依存を導入し、`pip check`を実行します。入力Pythonのライブラリは変更しません。
+
 作業先・取得cache・一時領域はリポジトリ内の `artifacts/` へ保存されます。
 
 ```powershell
