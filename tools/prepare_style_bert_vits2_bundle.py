@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -9,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -39,14 +41,30 @@ class StyleBertVits2BundleBuilder:
 
     # {
     #   責務: [download: 固定hashを確認して取得cacheへ保存する]
-    #   処理: [1: 検証済みcacheを再利用する 2: 未取得分を一時ファイルへ取得する 3: hash一致時に公開する]
-    #   エラー: [取得失敗・hash不一致で失敗し、不完全ファイルを再利用しない]
+    #   処理: [1: 検証済みcacheを再利用する 2: 不完全な取得を最大3回試す 3: hash一致時に公開する]
+    #   エラー: [取得失敗・繰り返すhash不一致で失敗し、不完全ファイルを再利用しない]
     # }
     def download(self, url: str, digest: str) -> Path:
         self.cache.mkdir(parents=True, exist_ok=True)
         destination = self.cache / digest
         if destination.is_file() and file_sha256(destination) == digest:
             return destination
+        # 固定hashは変更せず、切断や不一致に限り新しい一時ファイルで取り直す。
+        for attempt in range(1, 4):
+            try:
+                return self._download_attempt(url, digest, destination)
+            except (http.client.IncompleteRead, ValueError) as error:
+                if attempt == 3:
+                    raise
+                print(f"固定資源の取得を再試行します ({attempt}/3): {error}", file=sys.stderr, flush=True)
+                time.sleep(attempt)
+        raise AssertionError("固定資源の取得回数が不正です。")
+
+    # {
+    #   責務: [_download_attempt: 1回の応答を一時保存し、固定hash一致時だけcacheへ公開する]
+    #   エラー: [不一致には実サイズとhashを添え、一時ファイルを除去して呼出元へ伝える]
+    # }
+    def _download_attempt(self, url: str, digest: str, destination: Path) -> Path:
         # 同じcacheへの並行構築でも一時ファイル名を共有しない。
         with tempfile.NamedTemporaryFile(prefix=".download-", dir=self.cache, delete=False) as temporary:
             staging = Path(temporary.name)
@@ -54,8 +72,10 @@ class StyleBertVits2BundleBuilder:
                 with urllib.request.urlopen(url, timeout=180) as response:
                     shutil.copyfileobj(response, temporary, length=1024 * 1024)
                 temporary.flush()
-                if file_sha256(staging) != digest:
-                    raise ValueError(f"固定資源のSHA-256が一致しません: {url}")
+                actual_digest = file_sha256(staging)
+                if actual_digest != digest:
+                    raise ValueError(f"固定資源のSHA-256が一致しません: {url}; "
+                                     f"size={staging.stat().st_size}; expected={digest}; actual={actual_digest}")
             except BaseException:
                 temporary.close()
                 staging.unlink(missing_ok=True)

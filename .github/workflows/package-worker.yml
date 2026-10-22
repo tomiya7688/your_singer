@@ -9,6 +9,7 @@ on:
       - "tools/prepare_phoneme_supplement_resources.py"
       - "tools/prepare_trainer_python.py"
       - "tests/tools/test_prepare_trainer_python.py"
+      - "tests/tools/test_trainer_resource_download.py"
       - "tools/prepare_mfa_bundle.py"
       - "tools/prepare_style_bert_vits2_bundle.py"
       - "tools/build_style_bert_vits2_runtime.ps1"
