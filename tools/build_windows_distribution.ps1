@@ -19,7 +19,7 @@ $talkTrainerBundle = [IO.Path]::GetFullPath($TalkTrainerBundleDirectory, $repo)
 Assert-IndependentBuildSource $talkTrainerBundle @($output, $workerOutput, $appOutput)
 $diffSingerTrainerBundle = [IO.Path]::GetFullPath($DiffSingerTrainerBundleDirectory, $repo)
 Assert-IndependentBuildSource $diffSingerTrainerBundle @($output, $workerOutput, $appOutput)
-$sourcePython = (Get-Command $PythonExecutable -CommandType Application -ErrorAction Stop).Source
+$sourcePython = (Get-Command $PythonExecutable -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 Assert-IndependentBuildSource (Split-Path -Parent $sourcePython) @($output, $workerOutput, $appOutput)
 $env:TEMP = Join-Path $repo "artifacts/temp"
 $env:TMP = $env:TEMP

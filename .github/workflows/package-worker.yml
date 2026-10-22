@@ -44,6 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+        id: python
         with:
           python-version: '3.12.10'
       - uses: actions/setup-dotnet@v4
@@ -95,9 +96,9 @@ jobs:
         shell: pwsh
         run: |
           if ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.include_phoneme_models }}" -eq "true") {
-            ./tools/build_windows_distribution.ps1 -IncludePhonemeModels
+            ./tools/build_windows_distribution.ps1 -IncludePhonemeModels -PythonExecutable "${{ steps.python.outputs.python-path }}"
           } else {
-            ./tools/build_windows_distribution.ps1
+            ./tools/build_windows_distribution.ps1 -PythonExecutable "${{ steps.python.outputs.python-path }}"
           }
       - name: ワーカー起動確認
         shell: pwsh

@@ -16,7 +16,7 @@ Set-Location $repositoryRoot
 # numpy が無い環境では artifacts/dev-venv に検証用の仮想環境を用意し、そのPythonパスを返す
 function Get-WorkerTestPython {
     python -c 'import numpy' 2>$null
-    if ($LASTEXITCODE -eq 0) { return (Get-Command python).Source }
+    if ($LASTEXITCODE -eq 0) { return (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source }
     $venvRoot = Join-Path $repositoryRoot 'artifacts/dev-venv'
     $venvPython = Join-Path $venvRoot 'Scripts/python.exe'
     if (-not (Test-Path $venvPython)) { $venvPython = Join-Path $venvRoot 'bin/python' }

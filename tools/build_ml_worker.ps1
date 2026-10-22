@@ -12,7 +12,7 @@ $worker = Join-Path $repo "src/process/YourSinger.Process/processing/ml/worker"
 $output = Resolve-ArtifactBuildPath $repo $OutputDirectory
 $temp = Resolve-ArtifactBuildPath $repo "artifacts/_ml-worker-build"
 $mfaBundle = [IO.Path]::GetFullPath($MfaBundleDirectory, $repo)
-$sourcePython = (Get-Command $PythonExecutable -CommandType Application -ErrorAction Stop).Source
+$sourcePython = (Get-Command $PythonExecutable -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 Assert-IndependentBuildSource (Split-Path -Parent $sourcePython) @($output, $temp)
 Assert-IndependentBuildSource $mfaBundle @($output, $temp)
 $env:TEMP = Join-Path $repo "artifacts/temp"
