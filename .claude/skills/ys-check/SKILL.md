@@ -1,17 +1,10 @@
 ---
 name: ys-check
-description: your_singer の変更後にCI相当の検証(行数基準・Pythonワーカー・.NETビルド/回帰テスト)をローカルで実行し、結果を報告する。
+description: your_singerの変更に応じたローカル検証を選び、共通チェックの結果と未実行範囲を記録する。
 ---
 
-# ys-check
+# 変更範囲を検証する
 
-1. `pwsh tools/dev/check.ps1` を実行します。長いので `run_in_background` を使います。
-   - 絞り込み: `-SkipDotnet` / `-SkipWorker` / `-SkipSize`
-   - Python側だけの変更なら `-SkipDotnet`、C#のみなら `-SkipWorker` を使ってよい。
-2. 失敗したステップは、出力からテスト名・原因を特定して報告します。
-3. 報告ルール(`dev-guidelines/レビュー基準.md`準拠):
-   - 実行しなかったステップと理由を明記する。
-   - fixtureやモックの成功を、実モデル・実音声・GUIでの成功と言わない。
-4. 行数チェックで「要分割」(500行超)が出た場合は、責務ごとの分割を提案する。
-
-補足: numpy が無い環境では `artifacts/dev-venv` に検証用venvが自動作成されます。
+[実行環境](../../../dev-guidelines/execution.md)で一時領域を設定し、[検証手順](../../../dev-guidelines/workflow.md#check)を実行します。
+長時間処理には利用環境の非同期実行を使い、終了コードとログの場所を記録します。
+検証項目・省略理由・実モデル等との区別は手順の正本に従います。
