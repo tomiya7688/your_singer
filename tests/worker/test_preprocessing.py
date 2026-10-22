@@ -13,7 +13,7 @@ class VocalSeparationTests(unittest.TestCase):
         original_import = builtins.__import__
 
         def import_without_demucs(name, *args, **kwargs):
-            if name == "demucs.separate":
+            if name == "demucs":
                 raise ImportError("demucs not installed")
             return original_import(name, *args, **kwargs)
 

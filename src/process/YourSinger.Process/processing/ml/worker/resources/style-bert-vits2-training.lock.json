@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "version": "2.7.0",
+  "source_revision": "d8148f3090ee5038ca7b4e4b327116c64467f952",
+  "source_sha256": "6f6ff4555c1857ae4bcbca6fd3eff28cca8775fc09caf4009dd8bbad1bb5a47e",
+  "python_version": "3.12.10",
+  "cuda_version": "12.1",
+  "resources": [
+    {
+      "name": "japanese-bert",
+      "repo_id": "ku-nlp/deberta-v2-large-japanese-char-wwm",
+      "revision": "dfd9b4461979b281b3b9f162e50066cc88f08ed3",
+      "destination": "bert/deberta-v2-large-japanese-char-wwm",
+      "license": "CC-BY-SA-4.0",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 3471,
+          "sha256": "ab350f06dbfad95b4991a26f9c2f5097369578b4ebac67f819f426cc88e28492"
+        },
+        {
+          "path": "config.json",
+          "size": 895,
+          "sha256": "8f387ab4c6b36e47c7071327c7a42099002781279b00a7e6a7fe88f3da237a3f"
+        },
+        {
+          "path": "model.safetensors",
+          "size": 1318453704,
+          "sha256": "2630f547d018524a7b03506a42c700cbac49e29bdc441845b0615bfb3b5d74d2"
+        },
+        {
+          "path": "special_tokens_map.json",
+          "size": 125,
+          "sha256": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "size": 520,
+          "sha256": "1cc5203f09ecac12bb7a98a05cb9c2e39a9e37a113a7d85d12542ef29190583b"
+        },
+        {
+          "path": "vocab.txt",
+          "size": 88151,
+          "sha256": "902cbd7e218aaf23a72955533293ceac12fcc4e010ad98c0c14757b94ce7abb6"
+        }
+      ]
+    },
+    {
+      "name": "pretrained",
+      "repo_id": "litagin/Style-Bert-VITS2-1.0-base",
+      "revision": "56b47b34cb2bbc9f750dfe64504bb6e3e213f1fb",
+      "destination": "pretrained",
+      "license": null,
+      "files": [
+        {
+          "path": "README.md",
+          "size": 466,
+          "sha256": "056a4ddac3c3bd35feb7dea2132f8e1b52e1a24663f2ef3e7cd39f042a622a99"
+        },
+        {
+          "path": "G_0.safetensors",
+          "size": 234266180,
+          "sha256": "ee9718a5f3ef1a4ce47fedaad8504e67bfd68b536493ee2d8642be42b450470c"
+        },
+        {
+          "path": "D_0.safetensors",
+          "size": 187000064,
+          "sha256": "cc27022d712fcc030db11ebb6d023c95310d2d909d32126de9abfa92d00e8dfc"
+        },
+        {
+          "path": "DUR_0.safetensors",
+          "size": 2422556,
+          "sha256": "802e99864e072bead2630f5622733620d489175e14f34fe70a09405d7d55f08d"
+        }
+      ]
+    },
+    {
+      "name": "wavlm",
+      "repo_id": "microsoft/wavlm-base-plus",
+      "revision": "4c66d4806a428f2e922ccfa1a962776e232d487b",
+      "destination": "slm/wavlm-base-plus",
+      "license": "CC-BY-SA-3.0",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 3904,
+          "sha256": "d417fc16b08e2f66f0af6b371e47a5f9f1f596f6c1c593f1214d360c41d7a27e"
+        },
+        {
+          "path": "config.json",
+          "size": 2232,
+          "sha256": "fea6df1c2700a3954fc07e70588aecc9055eeb28db2ff57151a2db0d19180ed4"
+        },
+        {
+          "path": "preprocessor_config.json",
+          "size": 215,
+          "sha256": "99272fe8ccfab114b68b478681ea47ee3a1ce62bb788cb92dd6e4f69fb1f1da2"
+        },
+        {
+          "path": "pytorch_model.bin",
+          "size": 377617425,
+          "sha256": "3bb273a6ace99408b50cfc81afdbb7ef2de02da2eab0234e18db608ce692fe51"
+        }
+      ],
+      "license_source": "https://github.com/microsoft/UniSpeech/blob/main/LICENSE"
+    },
+    {
+      "name": "style-speaker",
+      "repo_id": "pyannote/wespeaker-voxceleb-resnet34-LM",
+      "revision": "837717ddb9ff5507820346191109dc79c958d614",
+      "destination": "model-cache/torch/pyannote/models--pyannote--wespeaker-voxceleb-resnet34-LM",
+      "license": "CC-BY-4.0",
+      "files": [
+        {
+          "path": "README.md",
+          "size": 3319,
+          "sha256": "ffc47d6f225a9341771a8304c0b8a354f706184956737661cb2c695e310551e3"
+        },
+        {
+          "path": "config.yaml",
+          "size": 221,
+          "sha256": "6ff718cff3c5d7a4493537ab7f4780cad7e3d32453f59099b4076aefa07a9974"
+        },
+        {
+          "path": "pytorch_model.bin",
+          "size": 26645418,
+          "sha256": "366edf44f4c80889a3eb7a9d7bdf02c4aede3127f7dd15e274dcdb826b143c56"
+        }
+      ]
+    }
+  ]
+}

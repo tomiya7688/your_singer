@@ -1,54 +1,38 @@
 from __future__ import annotations
 
+import json
 import subprocess
-import sys
-from pathlib import Path
+
+from .style_bert_vits2_session import StyleBertVits2TrainingSession
 
 
+# {
+#   責務: [train_style_bert_vits2: 公式の各前処理と学習をジョブ専用環境で実行する]
+#   処理: [1: 入力と資源を検証する 2: 専用Pythonで各工程を実行する 3: 実在する成果物を返す]
+#   エラー: [入力不一致・非ゼロ終了・空の学習データ・成果物不足で失敗する]
+# }
 def train_style_bert_vits2(payload: dict) -> dict:
-    trainer_root = Path(str(payload["trainer_root"]))
-    model_name = str(payload["model_name"])
-    output_dir = Path(str(payload["output_dir"]))
-
-    preprocess = trainer_root / "preprocess_all.py"
-    train = trainer_root / "train_ms.py"
-
-    if not preprocess.is_file():
-        raise FileNotFoundError(
-            f"Style-Bert-VITS2 preprocess_all.pyが同梱されていません: {preprocess}"
-        )
-    if not train.is_file():
-        raise FileNotFoundError(
-            f"Style-Bert-VITS2 train_ms.pyが同梱されていません: {train}"
-        )
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    log_path = output_dir / "trainer.log"
-
-    commands = [
-        [sys.executable, str(preprocess), "-m", model_name],
-        [sys.executable, str(train), "-m", model_name],
-    ]
-
-    with log_path.open("w", encoding="utf-8") as log:
-        for command in commands:
+    session = StyleBertVits2TrainingSession(payload)
+    session.prepare()
+    log_path = session.output / "trainer.log"
+    with log_path.open("x", encoding="utf-8") as log:
+        for stage in ("initialize", "resample.py", "preprocess_text.py", "bert_gen.py", "style_gen.py", "train_ms.py"):
+            # 前処理CLIの戻り値を握りつぶすpreprocess_all.pyを経由しない。
+            log.write(f"\n--- {stage} ---\n")
+            log.flush()
+            if stage == "train_ms.py":
+                session.require_training_features()
             completed = subprocess.run(
-                command,
-                cwd=trainer_root,
-                check=False,
-                text=True,
-                stdout=log,
-                stderr=subprocess.STDOUT,
+                session.command(stage), cwd=session.output, env=session.environment(),
+                check=False, stdout=log, stderr=subprocess.STDOUT,
             )
             if completed.returncode != 0:
                 raise RuntimeError(
-                    f"Style-Bert-VITS2処理が終了コード{completed.returncode}で失敗しました。"
-                    f" log={log_path}"
+                    f"Style-Bert-VITS2の{stage}が終了コード{completed.returncode}で失敗しました。 log={log_path}"
                 )
-
-    return {
-        "exit_code": 0,
-        "log_path": str(log_path),
-        "trainer_root": str(trainer_root),
-        "model_name": model_name,
-    }
+    artifacts = session.require_artifacts()
+    result = dict(exit_code=0, log_path=str(log_path), trainer_root=str(session.trainer),
+                  model_name=session.model_name, **artifacts)
+    # 結果の参照も非公開Voice Project内に残し、Exporterへ渡せるようにする。
+    (session.output / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    return result

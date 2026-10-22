@@ -3,6 +3,7 @@ using YourSinger.Data.Models;
 using YourSinger.Data.Processing;
 using YourSinger.Data.Repositories;
 using YourSinger.Process.Processing.Dataset;
+using YourSinger.Process.Processing.Singing;
 using YourSinger.Process.Processing.Training;
 
 namespace YourSinger.Process.Tests;
@@ -31,6 +32,7 @@ internal sealed class TestProject : IDisposable
         SegmentId = id, SourceId = source, SpeakerId = speaker, ContentType = type,
         AudioPath = $"segments/{id}.wav", CacheKey = $"sha256-{id}",
         Transcript = "あいうえお", AsrConfidence = confidence, AlignmentConfidence = confidence,
+        AlignmentMethod = DiffSingerDatasetBuilder.RequiredAlignmentMethod,
         PitchReliability = 0.95, MeanF0Hz = 220,
         F0FeaturePath = $"features/{id}-f0.json", EnergyFeaturePath = $"features/{id}-energy.json",
         VoicingFeaturePath = $"features/{id}-voicing.json",

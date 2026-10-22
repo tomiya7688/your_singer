@@ -12,7 +12,7 @@
 - Style-Bert-VITS2 runtime: 2.7.0 / 公式tag commit `d8148f3090ee5038ca7b4e4b327116c64467f952`
 - faster-whisper runtime: 1.1.1
 - SpeechBrain runtime: 1.1.1
-- pyopenjtalk runtime: 0.4.1
+- 日本語辞書API: pyopenjtalk-dict 0.3.4.dev2（import名はpyopenjtalk）
 - Japanese BERT: ku-nlp/deberta-v2-large-japanese-char-wwm / dfd9b4461979b281b3b9f162e50066cc88f08ed3
 - ASR: Systran/faster-whisper-small / 536b0662742c02347bc0e980a01041f333bce120
 - speaker: speechbrain/spkrec-ecapa-voxceleb / 0f99f2d0ebe89ac095bcc5903c4dd8f72b367286
@@ -29,7 +29,7 @@ manifestには各ファイルのサイズとSHA-256を保存する。
 
 Style-Bert-VITS2 2.7.0はPyPI配布版として取得できないため、配布ビルドでは公式2.7.0 tagのcommit archiveを直接固定してインストールする。PyPI上の別versionへ暗黙にフォールバックしない。
 
-pyopenjtalk 0.4.1の日本語辞書はパッケージ導入直後には存在せず、初回G2P時に公式OpenJTalk v1.11.1資源を取得する。利用者環境でこの取得を発生させないため、配布ビルド時にG2Pを一度実行して辞書を展開し、その実ファイルをPyInstallerへ含める。包装後のpreflightで辞書ディレクトリの存在も検証する。
+pyopenjtalk-dict 0.3.4.dev2の日本語辞書はパッケージ導入直後には存在せず、初回G2P時に公式OpenJTalk v1.11.1資源を取得する。利用者環境でこの取得を発生させないため、配布ビルド時にG2Pを一度実行して辞書を展開し、その実ファイルをPyInstallerへ含める。包装後のpreflightで辞書ディレクトリの存在も検証する。
 
 利用者向けのPython導入手順は作らない。
 
@@ -38,6 +38,7 @@ pyopenjtalk 0.4.1の日本語辞書はパッケージ導入直後には存在せ
 内部MLワーカー単体は tools/build_ml_worker.ps1 で構築する。
 利用者向けWindows配布物は tools/build_windows_distribution.ps1 を使い、.NET 10の自己完結publish結果とMLワーカーを同じフォルダへまとめる。
 IncludePhonemeModelsを指定すると固定した3種類の補助モデルも workers/models/phoneme-supplement/ へ準備する。
+構築に使うPythonは`-PythonExecutable <python.exeの絶対パス>`で指定してください。コマンド名で指定した場合はPATH順の先頭1本を使います。CIではsetup-pythonの`python-path`出力を明示し、WindowsAppsの別名と結合しません。
 
 PyInstallerのonedir構成を採用し、YourSinger.ML.exeと依存DLLを同じworkers配下に置く。
 巨大なPyTorch系依存をonefileへ毎回展開する方式は採用しない。

@@ -7,6 +7,21 @@ on:
       - "tools/build_ml_worker.ps1"
       - "tools/build_windows_distribution.ps1"
       - "tools/prepare_phoneme_supplement_resources.py"
+      - "tools/prepare_trainer_python.py"
+      - "tests/tools/test_prepare_trainer_python.py"
+      - "tests/tools/test_trainer_resource_download.py"
+      - "tools/prepare_mfa_bundle.py"
+      - "tools/prepare_style_bert_vits2_bundle.py"
+      - "tools/build_style_bert_vits2_runtime.ps1"
+      - "tools/build_diffsinger_runtime.ps1"
+      - "tools/prepare_diffsinger_source.py"
+      - "tools/probe_diffsinger_runtime.py"
+      - "tools/diffsinger-training-requirements.lock.txt"
+      - "src/process/YourSinger.Process/processing/ml/worker/resources/diffsinger-source.lock.json"
+      - "tools/probe_style_bert_vits2_bundle.py"
+      - "tools/style-bert-vits2-training-requirements.txt"
+      - "tools/style-bert-vits2-training-requirements.lock.txt"
+      - "tools/BuildPathSafety.ps1"
       - "src/process/YourSinger.Process/processing/ml/worker/**"
   workflow_dispatch:
     inputs:
@@ -30,27 +45,100 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+        id: python
         with:
-          python-version: '3.11'
+          python-version: '3.12.10'
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: 専用Pythonの依存分離を検証
+        shell: pwsh
+        run: |
+          $env:YOURSINGER_TRAINER_PYTHON_SOURCE = (python -c "import sys; print(sys.base_prefix)").Trim()
+          $env:TEMP = Join-Path $env:GITHUB_WORKSPACE "artifacts/temp"
+          $env:TMP = $env:TEMP
+          New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
+          python -m unittest discover -s tests/tools -v
+          if ($LASTEXITCODE -ne 0) { throw "専用Pythonの複製・初期化・依存分離に失敗しました。" }
+      - uses: mamba-org/setup-micromamba@v3
+        with:
+          environment-name: mfa-runtime
+          create-args: >-
+            python=3.12
+            montreal-forced-aligner=3.4.2
+            kaldi=5.5.1172=cpu*
+          init-shell: none
+          cache-environment: true
+      - name: 固定版MFAをオフライン配布用に配置
+        shell: pwsh
+        run: |
+          $mfaRuntime = (micromamba run -n mfa-runtime python -c "import sys; print(sys.prefix)").Trim()
+          if ($LASTEXITCODE -ne 0) { throw "MFA runtimeの保存先を取得できませんでした。" }
+          python tools/prepare_mfa_bundle.py --runtime $mfaRuntime --output artifacts/mfa-bundle
+          if ($LASTEXITCODE -ne 0) { throw "MFA配布資源を構築できませんでした。" }
+      - name: トークTrainerの専用CUDA環境と固定モデルを配置
+        shell: pwsh
+        run: |
+          $pythonRuntime = (python -c "import sys; print(sys.base_prefix)").Trim()
+          if ($LASTEXITCODE -ne 0) { throw "Python runtimeの保存先を取得できませんでした。" }
+          ./tools/build_style_bert_vits2_runtime.ps1 -PythonRuntimeDirectory $pythonRuntime
+          python tools/prepare_style_bert_vits2_bundle.py --runtime artifacts/style-bert-vits2-runtime
+          if ($LASTEXITCODE -ne 0) { throw "トークTrainerの固定資源を構築できませんでした。" }
+      - name: DiffSinger専用runtimeと固定ソースを配置
+        shell: pwsh
+        run: |
+          $pythonRuntime = (python -c "import sys; print(sys.base_prefix)").Trim()
+          if ($LASTEXITCODE -ne 0) { throw "Python runtimeの保存先を取得できませんでした。" }
+          python tools/prepare_diffsinger_source.py
+          if ($LASTEXITCODE -ne 0) { throw "DiffSinger固定ソースを取得できませんでした。" }
+          ./tools/build_diffsinger_runtime.ps1 -PythonRuntimeDirectory $pythonRuntime
+          if ($LASTEXITCODE -ne 0) { throw "DiffSinger専用runtimeを構築できませんでした。" }
       - name: Windows自己完結配布物を構築
         shell: pwsh
         run: |
           if ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.include_phoneme_models }}" -eq "true") {
-            ./tools/build_windows_distribution.ps1 -IncludePhonemeModels
+            ./tools/build_windows_distribution.ps1 -IncludePhonemeModels -PythonExecutable "${{ steps.python.outputs.python-path }}"
           } else {
-            ./tools/build_windows_distribution.ps1
+            ./tools/build_windows_distribution.ps1 -PythonExecutable "${{ steps.python.outputs.python-path }}"
           }
       - name: ワーカー起動確認
         shell: pwsh
         run: |
           $root = Resolve-Path artifacts/windows-distribution
           $worker = Resolve-Path (Join-Path $root "workers/YourSinger.ML.exe")
+          $trainer = Join-Path $root "workers/style-bert-vits2"
+          $diffSinger = Join-Path $root "workers/diffsinger"
+          $diffSingerManifest = Get-Content (Join-Path $diffSinger "bundle-manifest.json") -Raw | ConvertFrom-Json
+          if ($diffSingerManifest.source_commit -ne "323a5693245b827caba0ab1a7371fe5ca885b061" -or $diffSingerManifest.training_run) {
+            throw "配布されたDiffSinger固定ソースまたは実行状態が不正です。"
+          }
+          $probeDirectory = Join-Path $env:GITHUB_WORKSPACE "artifacts/trainer-probe"
+          New-Item -ItemType Directory -Force $probeDirectory | Out-Null
+          $env:TEMP = $probeDirectory
+          $env:TMP = $probeDirectory
+          $env:PYTHONPYCACHEPREFIX = Join-Path $probeDirectory "bytecode"
+          $env:HF_HOME = Join-Path $probeDirectory "huggingface"
+          $env:HF_HUB_OFFLINE = "1"
+          $env:TRANSFORMERS_OFFLINE = "1"
+          Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+          $diffSingerRuntime = Join-Path $diffSinger "runtime"
+          $diffSingerProbeOutput = Join-Path $probeDirectory "diffsinger-runtime-probe.json"
+          & (Join-Path $diffSingerRuntime "python.exe") tools/probe_diffsinger_runtime.py --root $diffSingerRuntime --source (Join-Path $diffSinger "source") --output $diffSingerProbeOutput --lock (Join-Path $diffSinger "diffsinger-source.lock.json")
+          if ($LASTEXITCODE -ne 0) { throw "配布先からDiffSinger Trainer専用runtimeを読み込めません。" }
+          $diffSingerProbe = Get-Content $diffSingerProbeOutput -Raw | ConvertFrom-Json
+          if (-not $diffSingerProbe.official_training_entry_imported -or $diffSingerProbe.training_run -or $diffSingerProbe.binarization_run) {
+            throw "DiffSinger runtimeの入口確認結果が不正です。"
+          }
+          & (Join-Path $trainer "runtime/python.exe") (Join-Path $trainer "runtime-probe.py") --root $trainer --output (Join-Path $probeDirectory "runtime-probe.json")
+          if ($LASTEXITCODE -ne 0) { throw "配布先からトークTrainerの専用依存・モデルを読み込めません。" }
           $models = Join-Path $root "workers/models/phoneme-supplement"
           if (-not (Test-Path (Join-Path $root "YourSinger.exe"))) { throw "YourSinger.exe が配布物にありません" }
           if (-not (Test-Path (Join-Path $root "coreclr.dll"))) { throw ".NET自己完結runtimeが配布物にありません" }
+          $alignmentRequest = @{ request_id = "alignment-smoke"; command = "forced_alignment_preflight"; payload = @{} } | ConvertTo-Json -Compress
+          $alignmentResponse = ($alignmentRequest | & $worker) | ConvertFrom-Json
+          if ($alignmentResponse.status -ne "ok" -or -not $alignmentResponse.result.ready -or $alignmentResponse.result.mfa_version -ne "3.4.2") {
+            throw "MFA同梱資源の版・整合性確認に失敗しました。"
+          }
           $withModels = ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.include_phoneme_models }}" -eq "true")
           $payload = @{ request_id = "smoke"; command = "phoneme_supplement_preflight"; payload = @{ resources_root = $models; full_verify = $withModels } } | ConvertTo-Json -Compress
           $response = $payload | & $worker
@@ -61,7 +149,10 @@ jobs:
             "style-bert-vits2" = "2.7.0"
             "speechbrain" = "1.1.1"
             "faster-whisper" = "1.1.1"
-            "pyopenjtalk" = "0.4.1"
+            "pyopenjtalk-dict" = "0.3.4.dev2"
+            "numpy" = "1.26.4"
+            "accelerate" = "0.34.2"
+            "setuptools" = "80.9.0"
           }
           foreach ($name in $expectedVersions.Keys) {
             $actual = $json.result.versions.PSObject.Properties[$name].Value

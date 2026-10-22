@@ -19,6 +19,7 @@
 - ASR confidence
 - phoneme sequence / timing
 - alignment confidence
+- alignment method / warning
 - F0 feature path
 - energy feature path
 - voiced / unvoiced feature path
@@ -53,13 +54,16 @@ Faster-Whisperをworker内でlazy loadする。
 
 日本語テキストはpyopenjtalkで音素列へ変換する。
 
-音素タイミングはv1-05初期実装ではsegment長へ配分し、ASR confidenceを基準にalignment confidenceを保存する。
+同梱MFAの`align_one`へ区間専用の発音辞書を渡し、指定音素列の境界を実測する。音素数・順序・時刻を検証できた場合だけforced alignment方式を記録する。MFA JSONには校正済み信頼度がないため、信頼度0と警告を保存する。[配布資源と制約](forced-alignment.md)を参照する。
 
-将来forced alignmentモデルへ差し替えてもschemaは変更しない。
+未対応音素や音素列不一致の場合は、Faster-Whisperの単語時刻と音素化結果が一致する範囲で推定時刻を保存する。単語内境界は推定値として歌唱学習へ渡さない。単語の音素列も一致しない場合は時刻を作らず、方式を`unavailable`にする。実測できなかった理由を`alignment_warning`へ保存する。
+
+文字起こしをユーザーが修正した場合は、以前の音素時刻とalignment confidenceを破棄し、phoneme_countsを保存済み音素列から再集計する。最新の修正歌詞をワーカーへ渡して再実測し、その歌詞のhashもキャッシュキーへ含める。
 
 ## F0 / energy / voiced-unvoiced
 
 PCM16 WAVを40 ms窓 / 10 ms hopで解析する。
+自己相関の分子はゼロ詰めFFT、遅延ごとのエネルギーは累積二乗和で計算し、正規化の定義を保ってPython二重ループを避ける。
 
 - F0: 自己相関
 - energy: RMS

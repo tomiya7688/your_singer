@@ -6,3 +6,10 @@
 *.suo
 artifacts/
 local-projects/
+__pycache__/
+
+# Pythonパッケージ構築時の生成メタデータ
+*.egg-info/
+
+# Pythonワーカーのビルド生成物
+src/process/YourSinger.Process/processing/ml/worker/build/

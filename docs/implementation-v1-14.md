@@ -12,13 +12,14 @@ Issue #15。入力走査、手動編集、学習入力の構築、品質診断�
 音声認識や話者識別を実行した結果ではない。話者が複数ファイルへ跨るテストも、保存済み割り当ての維持を検証するものであり識別精度の試験ではない。
 
 ```sh
-dotnet test tests/YourSinger.Process.Tests/YourSinger.Process.Tests.csproj --configuration Release --logger "trx;LogFileName=regression.trx" --results-directory TestResults
+dotnet test tests/YourSinger.Process.Tests/YourSinger.Process.Tests.csproj --configuration Release --logger "trx;LogFileName=regression.trx" --results-directory TestResults -- RunConfiguration.MaxCpuCount=1
 python -m compileall -q src/process/YourSinger.Process/processing/ml/worker/your_singer_ml
 ```
 
-GitHub ActionsはWindowsとLinuxの双方でアプリのビルドと回帰テストを実行する。
+GitHub ActionsはWindowsとLinuxの双方でアプリのビルドと回帰テストを実行する。VSTestの同時テストアセンブリ数は1に固定する。
 成功・失敗にかかわらずTRXを14日間保存する。Pythonは別ジョブで構文を検査する。
 Python構文確認は依存パッケージの実行や学習を検証しない。
+単一ファイルとフォルダの取込統合テストは実FFmpegを使用するため、CIでテスト用FFmpegを導入する。
 
 ## 今回修正する境界
 
@@ -70,12 +71,13 @@ ML処理を再実行する必要はない。
 
 | 要件 | 自動テストで確認する範囲 | 未検証の範囲 |
 | --- | --- | --- |
-| 単一ファイル・フォルダ入力 | 拡張子、再帰走査、日本語パス、元素材不変 | 実素材からモデル生成までのE2E |
-| 複数話者・ファイル跨ぎ | 保存済み割り当て、統合、除外、ジョブ分離 | ML話者識別の精度 |
+| 単一ファイル・フォルダ入力 | 拡張子、再帰走査、日本語パス、元素材不変、ProjectImportServiceを通す単一ファイル登録・FFmpeg抽出・manifest保存・再実行時の抽出再利用、およびフォルダ内の複数音声の抽出・manifest保存（GUIなし） | GUI操作を通した取込から解析、モデル生成までのE2E |
+| 複数話者・ファイル跨ぎ | 合成fixtureでの保存済み割り当て、同じ話者の複数ファイル区間をまとめたトーク入力、話者別ジョブ・入力の分離、統合・除外後に残った区間だけのトーク入力 | 実音声での話者識別・割当精度 |
 | 会話・歌唱の振り分け | 分類修正から両Dataset Builderへの反映 | 実音声分類の精度 |
 | 音素カバレッジ | 不足警告、全対象音素が十分な場合の診断 | 実音声の発音精度 |
-| 補完・補正ON/OFF | 自動除外、設定保存、手動編集維持、指紋 | 欠損音素の実生成、条件間補間 |
-| 差分再解析 | サイズ・日時が同じ内容変更、解析版変更 | 全MLステージのキャッシュ無効化 |
+| 歌唱用音素時刻 | MFA資源の固定値、実測列と指定列の一致、時刻範囲・順序・未対応音素の拒否 | 歌声に対する境界精度、校正済みの信頼度 |
+| 補完・補正ON/OFF | 自動除外、設定保存、手動編集維持、ON/OFFごとのトーク学習入力構築と指紋 | 欠損音素の実生成、条件間補間、実Trainerの挙動 |
+| 差分再解析 | サイズ・日時が同じ内容変更、解析版変更、最新修正歌詞のワーカー連携・キャッシュ判定、修正履歴による新時刻の破棄防止 | 全MLステージのキャッシュ無効化 |
 | 学習用途・再学習 | 用途別ジョブ、話者別設定、古いジョブ拒否 | 実Trainerによる学習完走 |
 | エラー・成果物保護 | 保存キャンセル、コピー失敗、入力上書き拒否 | 全Exporter・ML子プロセスの異常終了 |
 | 外部ソフト互換性 | 必須成果物欠落時の検証失敗、Registry | 有効なモデルの読み込み・実音声生成 |
