@@ -27,12 +27,17 @@ if ($LASTEXITCODE -ne 0 -or $version.Trim() -ne '3.12.10') { throw "Python 3.12.
 & $sourcePython (Join-Path $PSScriptRoot 'prepare_trainer_python.py') --source $source --output $output
 if ($LASTEXITCODE -ne 0) { throw "専用Pythonの複製と初期化に失敗しました。" }
 $python = Join-Path $output 'python.exe'
+# 証明書インシデント対応(#48): 他の依存を取得する前に最低版のpipへ更新する。
+& $python -m pip install --no-compile 'pip==26.2.2'
+if ($LASTEXITCODE -ne 0) { throw "専用Pythonのpip更新に失敗しました。" }
 & $python -m pip install --no-compile 'torch==2.3.1+cu121' 'torchaudio==2.3.1+cu121' --index-url https://download.pytorch.org/whl/cu121 --report (Join-Path $output 'torch-install-report.json')
 if ($LASTEXITCODE -ne 0) { throw "CUDA用PyTorchの取得に失敗しました。" }
 & $python -m pip install --no-compile --requirement (Join-Path $PSScriptRoot 'style-bert-vits2-training-requirements.lock.txt') --report (Join-Path $output 'dependencies-install-report.json')
 if ($LASTEXITCODE -ne 0) { throw "トーク学習の専用依存を取得できませんでした。" }
 & $python -m pip check
 if ($LASTEXITCODE -ne 0) { throw "専用依存の整合性が不正です。" }
+& $python -I (Join-Path $PSScriptRoot 'verify_python_trust.py')
+if ($LASTEXITCODE -ne 0) { throw "専用Pythonのpip/certifiが最低版を満たしていません。" }
 
 # 辞書の暗黙取得をビルド時に済ませ、通常利用はオフラインで動かす。
 & $python -c "import pyopenjtalk; assert callable(pyopenjtalk.unset_user_dict); pyopenjtalk.g2p('辞書の準備')"

@@ -45,7 +45,7 @@ numba==0.68.0
 numpy==1.26.4
 packaging==24.2
 pillow==13.0.0
-pip==25.0.1
+pip==26.2.2
 platformdirs==4.13.5
 pooch==1.9.0
 praat-parselmouth==0.4.3

@@ -23,7 +23,7 @@ function Get-WorkerTestPython {
     if (-not (Test-Path $venvPython)) {
         python -m venv $venvRoot
         $venvPython = if (Test-Path (Join-Path $venvRoot 'Scripts/python.exe')) { Join-Path $venvRoot 'Scripts/python.exe' } else { Join-Path $venvRoot 'bin/python' }
-        & $venvPython -m pip install --quiet numpy
+        & $venvPython -m pip install --quiet "pip>=26.2.2" "certifi>=2026.10.19" numpy
     }
     return $venvPython
 }
