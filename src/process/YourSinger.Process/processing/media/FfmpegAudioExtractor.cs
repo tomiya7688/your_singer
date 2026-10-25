@@ -46,10 +46,25 @@ public sealed class FfmpegAudioExtractor
                 exception);
         }
 
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-        var error = await errorTask;
+        var outputTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var errorTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            if (!process.HasExited)
+            {
+                try { process.Kill(entireProcessTree: true); }
+                catch (InvalidOperationException) when (process.HasExited) { }
+                await process.WaitForExitAsync(CancellationToken.None);
+            }
+            throw;
+        }
 
+        _ = await outputTask;
+        var error = await errorTask;
         if (process.ExitCode != 0)
         {
             throw new InvalidOperationException(
