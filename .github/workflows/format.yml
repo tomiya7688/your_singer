@@ -8,6 +8,9 @@ on:
         "**/*.json",
         "**/*.yml",
         "**/*.yaml",
+        "**/*.py",
+        "ruff.toml",
+        "tools/dev/requirements-format.txt",
         ".prettierignore",
         ".npmrc",
         ".gitignore",
@@ -20,6 +23,9 @@ on:
         "**/*.json",
         "**/*.yml",
         "**/*.yaml",
+        "**/*.py",
+        "ruff.toml",
+        "tools/dev/requirements-format.txt",
         ".prettierignore",
         ".npmrc",
         ".gitignore",
@@ -63,3 +69,25 @@ jobs:
           $targets = @($files + @('package.json', '.prettierrc.json', '.github/workflows/format.yml') | Select-Object -Unique | ForEach-Object { './' + $_ })
           npm run format:check -- $targets
           if ($LASTEXITCODE -ne 0) { throw '変更ファイルの整形確認に失敗しました。' }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Pythonの固定版formatterを導入
+        run: python -m pip install -r tools/dev/requirements-format.txt
+      - name: 変更したPythonファイルの整形を検査
+        shell: pwsh
+        env:
+          FORMAT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          $base = $env:FORMAT_BASE
+          if ([string]::IsNullOrWhiteSpace($base) -or $base -match '^0+$') { $base = 'HEAD^' }
+          $files = @(git -c core.quotepath=false diff --name-only --diff-filter=ACMR $base HEAD -- '*.py')
+          if ($LASTEXITCODE -ne 0) { throw 'Pythonの整形対象を取得できません。' }
+          # Python差分がなくても、設定の構文と固定版の整合を検証する。
+          python -m ruff check --config ruff.toml --show-settings ./src/process/YourSinger.Process/processing/ml/worker/your_singer_ml/main.py | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Ruff設定を読み込めません。' }
+          if ($files.Count -gt 0) {
+            $targets = @($files | ForEach-Object { './' + $_ })
+            npm run format:python:check -- $targets
+            if ($LASTEXITCODE -ne 0) { throw 'Pythonの整形確認に失敗しました。' }
+          }
