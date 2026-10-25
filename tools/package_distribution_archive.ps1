@@ -24,8 +24,9 @@ New-Item -ItemType Directory -Path $output | Out-Null
 $archivePath = Join-Path $output $ArchiveName
 
 # 2GBを超える配布物でも作れるよう、Compress-Archiveではなく.NETのZIP64対応APIを使う。
+# 配布物の大半は圧縮済みのwheelやモデルで、Optimalでは14分かかり圧縮率もほぼ変わらないためFastestにする。
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-[IO.Compression.ZipFile]::CreateFromDirectory($distribution, $archivePath, [IO.Compression.CompressionLevel]::Optimal, $false)
+[IO.Compression.ZipFile]::CreateFromDirectory($distribution, $archivePath, [IO.Compression.CompressionLevel]::Fastest, $false)
 
 # sha256sum互換の形式にし、利用者が標準ツールで照合できるようにする。
 $archiveHash = (Get-FileHash $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()

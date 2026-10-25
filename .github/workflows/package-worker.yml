@@ -190,8 +190,8 @@ jobs:
       - name: 最終成果物(ZIPとSHA256SUMS)を作成
         shell: pwsh
         run: |
+          # スクリプトは失敗時に例外を投げる。ps1呼び出しは$LASTEXITCODEを更新しないため、終了コードは確認しない。
           ./tools/package_distribution_archive.ps1
-          if ($LASTEXITCODE -ne 0) { throw "配布ZIPの作成に失敗しました。" }
           ./tools/verify_distribution_signing.ps1 -ReleaseDirectory artifacts/release
       # フォークからのPRではOIDC権限が無いため、attestationはこのリポジトリ内のrunだけで行う。
       - name: 最終成果物のArtifact Attestationを作成
