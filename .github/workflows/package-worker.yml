@@ -24,6 +24,8 @@ on:
       - "tools/style-bert-vits2-training-requirements.txt"
       - "tools/style-bert-vits2-training-requirements.lock.txt"
       - "tools/BuildPathSafety.ps1"
+      - "tools/package_distribution_archive.ps1"
+      - "tools/verify_distribution_signing.ps1"
       - "src/process/YourSinger.Process/processing/ml/worker/**"
   workflow_dispatch:
     inputs:
@@ -44,6 +46,11 @@ jobs:
   package-windows:
     runs-on: windows-latest
     timeout-minutes: 120
+    # 成果物のattestation(OIDCによるkeyless署名)に必要。他は読み取りのみ。
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -180,8 +187,33 @@ jobs:
             $modelMissing = @($json.result.issues | Where-Object { $_ -match "manifestまたはlock" })
             if ($modelMissing.Count -eq 0) { throw "モデルなし包装の不足理由が想定と異なります: $response" }
           }
+      - name: 最終成果物(ZIPとSHA256SUMS)を作成
+        shell: pwsh
+        run: |
+          ./tools/package_distribution_archive.ps1
+          if ($LASTEXITCODE -ne 0) { throw "配布ZIPの作成に失敗しました。" }
+          ./tools/verify_distribution_signing.ps1 -ReleaseDirectory artifacts/release
+      # フォークからのPRではOIDC権限が無いため、attestationはこのリポジトリ内のrunだけで行う。
+      - name: 最終成果物のArtifact Attestationを作成
+        id: attest
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: |
+            artifacts/release/YourSinger-windows-x64.zip
+            artifacts/release/SHA256SUMS
+      - name: Attestationを検証
+        if: steps.attest.outcome == 'success'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          foreach ($subject in @("YourSinger-windows-x64.zip", "SHA256SUMS")) {
+            gh attestation verify (Join-Path "artifacts/release" $subject) --repo "${{ github.repository }}" --signer-workflow "${{ github.repository }}/.github/workflows/package-worker.yml"
+            if ($LASTEXITCODE -ne 0) { throw "$subject のattestation検証に失敗しました。" }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: YourSinger-windows-x64
-          path: artifacts/windows-distribution/**
+          path: artifacts/release/*
           retention-days: 14
