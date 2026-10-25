@@ -24,12 +24,12 @@ New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
 
 ## Python環境を混ぜない
 
-| 用途 | 確認先・条件 |
-| --- | --- |
-| worker単体テスト | `PYTHONPATH=src/process/YourSinger.Process/processing/ml/worker`。実行可能なPythonと依存を確認します。`tools/dev/check.ps1`も参照してください。 |
-| 一般ML worker | `worker/pyproject.toml`と`tools/build_ml_worker.ps1`が依存・包装の原典です。 |
-| Talk Trainer | [トークbundle](../docs/talk-trainer-bundle.md)と専用lockに従います。一般workerへ学習依存を追加しません。 |
-| DiffSinger Trainer | [音響学習入力](../docs/diffsinger-acoustic-input.md)と専用lockに従います。Talk環境へ追加インストールしません。 |
+| 用途               | 確認先・条件                                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| worker単体テスト   | `PYTHONPATH=src/process/YourSinger.Process/processing/ml/worker`。実行可能なPythonと依存を確認します。`tools/dev/check.ps1`も参照してください。 |
+| 一般ML worker      | `worker/pyproject.toml`と`tools/build_ml_worker.ps1`が依存・包装の原典です。                                                                    |
+| Talk Trainer       | [トークbundle](../docs/talk-trainer-bundle.md)と専用lockに従います。一般workerへ学習依存を追加しません。                                        |
+| DiffSinger Trainer | [音響学習入力](../docs/diffsinger-acoustic-input.md)と専用lockに従います。Talk環境へ追加インストールしません。                                  |
 
 runtimeが配置済みか、版と依存が合うかは実行時に検証します。単体テスト用Pythonと、実モデルを読み込むPythonを同一環境と仮定しません。
 Pythonの取得・依存導入・配布構築では[Python信頼ストア](../docs/python-trust-store.md)も確認し、固定版・最低版と実際の証明書設定を原典の検証処理で照合します。

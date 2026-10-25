@@ -1,0 +1,65 @@
+name: 変更資料の整形確認
+
+on:
+  pull_request:
+    paths:
+      [
+        "**/*.md",
+        "**/*.json",
+        "**/*.yml",
+        "**/*.yaml",
+        ".prettierignore",
+        ".npmrc",
+        ".gitignore",
+        ".gitattributes",
+      ]
+  push:
+    paths:
+      [
+        "**/*.md",
+        "**/*.json",
+        "**/*.yml",
+        "**/*.yaml",
+        ".prettierignore",
+        ".npmrc",
+        ".gitignore",
+        ".gitattributes",
+      ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: format-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: Markdown・JSON・YAMLの整形確認
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: 固定版の開発用formatterを導入
+        run: npm ci --ignore-scripts
+      - name: 変更ファイルだけを書換えずに検査
+        shell: pwsh
+        env:
+          FORMAT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # 新規ブランチや手動実行では直前commitを比較元にする。
+          $base = $env:FORMAT_BASE
+          if ([string]::IsNullOrWhiteSpace($base) -or $base -match '^0+$') { $base = 'HEAD^' }
+          $files = @(git -c core.quotepath=false diff --name-only --diff-filter=ACMR $base HEAD -- '*.md' '*.json' '*.yml' '*.yaml')
+          if ($LASTEXITCODE -ne 0) { throw '整形対象の変更ファイルを取得できません。' }
+          # 固定の設定ファイルも検査し、ファイル名をオプションとして解釈させない。
+          $targets = @($files + @('package.json', '.prettierrc.json', '.github/workflows/format.yml') | Select-Object -Unique | ForEach-Object { './' + $_ })
+          npm run format:check -- $targets
+          if ($LASTEXITCODE -ne 0) { throw '変更ファイルの整形確認に失敗しました。' }

@@ -13,3 +13,6 @@ __pycache__/
 
 # Pythonワーカーのビルド生成物
 src/process/YourSinger.Process/processing/ml/worker/build/
+
+# 開発用formatterの依存
+node_modules/
