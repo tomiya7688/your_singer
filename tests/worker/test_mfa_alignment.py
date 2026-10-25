@@ -24,10 +24,19 @@ class MfaResultValidationTests(unittest.TestCase):
     #   副作用: [documentへ無音を含む三音素の架空区間を保存する]
     # }
     def setUp(self):
-        self.document = {"tiers": {"phones": {"entries": [
-            [0.0, 0.1, "sil"], [0.1, 0.23, "ɡ"], [0.23, 0.7, "ɯ"],
-            [0.7, 0.9, "ɾ"], [0.9, 1.0, "sil"],
-        ]}}}
+        self.document = {
+            "tiers": {
+                "phones": {
+                    "entries": [
+                        [0.0, 0.1, "sil"],
+                        [0.1, 0.23, "ɡ"],
+                        [0.23, 0.7, "ɯ"],
+                        [0.7, 0.9, "ɾ"],
+                        [0.9, 1.0, "sil"],
+                    ]
+                }
+            }
+        }
 
     # {
     #   責務: [test_preserves_measured_boundaries_without_inventing_confidence: 境界保持と未校正信頼度を確認する]
@@ -43,8 +52,14 @@ class MfaResultValidationTests(unittest.TestCase):
     #   責務: [test_rejects_invalid_measurements: 不正時刻や音素不一致を成功扱いしない]
     # }
     def test_rejects_invalid_measurements(self):
-        for field, replacement in ((0, -0.1), (0, float("nan")), (0, 0.05),
-                                   (1, 0.1), (1, 1.1), (2, "spn")):
+        for field, replacement in (
+            (0, -0.1),
+            (0, float("nan")),
+            (0, 0.05),
+            (1, 0.1),
+            (1, 1.1),
+            (2, "spn"),
+        ):
             with self.subTest(field=field, replacement=replacement):
                 document = copy.deepcopy(self.document)
                 document["tiers"]["phones"]["entries"][1][field] = replacement
@@ -73,7 +88,9 @@ class MfaExecutionTests(unittest.TestCase):
     def test_missing_resources_fail_before_process_start(self):
         with tempfile.TemporaryDirectory() as directory, patch("subprocess.run") as run:
             with self.assertRaises(FileNotFoundError):
-                MfaForcedAligner(Path(directory)).align(Path("audio.wav"), ["a"], 1.0, Path(directory))
+                MfaForcedAligner(Path(directory)).align(
+                    Path("audio.wav"), ["a"], 1.0, Path(directory)
+                )
             run.assert_not_called()
 
     # {
@@ -84,13 +101,19 @@ class MfaExecutionTests(unittest.TestCase):
             root = Path(directory)
             (root / "runtime" / "conda-meta").mkdir(parents=True)
             (root / "runtime" / "python.exe").write_bytes(b"not executed")
-            (root / "runtime" / "conda-meta" / "montreal-forced-aligner-fixture.json").write_text(json.dumps({"version": "3.4.2"}))
+            (root / "runtime" / "conda-meta" / "montreal-forced-aligner-fixture.json").write_text(
+                json.dumps({"version": "3.4.2"})
+            )
             (root / "models").mkdir()
             (root / "models" / "japanese_mfa.zip").write_bytes(b"modified model")
             metadata = root / "overlay" / "soundfile-0.13.1.dist-info" / "METADATA"
             metadata.parent.mkdir(parents=True)
             metadata.write_text("Version: 0.13.1\n")
-            (root / "bundle-manifest.json").write_text(json.dumps({"schema_version": 1, "mfa_version": "3.4.2", "model_sha256": MODEL_SHA256}))
+            (root / "bundle-manifest.json").write_text(
+                json.dumps(
+                    {"schema_version": 1, "mfa_version": "3.4.2", "model_sha256": MODEL_SHA256}
+                )
+            )
             (root / "MODEL-NOTICE.txt").write_text("synthetic notice")
             with self.assertRaisesRegex(RuntimeError, "SHA-256"):
                 MfaForcedAligner(root).validate_resources()
@@ -110,8 +133,15 @@ class MfaExecutionTests(unittest.TestCase):
                 raise RuntimeError("failed")
 
             aligner = MfaForcedAligner(root)
-            with patch.object(aligner, "validate_resources", return_value=(root / "python.exe", root / "model.zip")), \
-                    patch.object(aligner, "_run", side_effect=fail_run):
+            (root / "audio.wav").write_bytes(b"synthetic audio")
+            with (
+                patch.object(
+                    aligner,
+                    "validate_resources",
+                    return_value=(root / "python.exe", root / "model.zip"),
+                ),
+                patch.object(aligner, "_run", side_effect=fail_run),
+            ):
                 with self.assertRaises(RuntimeError):
                     aligner.align(root / "audio.wav", ["a"], 1.0, root)
             self.assertEqual(1, len(list((root / "alignment").glob("*-failure.log"))))
@@ -125,7 +155,9 @@ class MfaExecutionTests(unittest.TestCase):
             root = Path(directory)
             with patch("subprocess.run", return_value=subprocess.CompletedProcess([], 9)) as run:
                 with self.assertRaisesRegex(RuntimeError, "終了コード9"):
-                    MfaForcedAligner(root)._run(root / "python.exe", root / "model.zip", root / "audio.wav", root)
+                    MfaForcedAligner(root)._run(
+                        root / "python.exe", root / "model.zip", root / "audio.wav", root
+                    )
                 self.assertEqual(600, run.call_args.kwargs["timeout"])
                 self.assertEqual(str(root / "temp"), run.call_args.kwargs["env"]["TEMP"])
 
@@ -135,7 +167,9 @@ class MfaExecutionTests(unittest.TestCase):
     def test_only_validated_measurement_gets_forced_alignment_method(self):
         measured = [{"phoneme": "a", "start_sec": 0.2, "end_sec": 0.9, "confidence": 0.0}]
         with patch.object(MfaForcedAligner, "align", return_value=measured):
-            timings, confidence, method, warning = _align_training_phonemes(Path("a.wav"), Path("."), ["a"], 1.0, 0.99, [])
+            timings, confidence, method, warning = _align_training_phonemes(
+                Path("a.wav"), Path("."), ["a"], 1.0, 0.99, []
+            )
         self.assertEqual(measured, timings)
         self.assertEqual(ALIGNMENT_METHOD, method)
         self.assertEqual(0.0, confidence)
@@ -145,10 +179,18 @@ class MfaExecutionTests(unittest.TestCase):
     #   責務: [test_unsupported_measurement_keeps_estimated_method: 対応できない音素の推定値を実測と誤記録しない]
     # }
     def test_unsupported_measurement_keeps_estimated_method(self):
-        with patch.object(MfaForcedAligner, "align", side_effect=ValueError("unsupported phone")), \
-                patch("your_singer_ml.universal_features._phonemize", return_value=["a"]):
-            _, _, method, warning = _align_training_phonemes(Path("a.wav"), Path("."), ["a"], 1.0, 0.9,
-                [{"text": "example", "start_sec": 0.1, "end_sec": 0.8, "confidence": 0.9}])
+        with (
+            patch.object(MfaForcedAligner, "align", side_effect=ValueError("unsupported phone")),
+            patch("your_singer_ml.universal_features._phonemize", return_value=["a"]),
+        ):
+            _, _, method, warning = _align_training_phonemes(
+                Path("a.wav"),
+                Path("."),
+                ["a"],
+                1.0,
+                0.9,
+                [{"text": "example", "start_sec": 0.1, "end_sec": 0.8, "confidence": 0.9}],
+            )
         self.assertEqual("asr-word-boundary-proportional", method)
         self.assertEqual("unsupported phone", warning)
 
@@ -157,14 +199,34 @@ class MfaExecutionTests(unittest.TestCase):
     # }
     def test_supplied_transcript_is_aligned_without_running_asr(self):
         workspace = Path.cwd() / "fictional-project"
-        payload = {"segment_id": "example", "source_id": "source", "audio_path": str(workspace / "audio.wav"),
-                   "workspace_path": str(workspace), "cache_key": "fixture", "transcript_override": "修正歌詞"}
-        with patch("your_singer_ml.universal_features._load_pcm16_mono", return_value=(48000, array.array("h", [0] * 4800))), \
-                patch("your_singer_ml.universal_features._transcribe") as transcribe, \
-                patch("your_singer_ml.universal_features._phonemize", return_value=["a"]), \
-                patch("your_singer_ml.universal_features._align_training_phonemes", return_value=([], 0.0, "unavailable", None)) as align, \
-                patch("your_singer_ml.universal_features._extract_frame_features", return_value=([], [], [])), \
-                patch("your_singer_ml.universal_features._write_feature", return_value="features/example.json"):
+        payload = {
+            "segment_id": "example",
+            "source_id": "source",
+            "audio_path": str(workspace / "audio.wav"),
+            "workspace_path": str(workspace),
+            "cache_key": "fixture",
+            "transcript_override": "修正歌詞",
+        }
+        with (
+            patch(
+                "your_singer_ml.universal_features._load_pcm16_mono",
+                return_value=(48000, array.array("h", [0] * 4800)),
+            ),
+            patch("your_singer_ml.universal_features._transcribe") as transcribe,
+            patch("your_singer_ml.universal_features._phonemize", return_value=["a"]),
+            patch(
+                "your_singer_ml.universal_features._align_training_phonemes",
+                return_value=([], 0.0, "unavailable", None),
+            ) as align,
+            patch(
+                "your_singer_ml.universal_features._extract_frame_features",
+                return_value=([], [], []),
+            ),
+            patch(
+                "your_singer_ml.universal_features._write_feature",
+                return_value="features/example.json",
+            ),
+        ):
             feature = extract_universal_features(payload)
         transcribe.assert_not_called()
         self.assertEqual("修正歌詞", feature["transcript"])

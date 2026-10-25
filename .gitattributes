@@ -1,0 +1,10 @@
+/AGENTS.md text eol=lf
+/CLAUDE.md text eol=lf
+/.agents/skills/*/SKILL.md text eol=lf
+/.claude/skills/*/SKILL.md text eol=lf
+/.github/copilot-instructions.md text eol=lf
+/dev-guidelines/*.md text eol=lf
+/package.json text eol=lf
+/package-lock.json text eol=lf
+/.prettierrc.json text eol=lf
+/.github/workflows/format.yml text eol=lf
