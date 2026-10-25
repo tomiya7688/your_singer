@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 from .mfa_alignment_result import MfaAlignmentResultReader, MfaPronunciation
-from .mfa_measurement import MfaMeasurementStore, audio_fingerprint
+from .mfa_measurement import MfaMeasurementStore, audio_fingerprint, copy_audio_snapshot
 
 
 MFA_VERSION = "3.4.2"
@@ -104,6 +104,12 @@ class MfaForcedAligner:
         if not scratch_root.resolve().is_relative_to(workspace.resolve()):
             raise ValueError("MFAの作業領域がVoice Projectの外です。")
         scratch_root.mkdir(parents=True, exist_ok=True)
+        if (
+            scratch_root.resolve() == workspace.resolve()
+            or not scratch_root.resolve().is_relative_to(workspace.resolve())
+        ):
+            raise ValueError("MFAの作業領域がVoice Projectの外です。")
+        scratch_root = scratch_root.resolve()
         with tempfile.TemporaryDirectory(prefix=".mfa-", dir=scratch_root) as temporary_directory:
             run_root = Path(temporary_directory)
             (run_root / "utterance.lab").write_text("utterance", encoding="utf-8")
@@ -111,8 +117,12 @@ class MfaForcedAligner:
                 "utterance\t" + " ".join(model_phones) + "\n", encoding="utf-8"
             )
             audio_sha256 = audio_fingerprint(audio_path)
+            # 元パスが実行中に差し替わっても、MFAはhashが一致する私的コピーだけを読む。
+            snapshot = run_root / ("input-audio" + audio_path.suffix)
+            if copy_audio_snapshot(audio_path, snapshot) != audio_sha256:
+                raise RuntimeError("MFAの音声コピー中に元音声が変更されました。")
             try:
-                self._run(python_path, model_path, audio_path.resolve(), run_root)
+                self._run(python_path, model_path, snapshot, run_root)
             except (RuntimeError, subprocess.TimeoutExpired) as error:
                 # 次の調査に必要な子ログだけを、元音声や歌詞を含まない専用名で保存する。
                 failure_log = scratch_root / (run_root.name + "-failure.log")

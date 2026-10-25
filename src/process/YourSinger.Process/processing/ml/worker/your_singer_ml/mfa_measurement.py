@@ -4,6 +4,7 @@ import hashlib
 import json
 import stat
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 MAX_ALIGNMENT_AUDIO_BYTES = 1024 * 1024 * 1024
@@ -94,10 +95,37 @@ class MfaMeasurementStore:
 #   エラー: [通常ファイル以外、1GiB超、読込中のサイズ変更を拒否する]
 # }
 def audio_fingerprint(path: Path) -> str:
+    digest = hashlib.sha256()
+    for chunk in _bounded_audio_chunks(path):
+        digest.update(chunk)
+    return digest.hexdigest()
+
+
+# {
+#   責務: [copy_audio_snapshot: MFAが読む音声を専用一時領域へ固定し、その内容のhashを返す]
+#   引数: [source: 元音声, destination: 新規の私的なコピー先]
+#   戻り値: [sha256: コピーへ書き出した音声のhash]
+#   エラー: [不正入力・サイズ変更・保存失敗を伝える。既存コピーは上書きしない]
+# }
+def copy_audio_snapshot(source: Path, destination: Path) -> str:
+    digest = hashlib.sha256()
+    with destination.open("xb") as output:
+        for chunk in _bounded_audio_chunks(source):
+            output.write(chunk)
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+# {
+#   責務: [_bounded_audio_chunks: 通常音声ファイルを開始時のサイズだけ分割して読む]
+#   引数: [path: 1GiB以内の元音声]
+#   戻り値: [chunks: 最大1MiBずつの音声バイト列]
+#   エラー: [特殊ファイル・過大入力・読込中の伸縮を拒否する]
+# }
+def _bounded_audio_chunks(path: Path) -> Iterator[bytes]:
     metadata = path.stat()
     if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_ALIGNMENT_AUDIO_BYTES:
         raise ValueError("MFA音声は1GiB以内の通常ファイルを指定してください。")
-    digest = hashlib.sha256()
     # 読み始めたサイズに制限し、書き足し続ける入力を最後まで追いかけない。
     with path.open("rb") as stream:
         remaining = metadata.st_size
@@ -105,8 +133,7 @@ def audio_fingerprint(path: Path) -> str:
             chunk = stream.read(min(remaining, 1024 * 1024))
             if not chunk:
                 raise RuntimeError("MFA音声のサイズが読込中に変更されました。")
-            digest.update(chunk)
+            yield chunk
             remaining -= len(chunk)
         if stream.read(1):
             raise RuntimeError("MFA音声のサイズが読込中に変更されました。")
-    return digest.hexdigest()

@@ -90,6 +90,30 @@ class MfaMeasurementTests(unittest.TestCase):
         self.assertEqual(2, len(list(first.parent.glob("*.json"))))
         self.assertEqual(previous_bytes, first.read_bytes())
 
+    # { 責務: [test_process_reads_private_snapshot: 元音声が一時的に差し替わってもMFAへ固定コピーを渡す] }
+    def test_process_reads_private_snapshot(self):
+        original = self.audio.read_bytes()
+
+        # { 責務: [read_snapshot: 元パスの一時変更中も測定入力の内容が固定されていることを確かめる] }
+        def read_snapshot(python_path, model_path, audio_path, run_root):
+            self.assertNotEqual(self.audio.resolve(), audio_path.resolve())
+            self.audio.write_bytes(b"temporarily replaced input")
+            try:
+                self.assertEqual(original, audio_path.read_bytes())
+            finally:
+                self.audio.write_bytes(original)
+            (run_root / "aligned.json").write_text(json.dumps(self.document), encoding="utf-8")
+
+        with (
+            patch.object(
+                self.aligner,
+                "validate_resources",
+                return_value=(self.root / "python", self.root / "model"),
+            ),
+            patch.object(self.aligner, "_run", side_effect=read_snapshot),
+        ):
+            self.aligner.align(self.audio, ["a", "i"], 1.0, self.root)
+
     # { 責務: [test_invalid_or_changed_audio_does_not_publish_measurement: 不正結果と入力変更を公開しない] }
     def test_invalid_or_changed_audio_does_not_publish_measurement(self):
         with self.assertRaisesRegex(RuntimeError, "元音声"):
