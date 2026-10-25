@@ -3,7 +3,9 @@
   "private": true,
   "scripts": {
     "format": "prettier --write",
-    "format:check": "prettier --check"
+    "format:check": "prettier --check",
+    "format:python": "python -m ruff format --config ruff.toml",
+    "format:python:check": "python -m ruff format --check --config ruff.toml"
   },
   "devDependencies": {
     "prettier": "3.9.10"

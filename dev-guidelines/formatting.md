@@ -34,3 +34,19 @@ npm run format:check -- AGENTS.md
 - `.gitattributes`、`.gitignore`、`.prettierignore`、`.npmrc`は対象を定めるプレーンテキスト設定です。Prettierの対応言語として整形しません。
 
 全プロジェクトの正本は`E:/projects/FORMATTER_OPERATIONS.md`です。実行コマンド・版・対象・結果と、未実施の場合の理由・残件を完了記録へ残してください。
+
+## Pythonを変更するとき
+
+[Ruff公式の導入方法](https://docs.astral.sh/ruff/installation/)に沿って、開発用依存だけを`tools/dev/requirements-format.txt`で0.14.2へ固定します。
+E:内の開発用Python環境を有効にして、リポジトリ直下で実行してください。
+ML Trainerの依存へ追加しないでください。
+
+```powershell
+python -m pip install -r tools/dev/requirements-format.txt
+npm run format:python -- tests/worker/test_mfa_measurement.py
+npm run format:python:check -- tests/worker/test_mfa_measurement.py
+```
+
+`ruff.toml`はPython 3.11互換・100文字幅・LFを指定し、異なるRuff版の実行を拒否します。
+cacheは`artifacts/ruff-cache`へ保存し、私的素材・生成物・vendorを除外します。
+対象は今回のPythonファイルだけを列挙してください。CIの`format.yml`も変更Pythonファイルだけを同じ固定版で検査します。

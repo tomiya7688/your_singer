@@ -1,0 +1,8 @@
+required-version = "==0.14.2"
+target-version = "py311"
+line-length = 100
+cache-dir = "artifacts/ruff-cache"
+extend-exclude = ["artifacts", "local-projects", "vendor", "bin", "obj", "node_modules"]
+
+[format]
+line-ending = "lf"
