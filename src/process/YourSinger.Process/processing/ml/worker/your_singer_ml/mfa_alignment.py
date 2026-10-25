@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 
 from .mfa_alignment_result import MfaAlignmentResultReader, MfaPronunciation
+from .mfa_measurement_result import MfaMeasurementResult
 from .mfa_measurement import MfaMeasurementStore, audio_fingerprint, copy_audio_snapshot
 
 
@@ -98,6 +99,18 @@ class MfaForcedAligner:
     def align(
         self, audio_path: Path, phonemes: list[str], duration_sec: float, workspace: Path
     ) -> list[dict]:
+        return self.measure(audio_path, phonemes, duration_sec, workspace).timings
+
+    # {
+    #   責務: [measure: 音素境界を実測し今回の保存記録を明示的に返す]
+    #   処理: [1: 音声を固定コピーする 2: MFA結果を検証する 3: 記録と音素を返す]
+    #   引数: [audio_path: 音声, phonemes: 期待音素, duration_sec: 音声長, workspace: 作業領域]
+    #   戻り値: [measurement: 通常音素列と保存済み記録のパス・hash]
+    #   エラー: [実行・検証・保存の失敗を伝える]
+    # }
+    def measure(
+        self, audio_path: Path, phonemes: list[str], duration_sec: float, workspace: Path
+    ) -> MfaMeasurementResult:
         model_phones = MfaPronunciation.encode(phonemes)
         python_path, model_path = self.validate_resources()
         scratch_root = workspace / "alignment"
@@ -142,7 +155,7 @@ class MfaForcedAligner:
     #   責務: [_read_measurement: 結果と音声同一性を検証して測定記録を保存する]
     #   引数: [output_path: MFA結果, phonemes: 期待音素, duration_sec: 音声長,
     #           audio_path: 元音声, audio_sha256: 実行前hash, scratch_root: alignment領域]
-    #   戻り値: [timings: 既存形式の実測音素列]
+    #   戻り値: [measurement: 実測音素と今回保存した記録の参照]
     #   エラー: [結果不正、入力変更、保存失敗を伝える]
     # }
     def _read_measurement(
@@ -153,7 +166,7 @@ class MfaForcedAligner:
         audio_path: Path,
         audio_sha256: str,
         scratch_root: Path,
-    ) -> list[dict]:
+    ) -> MfaMeasurementResult:
         document = json.loads(output_path.read_text(encoding="utf-8"))
         timings = MfaAlignmentResultReader.read(document, phonemes, duration_sec)
         # 実行中に音声が変わった測定を保存・再利用しない。
@@ -161,7 +174,7 @@ class MfaForcedAligner:
             raise RuntimeError("MFA実行中に元音声が変更されました。再解析してください。")
         # 保存時のValueErrorも、未対応発音に限る既存の推定経路へ渡さない。
         try:
-            MfaMeasurementStore(scratch_root / "measurements").save(
+            measurement_path = MfaMeasurementStore(scratch_root / "measurements").save(
                 document,
                 timings,
                 duration_sec,
@@ -174,7 +187,9 @@ class MfaForcedAligner:
             )
         except ValueError as error:
             raise RuntimeError("MFA測定記録を保存できませんでした。") from error
-        return timings
+        with measurement_path.open("rb") as measurement_file:
+            measurement_sha256 = hashlib.file_digest(measurement_file, "sha256").hexdigest()
+        return MfaMeasurementResult(timings, measurement_path, measurement_sha256, audio_sha256)
 
     # {
     #   責務: [_run: 区間専用の環境でMFAを起動する]

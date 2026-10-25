@@ -18,6 +18,8 @@ from .transcription_alignment import (
     _transcribe,
     align_phonemes as _align_phonemes_impl,
 )
+
+
 # {
 #   責務: [
 #     extract_universal_features: 音声区間から文字起こし・音素・音響特徴量を抽出する
@@ -49,8 +51,15 @@ def extract_universal_features(payload: dict) -> dict:
 
     transcript, asr_confidence, alignment_units = _resolve_transcript(payload, audio_path)
     phonemes = _phonemize(transcript)
-    phoneme_timings, alignment_confidence, alignment_method, alignment_warning = _align_training_phonemes(
-        audio_path, workspace, phonemes, duration_sec, asr_confidence, alignment_units)
+    (
+        phoneme_timings,
+        alignment_confidence,
+        alignment_method,
+        alignment_warning,
+        measurement_reference,
+    ) = _align_training_phonemes(
+        audio_path, workspace, phonemes, duration_sec, asr_confidence, alignment_units
+    )
 
     # 音声フレームごとのF0、エネルギー、有声判定を抽出する。
     f0_values, energy_values, voicing_values = _extract_frame_features(
@@ -58,7 +67,8 @@ def extract_universal_features(payload: dict) -> dict:
         sample_rate,
     )
     f0_path, energy_path, voicing_path = _write_feature_series(
-        workspace, segment_id, f0_values, energy_values, voicing_values)
+        workspace, segment_id, f0_values, energy_values, voicing_values
+    )
     summary = _summarize_feature_series(f0_values, energy_values, voicing_values)
     voiced_ratio = summary["voiced_ratio"]
 
@@ -84,6 +94,7 @@ def extract_universal_features(payload: dict) -> dict:
         "alignment_confidence": alignment_confidence,
         "alignment_method": alignment_method,
         "alignment_warning": alignment_warning,
+        "alignment_measurement": measurement_reference,
         "f0_feature_path": f0_path,
         "energy_feature_path": energy_path,
         "voicing_feature_path": voicing_path,
@@ -121,12 +132,22 @@ def _resolve_transcript(payload: dict, audio_path: Path) -> tuple[str, float, li
 #   戻り値: [paths: F0・エネルギー・有声判定の作業領域相対パス]
 #   エラー: [書き込みに失敗した場合は呼出元へ伝える]
 # }
-def _write_feature_series(workspace: Path, segment_id: str, f0_values: list[dict],
-                          energy_values: list[dict], voicing_values: list[dict]) -> tuple[str, str, str]:
+def _write_feature_series(
+    workspace: Path,
+    segment_id: str,
+    f0_values: list[dict],
+    energy_values: list[dict],
+    voicing_values: list[dict],
+) -> tuple[str, str, str]:
     return tuple(
-        _write_feature(workspace / "features" / series_name / f"{segment_id}.json", series_values, workspace)
+        _write_feature(
+            workspace / "features" / series_name / f"{segment_id}.json", series_values, workspace
+        )
         for series_name, series_values in (
-            ("f0", f0_values), ("energy", energy_values), ("voicing", voicing_values))
+            ("f0", f0_values),
+            ("energy", energy_values),
+            ("voicing", voicing_values),
+        )
     )
 
 
@@ -137,8 +158,9 @@ def _write_feature_series(workspace: Path, segment_id: str, f0_values: list[dict
 #   戻り値: [summary: 平均F0、F0標準偏差、音域、信頼度、平均エネルギー、エネルギー変動、有声率]
 #   エラー: [なし(空の系列は0として扱う)]
 # }
-def _summarize_feature_series(f0_values: list[dict], energy_values: list[dict],
-                              voicing_values: list[dict]) -> dict:
+def _summarize_feature_series(
+    f0_values: list[dict], energy_values: list[dict], voicing_values: list[dict]
+) -> dict:
     voiced_f0_items = [item for item in f0_values if item["value"] > 0.0]
     voiced_f0 = [item["value"] for item in voiced_f0_items]
     energy_series = [item["value"] for item in energy_values]
@@ -146,10 +168,12 @@ def _summarize_feature_series(f0_values: list[dict], energy_values: list[dict],
         "mean_f0_hz": sum(voiced_f0) / max(1, len(voiced_f0)),
         "f0_std_dev_hz": _stddev(voiced_f0),
         "pitch_range_semitones": _pitch_range_semitones(voiced_f0),
-        "pitch_reliability": sum(item.get("confidence", 0.0) for item in voiced_f0_items) / max(1, len(voiced_f0)),
+        "pitch_reliability": sum(item.get("confidence", 0.0) for item in voiced_f0_items)
+        / max(1, len(voiced_f0)),
         "mean_energy": sum(energy_series) / max(1, len(energy_series)),
         "energy_variation": _coefficient_of_variation(energy_series),
-        "voiced_ratio": sum(1 for item in voicing_values if item["value"] >= 0.5) / max(1, len(voicing_values)),
+        "voiced_ratio": sum(1 for item in voicing_values if item["value"] >= 0.5)
+        / max(1, len(voicing_values)),
     }
 
 
@@ -157,21 +181,36 @@ def _summarize_feature_series(f0_values: list[dict], energy_values: list[dict],
 #   責務: [_align_training_phonemes: 実測を優先し音素時刻の方式と限界を返す]
 #   処理: [1: 同梱MFAで音素境界を実測する 2: 未対応発音や不正出力を推定値と区別する]
 #   引数: [audio_path: 音声, workspace: 作業領域, phonemes: 内部音素列, duration_sec: 音声長, asr_confidence: 認識信頼度, alignment_units: ASR単語時刻]
-#   戻り値: [alignment: 音素時刻、未校正の信頼度、方式、警告]
+#   戻り値: [alignment: 音素時刻、未校正の信頼度、方式、警告、実測記録参照（推定時はNone）]
 #   エラー: [必須資源の欠落やMFA実行失敗は呼出元へ伝える]
 # }
-def _align_training_phonemes(audio_path: Path, workspace: Path, phonemes: list[str],
-                             duration_sec: float, asr_confidence: float,
-                             alignment_units: list[dict]) -> tuple[list[dict], float, str, str | None]:
+def _align_training_phonemes(
+    audio_path: Path,
+    workspace: Path,
+    phonemes: list[str],
+    duration_sec: float,
+    asr_confidence: float,
+    alignment_units: list[dict],
+) -> tuple[list[dict], float, str, str | None, dict | None]:
     if not phonemes:
-        return [], 0.0, "unavailable", "文字起こしから音素を取得できませんでした。"
+        return [], 0.0, "unavailable", "文字起こしから音素を取得できませんでした。", None
     try:
-        timings = MfaForcedAligner().align(audio_path, phonemes, duration_sec, workspace)
+        measurement = MfaForcedAligner().measure(audio_path, phonemes, duration_sec, workspace)
     except ValueError as error:
         # 推定値には実測方式を付けず、歌唱学習の既存検証で拒否できるようにする。
-        timings, confidence, method = _align_phonemes(phonemes, duration_sec, asr_confidence, alignment_units)
-        return timings, confidence, method, str(error)
-    return timings, 0.0, ALIGNMENT_METHOD, "MFA境界の正確さは未確認です。信頼度は未校正のため0を記録しています。"
+        timings, confidence, method = _align_phonemes(
+            phonemes, duration_sec, asr_confidence, alignment_units
+        )
+        return timings, confidence, method, str(error), None
+    # 保存・参照の失敗を推定値の成功へ変換しない。
+    return (
+        measurement.timings,
+        0.0,
+        ALIGNMENT_METHOD,
+        "MFA境界の正確さは未確認です。信頼度は未校正のため0を記録しています。",
+        measurement.reference(workspace),
+    )
+
 
 # {
 #   責務: [
