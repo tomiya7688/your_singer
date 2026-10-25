@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import stat
 import tempfile
 from pathlib import Path
+
+MAX_ALIGNMENT_AUDIO_BYTES = 1024 * 1024 * 1024
 
 
 # {
@@ -88,7 +91,22 @@ class MfaMeasurementStore:
 #   責務: [audio_fingerprint: 音声の同一性をファイル名や更新日時に依存せず確認する]
 #   引数: [path: MFAへ渡す元音声]
 #   戻り値: [sha256: 音声ファイルのhash]
+#   エラー: [通常ファイル以外、1GiB超、読込中のサイズ変更を拒否する]
 # }
 def audio_fingerprint(path: Path) -> str:
+    metadata = path.stat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_ALIGNMENT_AUDIO_BYTES:
+        raise ValueError("MFA音声は1GiB以内の通常ファイルを指定してください。")
+    digest = hashlib.sha256()
+    # 読み始めたサイズに制限し、書き足し続ける入力を最後まで追いかけない。
     with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+        remaining = metadata.st_size
+        while remaining:
+            chunk = stream.read(min(remaining, 1024 * 1024))
+            if not chunk:
+                raise RuntimeError("MFA音声のサイズが読込中に変更されました。")
+            digest.update(chunk)
+            remaining -= len(chunk)
+        if stream.read(1):
+            raise RuntimeError("MFA音声のサイズが読込中に変更されました。")
+    return digest.hexdigest()

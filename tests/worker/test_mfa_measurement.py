@@ -1,11 +1,14 @@
 import hashlib
 import json
+import stat
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from your_singer_ml.mfa_alignment import MfaForcedAligner
+from your_singer_ml.mfa_measurement import MAX_ALIGNMENT_AUDIO_BYTES, audio_fingerprint
 
 
 # {
@@ -119,6 +122,32 @@ class MfaMeasurementTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "alignment領域内"):
             self.run_alignment()
         self.assertFalse(list(outside.iterdir()))
+
+    # { 責務: [test_rejects_special_or_oversized_audio_before_read: 特殊ファイルと巨大入力を読み始めない] }
+    def test_rejects_special_or_oversized_audio_before_read(self):
+        for mode, size in ((stat.S_IFIFO, 1), (stat.S_IFREG, MAX_ALIGNMENT_AUDIO_BYTES + 1)):
+            with (
+                self.subTest(mode=mode),
+                patch.object(
+                    Path, "stat", return_value=SimpleNamespace(st_mode=mode, st_size=size)
+                ),
+                patch.object(Path, "open") as open_audio,
+            ):
+                with self.assertRaisesRegex(ValueError, "通常ファイル"):
+                    audio_fingerprint(self.audio)
+                open_audio.assert_not_called()
+
+    # { 責務: [test_rejects_size_change_while_hashing: hash計算中の入力伸縮を拒否する] }
+    def test_rejects_size_change_while_hashing(self):
+        for size in (1, 1000):
+            with (
+                self.subTest(size=size),
+                patch.object(
+                    Path, "stat", return_value=SimpleNamespace(st_mode=stat.S_IFREG, st_size=size)
+                ),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "サイズ"):
+                    audio_fingerprint(self.audio)
 
 
 if __name__ == "__main__":
