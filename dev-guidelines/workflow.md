@@ -27,7 +27,7 @@ pwsh tools/dev/start_work.ps1 -Issue <番号> -Name <短い英語名>
 
 ### 3. 終了: 検証してPRを作る
 
-1. 実行前に[実行環境](execution.md)で一時領域を設定し、`pwsh tools/dev/check.ps1` を実行します。変更範囲に応じて `-SkipDotnet` などで絞ってよく、絞った場合はPRに明記します。
+1. 実装後に[変更ファイルの整形](formatting.md)を実行し、format/checkを通してから関連検証へ進みます。[実行環境](execution.md)で一時領域を設定し、`pwsh tools/dev/check.ps1` を実行します。変更範囲に応じて `-SkipDotnet` などで絞ってよく、絞った場合はPRに明記します。
    文書だけの変更では `-SkipDotnet -SkipWorker` を使い、追加したリンク・参照先とskill形式を確認します。ログ全文は`artifacts/`へ保存し、終了コード・失敗箇所・ログの場所を報告します。
 2. コミットは `feat(#番号): 日本語の要約` 形式にします(`fix` / `docs` / `test` / `refactor` も可)。
    stageするのは今回のIssueのファイルだけです。ステージ済み差分を確認してからコミットします。

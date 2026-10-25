@@ -1,0 +1,10 @@
+artifacts/
+local-projects/
+.review-private/
+.review-work/
+node_modules/
+**/bin/
+**/obj/
+**/vendor/
+**/__pycache__/
+src/process/YourSinger.Process/processing/ml/worker/build/
