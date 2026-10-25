@@ -46,14 +46,40 @@ public sealed class FfmpegAudioExtractor
                 exception);
         }
 
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-        var error = await errorTask;
-
-        if (process.ExitCode != 0)
+        var errorTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        try
         {
-            throw new InvalidOperationException(
-                $"音声の抽出に失敗しました。FFmpeg終了コード: {process.ExitCode}\n{error}");
+            await process.WaitForExitAsync(cancellationToken);
+            var error = await errorTask;
+
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException(
+                    $"音声の抽出に失敗しました。FFmpeg終了コード: {process.ExitCode}\n{error}");
+            }
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch (InvalidOperationException) when (process.HasExited)
+                {
+                }
+                await process.WaitForExitAsync(CancellationToken.None);
+            }
+
+            try
+            {
+                await errorTask;
+            }
+            catch (ObjectDisposedException)
+            {
+                // Process終了処理を優先し、stderr readerの後始末失敗で元例外を上書きしない。
+            }
         }
     }
 
