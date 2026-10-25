@@ -7,11 +7,11 @@
 
 ## 成果物の一覧
 
-| 成果物 | 生成元 | 署名・検証方式 | 状況 |
-| --- | --- | --- | --- |
-| `YourSinger-windows-x64.zip`(自己完結配布物) | `package-worker.yml` | SHA-256、Artifact Attestation(keyless) | 実装済み |
-| `SHA256SUMS` | `tools/package_distribution_archive.ps1` | Artifact Attestation(keyless) | 実装済み |
-| `YourSinger.exe`、`workers/YourSinger.ML.exe`、`YourSinger.*.dll` | `build_windows_distribution.ps1` | Authenticode署名とRFC 3161 timestamp | 未実装(証明書の選定待ち) |
+| 成果物                                                            | 生成元                                   | 署名・検証方式                         | 状況                     |
+| ----------------------------------------------------------------- | ---------------------------------------- | -------------------------------------- | ------------------------ |
+| `YourSinger-windows-x64.zip`(自己完結配布物)                      | `package-worker.yml`                     | SHA-256、Artifact Attestation(keyless) | 実装済み                 |
+| `SHA256SUMS`                                                      | `tools/package_distribution_archive.ps1` | Artifact Attestation(keyless)          | 実装済み                 |
+| `YourSinger.exe`、`workers/YourSinger.ML.exe`、`YourSinger.*.dll` | `build_windows_distribution.ps1`         | Authenticode署名とRFC 3161 timestamp   | 未実装(証明書の選定待ち) |
 
 次の成果物は生成していません: macOS・Linux・Android向け成果物、container image、Python package、NuGet package、GitHub Release。生成を始める場合は、種類に合う署名方式を同じ文書へ追加してから公開します。
 
@@ -23,6 +23,10 @@
 2. `package-worker.yml` が、`actions/attest-build-provenance` でZIPと`SHA256SUMS`のattestationを作ります。OIDCを使うkeyless方式で、秘密鍵を持ちません。フォークからのPRはOIDC権限がないため、attestationを作りません。
 3. 同じワークフローで `gh attestation verify --signer-workflow` を実行し、attestationが生成元のワークフローと一致することを検証します。
 4. `tools/verify_distribution_signing.ps1` が、`SHA256SUMS` と最終ZIPの一致を確認します。
+
+## 構築ワークフローの実行方法
+
+`package-worker.yml` は約25分かかるため、PRでは自動実行せず、GitHub Actionsから手動(`workflow_dispatch`)で実行します。配布前の動作確認の扱いは、[作業開始からマージまで](../dev-guidelines/workflow.md)の「配布前の動作確認」に従います。
 
 ## 公開リリースのゲート(未実装)
 
