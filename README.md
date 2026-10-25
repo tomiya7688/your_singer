@@ -252,15 +252,17 @@ v1 は以下を基本構成とします。
 1. 同じ場所に置いた `SHA256SUMS` で、ZIPのSHA-256を照合します。
 
    ```powershell
-   (Get-FileHash .\YourSinger-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
-   Get-Content .\SHA256SUMS
+   $actual = (Get-FileHash .\YourSinger-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
+   $expected = (Get-Content .\SHA256SUMS).Split()[0].ToLower()
+   $actual -eq $expected
    ```
 
-   2つの値が一致することを確認してください。
+   `SHA256SUMS` には `<ハッシュ> *<ファイル名>` の形式で1行が書かれています。結果が `True` になることを確認してください。`False` の場合は、ダウンロードし直してください。
 
 2. [GitHub CLI](https://cli.github.com/) で、このリポジトリのワークフローが生成したことを検証します。
 
    ```powershell
+   gh auth login   # 初回のみ。GitHubにログインしていない場合に必要です
    gh attestation verify .\YourSinger-windows-x64.zip --repo tomiya7688/your_singer
    gh attestation verify .\SHA256SUMS --repo tomiya7688/your_singer
    ```

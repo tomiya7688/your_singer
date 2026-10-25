@@ -24,6 +24,8 @@
 3. 同じワークフローで `gh attestation verify --signer-workflow` を実行し、attestationが生成元のワークフローと一致することを検証します。
 4. `tools/verify_distribution_signing.ps1` が、`SHA256SUMS` と最終ZIPの一致を確認します。
 
+注意: 手動実行は任意のブランチから行えるため、attestationは「このリポジトリのワークフローが生成した」ことを示しますが、公開済みのタグ・`main` から作ったことまでは示しません。公開リリース用のワークフローでは、`gh attestation verify --source-ref refs/tags/v<版>` で参照元のタグまで固定して検証します。
+
 ## 構築ワークフローの実行方法
 
 `package-worker.yml` は約25分かかるため、PRでは自動実行せず、GitHub Actionsから手動(`workflow_dispatch`)で実行します。配布前の動作確認の扱いは、[作業開始からマージまで](../dev-guidelines/workflow.md)の「配布前の動作確認」に従います。
@@ -37,7 +39,7 @@
 
 公開配布でWindowsの発行元が「不明」にならないよう、信頼されたCode Signing証明書が必要です。自己署名証明書は最終解にしません。候補は次のとおりです。
 
-- Azure Artifact Signing(旧Trusted Signing): 証明書の秘密鍵を持たず、GitHub ActionsからOIDCで署名できます。利用資格の審査があります。
+- Azure Artifact Signing(旧Trusted Signing): 証明書の秘密鍵を持たず、GitHub ActionsからOIDCで署名できます。利用資格の審査や提供地域の条件があります。名称や条件は変更されることがあるため、選定時に公式ドキュメントで最新の内容を確認します。
 - EV/OVのCode Signing証明書: クラウドHSM経由の署名が必要です(秘密鍵のエクスポートは不可)。
 
 どの方式でも、秘密鍵・PFX・パスワードはリポジトリにコミットせず、GitHub Secretsまたは外部の署名サービスに置きます。

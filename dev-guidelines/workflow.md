@@ -71,7 +71,8 @@ force push、`main` への直接push、他者のPRの無断マージはしませ
 
 - 現在は配布できる段階ではないため、手元で動作すれば十分とします。実機で動作確認する場合は、確認した環境・手順・結果を記録します。
 - `package-worker.yml`(Windows配布物の構築)はPRで自動実行しません。構築が約25分かかるため、配布前や、構築スクリプト・配布物の構成を変えて動作を確認したいときに、GitHub Actionsから手動で実行します(任意)。
-- 配布を始める段階では、手動実行した配布物の起動確認と、[配布物の署名とattestation](../docs/release-signing.md)の検証を、配布前の必須条件にします。
+- `package-worker.yml`、`tools/package_distribution_archive.ps1`、`tools/verify_distribution_signing.ps1`、配布物の構成を変えるPRは、CIで自動検証されません。マージ前に手動実行して結果を確認してください。
+- 配布を始める段階(最初の公開リリースの前)では、手動実行した配布物の起動確認と、[配布物の署名とattestation](../docs/release-signing.md)の検証を、配布前の必須条件にします。
 
 ## 引き継ぎ
 
