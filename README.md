@@ -245,6 +245,31 @@ v1 は以下を基本構成とします。
 
 詳細はIssueと `docs/` を参照してください。
 
+## 配布物の検証
+
+配布物(`YourSinger-windows-x64.zip`)は、ダウンロード後に次の手順で真正性を確認できます。現在は開発段階のため、公開リリースはまだありません。
+
+1. 同じ場所に置いた `SHA256SUMS` で、ZIPのSHA-256を照合します。
+
+   ```powershell
+   $actual = (Get-FileHash .\YourSinger-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
+   $expected = (Get-Content .\SHA256SUMS).Split()[0].ToLower()
+   $actual -eq $expected
+   ```
+
+   `SHA256SUMS` には `<ハッシュ> *<ファイル名>` の形式で1行が書かれています。結果が `True` になることを確認してください。`False` の場合は、ダウンロードし直してください。
+
+2. [GitHub CLI](https://cli.github.com/) で、このリポジトリのワークフローが生成したことを検証します。
+
+   ```powershell
+   gh auth login   # 初回のみ。GitHubにログインしていない場合に必要です
+   gh attestation verify .\YourSinger-windows-x64.zip --repo tomiya7688/your_singer --signer-workflow tomiya7688/your_singer/.github/workflows/package-worker.yml
+   gh attestation verify .\SHA256SUMS --repo tomiya7688/your_singer --signer-workflow tomiya7688/your_singer/.github/workflows/package-worker.yml
+   ```
+
+   検証に失敗した配布物は実行しないでください。
+
+3. 公開リリースでは、`YourSinger.exe` に有効なAuthenticode署名とtimestampが付く予定です。署名の有無は、ファイルのプロパティの「デジタル署名」タブで確認できます。署名が付くまでは、Windowsが発行元を「不明」と表示します。
 
 ## ライセンス
 
