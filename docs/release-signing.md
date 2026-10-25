@@ -20,11 +20,13 @@
 ## 実装済みの仕組み
 
 1. `tools/package_distribution_archive.ps1` が配布フォルダをZIP化し、`SHA256SUMS` を作ります。ZIP64対応のAPIを使うため、2GBを超える配布物も作れます。
-2. `package-worker.yml` が、`actions/attest-build-provenance` でZIPと`SHA256SUMS`のattestationを作ります。OIDCを使うkeyless方式で、秘密鍵を持ちません。フォークからのPRはOIDC権限がないため、attestationを作りません。
+2. `package-worker.yml` が、`actions/attest-build-provenance` でZIPと`SHA256SUMS`のattestationを作ります。OIDCを使うkeyless方式で、秘密鍵を持ちません。attestationを作るのは、`main` とリリースタグ(`v*`)から実行した場合だけです。未保護のブランチで変更したワークフローから、attestationを発行させないためです。
 3. 同じワークフローで `gh attestation verify --signer-workflow` を実行し、attestationが生成元のワークフローと一致することを検証します。
 4. `tools/verify_distribution_signing.ps1` が、`SHA256SUMS` と最終ZIPの一致を確認します。
 
-注意: 手動実行は任意のブランチから行えるため、attestationは「このリポジトリのワークフローが生成した」ことを示しますが、公開済みのタグ・`main` から作ったことまでは示しません。公開リリース用のワークフローでは、`gh attestation verify --source-ref refs/tags/v<版>` で参照元のタグまで固定して検証します。
+注意: CIは `--source-ref` で実行時の参照元(`main` またはタグ)まで固定して検証します。利用者向けの手順(README)は、生成元のワークフローまでを検証します。公開リリースが始まったら、READMEに `--source-ref refs/tags/v<版>` を追加します。
+
+署名検証の既知の制限: `verify_distribution_signing.ps1` は、timestampの方式(従来方式かRFC 3161か)を区別できません。Authenticode署名の実装時に、`signtool` の `/tr` で署名し、`signtool verify` で確認します。
 
 ## 構築ワークフローの実行方法
 

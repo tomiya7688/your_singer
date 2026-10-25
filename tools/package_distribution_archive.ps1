@@ -15,6 +15,8 @@ $repo = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "BuildPathSafety.ps1")
 $distribution = Resolve-ArtifactBuildPath $repo $DistributionDirectory
 $output = Resolve-ArtifactBuildPath $repo $OutputDirectory
+# 出力先の削除が配布元を巻き込まないよう、包含関係を先に拒否する。
+Assert-IndependentBuildSource -SourceDirectory $distribution -OutputDirectories @($output)
 if (-not (Test-Path (Join-Path $distribution "distribution-manifest.json") -PathType Leaf)) {
     throw "配布フォルダにdistribution-manifest.jsonがありません。先にbuild_windows_distribution.ps1を実行してください。"
 }

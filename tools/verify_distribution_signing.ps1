@@ -3,14 +3,17 @@
   使い方:
     pwsh tools/verify_distribution_signing.ps1 -ReleaseDirectory artifacts/release
     pwsh tools/verify_distribution_signing.ps1 -ReleaseDirectory artifacts/release -DistributionDirectory artifacts/windows-distribution -RequireAuthenticode
-  -RequireAuthenticode を付けると、自社製のexe/dllにRFC 3161 timestamp付きの有効なAuthenticode署名が無い場合に失敗します。
+  -RequireAuthenticode を付けると、自社製のexe/dllに、timestamp付きの有効なAuthenticode署名が無い場合に失敗します。
+  このとき -ExpectedSignerSubject(証明書のSubjectに含まれるべき文字列)も必須です。他社の有効な署名を通さないためです。
+  timestampの方式(従来方式かRFC 3161か)はこのスクリプトでは区別できません。署名時に /tr で付与し、署名の実装時に signtool で検証します。
   公開リリースは必ず -RequireAuthenticode を付けて実行してください。
 #>
 param(
     [Parameter(Mandatory)][string]$ReleaseDirectory,
     [string]$DistributionDirectory,
     [string]$ArchiveName = "YourSinger-windows-x64.zip",
-    [switch]$RequireAuthenticode
+    [switch]$RequireAuthenticode,
+    [string]$ExpectedSignerSubject
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,7 +25,8 @@ foreach ($requiredPath in @($archivePath, $sumsPath)) {
 }
 
 # SHA256SUMSが最終成果物そのものと一致するか確認する。
-$expectedLine = (Get-Content $sumsPath | Where-Object { $_ -match [regex]::Escape($ArchiveName) } | Select-Object -First 1)
+# ファイル名が完全一致する行だけを採用する(部分一致で別ファイルの行を拾わない)。
+$expectedLine = (Get-Content $sumsPath | Where-Object { ($_ -split '\s+', 2)[1] -replace '^\*', '' -eq $ArchiveName } | Select-Object -First 1)
 if (-not $expectedLine) { throw "SHA256SUMSに$ArchiveNameがありません。" }
 $expectedHash = ($expectedLine -split '\s+')[0].ToLowerInvariant()
 $actualHash = (Get-FileHash $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -35,6 +39,7 @@ if (-not $RequireAuthenticode) {
 }
 
 if (-not $DistributionDirectory) { throw "-RequireAuthenticode には -DistributionDirectory が必要です。" }
+if (-not $ExpectedSignerSubject) { throw "-RequireAuthenticode には -ExpectedSignerSubject が必要です。" }
 $distribution = [IO.Path]::GetFullPath($DistributionDirectory)
 # 自社製のバイナリだけを対象にする。第三者のruntimeは配布元の署名・固定hashで扱う。
 $ownBinaries = @(Get-ChildItem $distribution -Recurse -File |
@@ -43,7 +48,8 @@ if ($ownBinaries.Count -eq 0) { throw "署名対象の自社製バイナリが�
 $failures = foreach ($binary in $ownBinaries) {
     $signature = Get-AuthenticodeSignature -LiteralPath $binary.FullName
     if ($signature.Status -ne "Valid") { "$($binary.FullName): 署名が有効ではありません ($($signature.Status))" }
-    elseif (-not $signature.TimeStamperCertificate) { "$($binary.FullName): RFC 3161 timestampがありません" }
+    elseif (-not $signature.TimeStamperCertificate) { "$($binary.FullName): timestampがありません" }
+    elseif ($signature.SignerCertificate.Subject -notlike "*$ExpectedSignerSubject*") { "$($binary.FullName): 想定外の署名者です ($($signature.SignerCertificate.Subject))" }
 }
 if ($failures) { throw ("Authenticode検証に失敗しました:`n" + ($failures -join "`n")) }
 Write-Host "Authenticode OK: $($ownBinaries.Count) files"

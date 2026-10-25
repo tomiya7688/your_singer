@@ -263,8 +263,8 @@ v1 は以下を基本構成とします。
 
    ```powershell
    gh auth login   # 初回のみ。GitHubにログインしていない場合に必要です
-   gh attestation verify .\YourSinger-windows-x64.zip --repo tomiya7688/your_singer
-   gh attestation verify .\SHA256SUMS --repo tomiya7688/your_singer
+   gh attestation verify .\YourSinger-windows-x64.zip --repo tomiya7688/your_singer --signer-workflow tomiya7688/your_singer/.github/workflows/package-worker.yml
+   gh attestation verify .\SHA256SUMS --repo tomiya7688/your_singer --signer-workflow tomiya7688/your_singer/.github/workflows/package-worker.yml
    ```
 
    検証に失敗した配布物は実行しないでください。

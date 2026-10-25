@@ -169,10 +169,11 @@ jobs:
           # スクリプトは失敗時に例外を投げる。ps1呼び出しは$LASTEXITCODEを更新しないため、終了コードは確認しない。
           ./tools/package_distribution_archive.ps1
           ./tools/verify_distribution_signing.ps1 -ReleaseDirectory artifacts/release
-      # フォークからのPRではOIDC権限が無いため、attestationはこのリポジトリ内のrunだけで行う。
+      # 未保護のブランチで変更したworkflowからattestationを発行しないよう、mainとリリースタグに限定する。
+      # それ以外のrefの手動実行は、構築と配布物の確認だけを行う。
       - name: 最終成果物のArtifact Attestationを作成
         id: attest
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: actions/attest-build-provenance@v3
         with:
           subject-path: |
@@ -185,7 +186,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           foreach ($subject in @("YourSinger-windows-x64.zip", "SHA256SUMS")) {
-            gh attestation verify (Join-Path "artifacts/release" $subject) --repo "${{ github.repository }}" --signer-workflow "${{ github.repository }}/.github/workflows/package-worker.yml"
+            gh attestation verify (Join-Path "artifacts/release" $subject) --repo "${{ github.repository }}" --signer-workflow "${{ github.repository }}/.github/workflows/package-worker.yml" --source-ref "${{ github.ref }}"
             if ($LASTEXITCODE -ne 0) { throw "$subject のattestation検証に失敗しました。" }
           }
       - uses: actions/upload-artifact@v4
