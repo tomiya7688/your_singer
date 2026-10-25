@@ -66,7 +66,7 @@ public sealed class FfmpegAudioExtractorLifetimeTests
             {
                 try
                 {
-                    using var child = Process.GetProcessById(childPid);
+                    using var child = System.Diagnostics.Process.GetProcessById(childPid);
                     if (!child.HasExited)
                     {
                         child.Kill(entireProcessTree: true);
