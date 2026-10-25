@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import copy
 import array
 import json
@@ -167,21 +168,32 @@ class MfaExecutionTests(unittest.TestCase):
     # }
     def test_only_validated_measurement_gets_forced_alignment_method(self):
         measured = [{"phoneme": "a", "start_sec": 0.2, "end_sec": 0.9, "confidence": 0.0}]
-        with patch.object(
-            MfaForcedAligner,
-            "measure",
-            return_value=MfaMeasurementResult(
-                measured, Path("alignment/measurements/example.json"), "1" * 64, "2" * 64
-            ),
-        ):
-            timings, confidence, method, warning, reference = _align_training_phonemes(
-                Path("a.wav"), Path("."), ["a"], 1.0, 0.99, []
-            )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            record_path = workspace / "alignment/measurements/example.json"
+            record_path.parent.mkdir(parents=True)
+            record_path.write_bytes(b"{}")
+            record_sha256 = hashlib.sha256(b"{}").hexdigest()
+            with patch.object(
+                MfaForcedAligner,
+                "measure",
+                return_value=MfaMeasurementResult(measured, record_path, record_sha256, "2" * 64),
+            ):
+                timings, confidence, method, warning, reference = _align_training_phonemes(
+                    workspace / "a.wav", workspace, ["a"], 1.0, 0.99, []
+                )
         self.assertEqual(measured, timings)
         self.assertEqual(ALIGNMENT_METHOD, method)
         self.assertEqual(0.0, confidence)
         self.assertIn("未校正", warning)
-        self.assertEqual("alignment/measurements/example.json", reference["path"])
+        self.assertEqual(
+            {
+                "path": "alignment/measurements/example.json",
+                "sha256": record_sha256,
+                "audio_sha256": "2" * 64,
+            },
+            reference,
+        )
 
     # {
     #   責務: [test_unsupported_measurement_keeps_estimated_method: 対応できない音素の推定値を実測と誤記録しない]
@@ -239,7 +251,7 @@ class MfaExecutionTests(unittest.TestCase):
                 return_value=(
                     [],
                     0.0,
-                    "fixture-method",
+                    ALIGNMENT_METHOD,
                     None,
                     {
                         "path": "alignment/measurements/example.json",
@@ -262,8 +274,14 @@ class MfaExecutionTests(unittest.TestCase):
         self.assertEqual("修正歌詞", feature["transcript"])
         self.assertEqual(0.0, feature["asr_confidence"])
         self.assertEqual(
-            "alignment/measurements/example.json", feature["alignment_measurement"]["path"]
+            {
+                "path": "alignment/measurements/example.json",
+                "sha256": "1" * 64,
+                "audio_sha256": "2" * 64,
+            },
+            feature["alignment_measurement"],
         )
+        self.assertEqual(ALIGNMENT_METHOD, feature["alignment_method"])
         self.assertEqual(["a"], align.call_args.args[2])
 
 

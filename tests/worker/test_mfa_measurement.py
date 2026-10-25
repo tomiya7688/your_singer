@@ -88,12 +88,17 @@ class MfaMeasurementTests(unittest.TestCase):
         first = self.run_alignment(with_reference=True)
         second = self.run_alignment(with_reference=True)
         self.assertNotEqual(first.path, second.path)
+        expected_audio_sha256 = hashlib.sha256(self.audio.read_bytes()).hexdigest()
         for measurement in (first, second):
             reference = measurement.reference(self.root)
+            self.assertEqual(measurement.path.relative_to(self.root).as_posix(), reference["path"])
+            self.assertEqual(measurement.sha256, reference["sha256"])
+            self.assertEqual(expected_audio_sha256, reference["audio_sha256"])
             record_path = self.root / reference["path"]
             record_bytes = record_path.read_bytes()
             record = json.loads(record_bytes)
             self.assertFalse(Path(reference["path"]).is_absolute())
+            self.assertNotIn(chr(92), reference["path"])
             self.assertEqual(hashlib.sha256(record_bytes).hexdigest(), reference["sha256"])
             self.assertEqual(record["audio_sha256"], reference["audio_sha256"])
             self.assertEqual(record["phonemes"], measurement.timings)
@@ -101,8 +106,23 @@ class MfaMeasurementTests(unittest.TestCase):
     # { 責務: [test_reference_rejects_another_workspace: 別プロジェクトへ測定記録参照を持ち込まない] }
     def test_reference_rejects_another_workspace(self):
         measurement = self.run_alignment(with_reference=True)
-        with self.assertRaisesRegex(RuntimeError, "外"):
-            measurement.reference(self.root / "another-project")
+        for other_workspace in (
+            self.root / "another-project",
+            self.root.with_name(self.root.name + "-other"),
+        ):
+            with self.subTest(workspace=other_workspace):
+                with self.assertRaisesRegex(RuntimeError, "MFA測定記録がVoice Projectの外です"):
+                    measurement.reference(other_workspace)
+
+    # { 責務: [test_reference_rejects_changed_or_missing_record: 返却前に消えた・変わった記録を参照しない] }
+    def test_reference_rejects_changed_or_missing_record(self):
+        measurement = self.run_alignment(with_reference=True)
+        measurement.path.write_text("{}", encoding="utf-8")
+        with self.assertRaisesRegex(RuntimeError, "変更"):
+            measurement.reference(self.root)
+        measurement.path.unlink()
+        with self.assertRaises(FileNotFoundError):
+            measurement.reference(self.root)
 
     # { 責務: [test_repeated_alignment_retains_previous_record: 再実行で既存測定を上書きしない] }
     def test_repeated_alignment_retains_previous_record(self):
