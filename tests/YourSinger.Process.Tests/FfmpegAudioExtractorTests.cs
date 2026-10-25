@@ -57,7 +57,7 @@ public sealed class FfmpegAudioExtractorTests
             {
                 try
                 {
-                    using var leaked = Process.GetProcessById(pid);
+                    using var leaked = System.Diagnostics.Process.GetProcessById(pid);
                     leaked.Kill(entireProcessTree: true);
                     await leaked.WaitForExitAsync(TestProject.Token);
                 }
