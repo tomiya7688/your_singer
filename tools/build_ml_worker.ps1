@@ -12,7 +12,7 @@ $worker = Join-Path $repo "src/process/YourSinger.Process/processing/ml/worker"
 $output = Resolve-ArtifactBuildPath $repo $OutputDirectory
 $temp = Resolve-ArtifactBuildPath $repo "artifacts/_ml-worker-build"
 $mfaBundle = [IO.Path]::GetFullPath($MfaBundleDirectory, $repo)
-$sourcePython = (Get-Command $PythonExecutable -CommandType Application -ErrorAction Stop).Source
+$sourcePython = (Get-Command $PythonExecutable -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 Assert-IndependentBuildSource (Split-Path -Parent $sourcePython) @($output, $temp)
 Assert-IndependentBuildSource $mfaBundle @($output, $temp)
 $env:TEMP = Join-Path $repo "artifacts/temp"
@@ -44,13 +44,16 @@ New-Item -ItemType Directory -Path $temp, $output | Out-Null
 & $sourcePython -m venv (Join-Path $temp "runtime")
 if ($LASTEXITCODE -ne 0) { throw "MLワーカー構築専用のPython環境を作成できませんでした。" }
 $buildPython = Join-Path $temp "runtime/Scripts/python.exe"
-& $buildPython -m pip install --upgrade pip
-if ($LASTEXITCODE -ne 0) { throw "pipの更新に失敗しました。" }
+# 証明書インシデント対応(#48): 最低版のpipとcertifiを先に導入する。
+& $buildPython -m pip install --upgrade "pip>=26.2.2" "certifi>=2026.10.19"
+if ($LASTEXITCODE -ne 0) { throw "pipまたはcertifiの更新に失敗しました。" }
 $workerExtra = "$worker[phoneme-supplement]"
 & $buildPython -m pip install --no-compile $workerExtra "pyinstaller==6.16.0"
 if ($LASTEXITCODE -ne 0) { throw "MLワーカー依存のインストールに失敗しました。" }
 & $buildPython -m pip check
 if ($LASTEXITCODE -ne 0) { throw "MLワーカー依存の整合性が不正です。" }
+& $buildPython (Join-Path $PSScriptRoot "verify_python_trust.py")
+if ($LASTEXITCODE -ne 0) { throw "構築用Pythonのpip/certifiが最低版を満たしていません。" }
 
 # pyopenjtalk-dictの辞書は初回利用時に取得されるため、
 # 配布物をオフラインで使えるようリリース側で一度展開してから包装する。

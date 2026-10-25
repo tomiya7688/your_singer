@@ -1,3 +1,13 @@
+<!-- shared-review-operations:v2:2026-10-24 -->
+## 全プロジェクトの作業レビューとPRレビュー（最新ユーザー指示）
+
+Eドライブまたは `C:/Users/tomiy/games` にソースコードを持つ全プロジェクトに適用する。Learning language / Learning_language / lenguage_learningは除外する。規模・初期段階・Gitの有無で除外しない。この規則は旧「大規模だけ」と旧Luna/Haiku未実施時の停止条件を置き換える。
+各作業の実装・関連テスト・自己レビュー後に、Codex `gpt-6-luna` low、Claude `haiku` low、Antigravity無料モデル、Jules無料モデル、Continue CLI無料モデル、Qwen Code無料モデル、Grok CLI無料モデルの7者へそれぞれレビューを依頼する。PR作成・更新時にはGitHub CopilotとCodeRabbitの両方にも依頼する。モデル直接API呼出しを指定CLIによる実施と偽らない。
+全員について枠切れ・未応答・接続失敗・未ログイン・未導入・無料か不明なら理由を1行記録して省略し、作業を続ける。無応答は原則90秒（最大180秒）、非同期Jules/PRは原則10分の確認期限で打ち切り、連続再試行・枠待ち・課金・自動昇格をしない。省略を成功にせず、有効な指摘の修正・必須テスト・CI・承認条件は維持する。
+AntigravityとGrokは、指定された対象・必要な周辺ファイルの読取を許可する。両者を含む全レビュアーに編集・削除・移動・状態変更・別レビュアー起動をさせない。秘密/認証ファイルは読取許可の対象外。`E:/projects/.review-private/` の読取・復号はCodex/Claude主担当だけが行い、秘密をモデル本文・ログ・Gitへ出さない。
+具体的な資料作成、各CLI起動、読取専用設定、タイムアウト、省略、PR依頼、結果記録は `E:/projects/REVIEW_OPERATIONS.md` を参照し、設定済みやdry-runだけで実施済みと報告しない。
+<!-- /shared-review-operations -->
+
 # AGENTS.md — 共同作業の入口
 
 Claude Code、Codex、ChatGPT、Copilotと人が共有する正本です。製品別の入口とskillsへ同じ規則を複製しません。

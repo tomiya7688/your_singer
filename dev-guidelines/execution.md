@@ -32,6 +32,7 @@ New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
 | DiffSinger Trainer | [音響学習入力](../docs/diffsinger-acoustic-input.md)と専用lockに従います。Talk環境へ追加インストールしません。 |
 
 runtimeが配置済みか、版と依存が合うかは実行時に検証します。単体テスト用Pythonと、実モデルを読み込むPythonを同一環境と仮定しません。
+Pythonの取得・依存導入・配布構築では[Python信頼ストア](../docs/python-trust-store.md)も確認し、固定版・最低版と実際の証明書設定を原典の検証処理で照合します。
 
 ## 非公開データと長時間処理
 

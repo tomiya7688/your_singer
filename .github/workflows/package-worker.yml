@@ -7,6 +7,11 @@ on:
       - "tools/build_ml_worker.ps1"
       - "tools/build_windows_distribution.ps1"
       - "tools/prepare_phoneme_supplement_resources.py"
+      - "tools/prepare_trainer_python.py"
+      - "tools/verify_python_trust.py"
+      - "tools/*requirements.lock.txt"
+      - "tests/tools/test_prepare_trainer_python.py"
+      - "tests/tools/test_trainer_resource_download.py"
       - "tools/prepare_mfa_bundle.py"
       - "tools/prepare_style_bert_vits2_bundle.py"
       - "tools/build_style_bert_vits2_runtime.ps1"
@@ -42,11 +47,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+        id: python
         with:
           python-version: '3.12.10'
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: pip と certifi を最低版へ更新して確認
+        shell: pwsh
+        run: |
+          python -m pip install "pip>=26.2.2" "certifi>=2026.10.19"
+          python tools/verify_python_trust.py
+          if ($LASTEXITCODE -ne 0) { throw "配布ビルド用Pythonのpip/certifiが最低版を満たしていません。" }
+      - name: 専用Pythonの依存分離を検証
+        shell: pwsh
+        run: |
+          $env:YOURSINGER_TRAINER_PYTHON_SOURCE = (python -c "import sys; print(sys.base_prefix)").Trim()
+          $env:TEMP = Join-Path $env:GITHUB_WORKSPACE "artifacts/temp"
+          $env:TMP = $env:TEMP
+          New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
+          python -m unittest discover -s tests/tools -v
+          if ($LASTEXITCODE -ne 0) { throw "専用Pythonの複製・初期化・依存分離に失敗しました。" }
       - uses: mamba-org/setup-micromamba@v3
         with:
           environment-name: mfa-runtime
@@ -54,6 +75,8 @@ jobs:
             python=3.12
             montreal-forced-aligner=3.4.2
             kaldi=5.5.1172=cpu*
+            pip>=26.2.2
+            certifi>=2026.10.19
           init-shell: none
           cache-environment: true
       - name: 固定版MFAをオフライン配布用に配置
@@ -63,6 +86,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "MFA runtimeの保存先を取得できませんでした。" }
           python tools/prepare_mfa_bundle.py --runtime $mfaRuntime --output artifacts/mfa-bundle
           if ($LASTEXITCODE -ne 0) { throw "MFA配布資源を構築できませんでした。" }
+          & artifacts/mfa-bundle/runtime/python.exe -I tools/verify_python_trust.py
+          if ($LASTEXITCODE -ne 0) { throw "MFA配布資源のpip/certifiが最低版を満たしていません。" }
       - name: トークTrainerの専用CUDA環境と固定モデルを配置
         shell: pwsh
         run: |
@@ -84,9 +109,9 @@ jobs:
         shell: pwsh
         run: |
           if ("${{ github.event_name }}" -eq "workflow_dispatch" -and "${{ inputs.include_phoneme_models }}" -eq "true") {
-            ./tools/build_windows_distribution.ps1 -IncludePhonemeModels
+            ./tools/build_windows_distribution.ps1 -IncludePhonemeModels -PythonExecutable "${{ steps.python.outputs.python-path }}"
           } else {
-            ./tools/build_windows_distribution.ps1
+            ./tools/build_windows_distribution.ps1 -PythonExecutable "${{ steps.python.outputs.python-path }}"
           }
       - name: ワーカー起動確認
         shell: pwsh

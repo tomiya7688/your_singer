@@ -47,14 +47,7 @@ def extract_universal_features(payload: dict) -> dict:
     sample_rate, samples = _load_pcm16_mono(audio_path)
     duration_sec = len(samples) / max(1, sample_rate)
 
-    transcript_override = payload.get("transcript_override")
-    if transcript_override is None:
-        transcript, asr_confidence, alignment_units = _transcribe(audio_path)
-    else:
-        # 利用者の修正歌詞を再認識結果で上書きせず、その発音列を再実測する。
-        if not isinstance(transcript_override, str):
-            raise ValueError("文字起こし修正は文字列で指定してください。")
-        transcript, asr_confidence, alignment_units = transcript_override, 0.0, []
+    transcript, asr_confidence, alignment_units = _resolve_transcript(payload, audio_path)
     phonemes = _phonemize(transcript)
     phoneme_timings, alignment_confidence, alignment_method, alignment_warning = _align_training_phonemes(
         audio_path, workspace, phonemes, duration_sec, asr_confidence, alignment_units)
@@ -64,49 +57,16 @@ def extract_universal_features(payload: dict) -> dict:
         samples,
         sample_rate,
     )
-
-    # 後続工程が個別に読み込めるよう特徴量系列を分けて保存する。
-    f0_path = _write_feature(
-        workspace / "features" / "f0" / f"{segment_id}.json",
-        f0_values,
-        workspace,
-    )
-    energy_path = _write_feature(
-        workspace / "features" / "energy" / f"{segment_id}.json",
-        energy_values,
-        workspace,
-    )
-    voicing_path = _write_feature(
-        workspace / "features" / "voicing" / f"{segment_id}.json",
-        voicing_values,
-        workspace,
-    )
-
-    voiced_f0 = [
-        item["value"]
-        for item in f0_values
-        if item["value"] > 0.0
-    ]
-
-    mean_f0 = sum(voiced_f0) / max(1, len(voiced_f0))
-    f0_std = _stddev(voiced_f0)
-    mean_energy = sum(item["value"] for item in energy_values) / max(1, len(energy_values))
-    voiced_ratio = sum(1 for item in voicing_values if item["value"] >= 0.5) / max(
-        1, len(voicing_values)
-    )
-    pitch_reliability = sum(
-        item.get("confidence", 0.0)
-        for item in f0_values
-        if item["value"] > 0.0
-    ) / max(1, len(voiced_f0))
+    f0_path, energy_path, voicing_path = _write_feature_series(
+        workspace, segment_id, f0_values, energy_values, voicing_values)
+    summary = _summarize_feature_series(f0_values, energy_values, voicing_values)
+    voiced_ratio = summary["voiced_ratio"]
 
     # 音響系列と音素数から区間全体の韻律要約を作る。
     style = {
         "speaking_rate": len(phonemes) / max(duration_sec, 0.001),
-        "pitch_range_semitones": _pitch_range_semitones(voiced_f0),
-        "energy_variation": _coefficient_of_variation(
-            [item["value"] for item in energy_values]
-        ),
+        "pitch_range_semitones": summary["pitch_range_semitones"],
+        "energy_variation": summary["energy_variation"],
         "pause_ratio": 1.0 - voiced_ratio,
     }
 
@@ -127,13 +87,69 @@ def extract_universal_features(payload: dict) -> dict:
         "f0_feature_path": f0_path,
         "energy_feature_path": energy_path,
         "voicing_feature_path": voicing_path,
-        "pitch_reliability": pitch_reliability,
-        "mean_f0_hz": mean_f0,
-        "f0_std_dev_hz": f0_std,
-        "mean_energy": mean_energy,
+        "pitch_reliability": summary["pitch_reliability"],
+        "mean_f0_hz": summary["mean_f0_hz"],
+        "f0_std_dev_hz": summary["f0_std_dev_hz"],
+        "mean_energy": summary["mean_energy"],
         "voiced_ratio": voiced_ratio,
         "style_prosody": style,
         "speaker_embedding": [],
+    }
+
+
+# {
+#   責務: [_resolve_transcript: 文字起こしを再認識するか利用者の修正歌詞を採用するか決める]
+#   処理: [1: 修正歌詞が無ければ音声を認識する 2: 修正歌詞があれば再認識せずそのまま採用する]
+#   引数: [payload: transcript_override を含む要求, audio_path: 認識対象の音声]
+#   戻り値: [transcription: 文字起こし、認識信頼度、ASR単語時刻]
+#   エラー: [修正歌詞が文字列でない場合は ValueError]
+# }
+def _resolve_transcript(payload: dict, audio_path: Path) -> tuple[str, float, list[dict]]:
+    transcript_override = payload.get("transcript_override")
+    if transcript_override is None:
+        return _transcribe(audio_path)
+    # 利用者の修正歌詞を再認識結果で上書きせず、その発音列を再実測する。
+    if not isinstance(transcript_override, str):
+        raise ValueError("文字起こし修正は文字列で指定してください。")
+    return transcript_override, 0.0, []
+
+
+# {
+#   責務: [_write_feature_series: F0・エネルギー・有声判定の系列を別ファイルに保存する]
+#   処理: [1: 後続工程が個別に読み込めるよう系列ごとに features 配下へ書き出す]
+#   引数: [workspace: 作業領域, segment_id: 区間ID, f0_values: F0系列, energy_values: エネルギー系列, voicing_values: 有声判定系列]
+#   戻り値: [paths: F0・エネルギー・有声判定の作業領域相対パス]
+#   エラー: [書き込みに失敗した場合は呼出元へ伝える]
+# }
+def _write_feature_series(workspace: Path, segment_id: str, f0_values: list[dict],
+                          energy_values: list[dict], voicing_values: list[dict]) -> tuple[str, str, str]:
+    return tuple(
+        _write_feature(workspace / "features" / series_name / f"{segment_id}.json", series_values, workspace)
+        for series_name, series_values in (
+            ("f0", f0_values), ("energy", energy_values), ("voicing", voicing_values))
+    )
+
+
+# {
+#   責務: [_summarize_feature_series: 音響系列から区間全体の集約値を計算する]
+#   処理: [1: 有声F0の平均・標準偏差・音域・信頼度を求める 2: エネルギー平均と変動、有声率を求める]
+#   引数: [f0_values: F0系列, energy_values: エネルギー系列, voicing_values: 有声判定系列]
+#   戻り値: [summary: 平均F0、F0標準偏差、音域、信頼度、平均エネルギー、エネルギー変動、有声率]
+#   エラー: [なし(空の系列は0として扱う)]
+# }
+def _summarize_feature_series(f0_values: list[dict], energy_values: list[dict],
+                              voicing_values: list[dict]) -> dict:
+    voiced_f0_items = [item for item in f0_values if item["value"] > 0.0]
+    voiced_f0 = [item["value"] for item in voiced_f0_items]
+    energy_series = [item["value"] for item in energy_values]
+    return {
+        "mean_f0_hz": sum(voiced_f0) / max(1, len(voiced_f0)),
+        "f0_std_dev_hz": _stddev(voiced_f0),
+        "pitch_range_semitones": _pitch_range_semitones(voiced_f0),
+        "pitch_reliability": sum(item.get("confidence", 0.0) for item in voiced_f0_items) / max(1, len(voiced_f0)),
+        "mean_energy": sum(energy_series) / max(1, len(energy_series)),
+        "energy_variation": _coefficient_of_variation(energy_series),
+        "voiced_ratio": sum(1 for item in voicing_values if item["value"] >= 0.5) / max(1, len(voicing_values)),
     }
 
 

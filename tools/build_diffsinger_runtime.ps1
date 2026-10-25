@@ -30,9 +30,6 @@ New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
 
 $version = & $sourcePython -c "import platform; print(platform.python_version())"
 if ($LASTEXITCODE -ne 0 -or $version.Trim() -ne '3.12.10') { throw "Python 3.12.10が必要です。" }
-# DiffSinger用へ複製するPythonは標準構成だけにし、他のMLフレームワークを混ぜない。
-& $sourcePython -c "import importlib.metadata as m; extra={d.metadata['Name'].lower() for d in m.distributions()}-{'pip','setuptools','wheel'}; assert not extra, extra"
-if ($LASTEXITCODE -ne 0) { throw "入力Pythonは追加パッケージのない完全なruntimeにしてください。" }
 $sourceProbe = Join-Path $PSScriptRoot 'prepare_diffsinger_source.py'
 & $sourcePython $sourceProbe --archive (Join-Path $repo 'artifacts/diffsinger-source/v2.5.1.zip') --output $diffSingerSource --verify-only
 if ($LASTEXITCODE -ne 0) { throw "固定DiffSingerソースを検証できません。" }
@@ -41,7 +38,7 @@ try {
 New-Item -ItemType Directory -Path $staging | Out-Null
 # Python本体と固定ソースを専用の一時領域へ複製して検証する。
 $runtimeDirectory = Join-Path $staging 'runtime'
-& $sourcePython -c "import shutil,sys; shutil.copytree(sys.argv[1],sys.argv[2],ignore=shutil.ignore_patterns('__pycache__','*.pyc'))" $sourceRuntime $runtimeDirectory
+& $sourcePython (Join-Path $PSScriptRoot 'prepare_trainer_python.py') --source $sourceRuntime --output $runtimeDirectory
 if ($LASTEXITCODE -ne 0) { throw "DiffSinger runtime用Pythonの複製に失敗しました。" }
 $python = Join-Path $runtimeDirectory 'python.exe'
 $bundleSource = Join-Path $staging 'source'
@@ -49,10 +46,15 @@ $bundleSource = Join-Path $staging 'source'
 if ($LASTEXITCODE -ne 0) { throw "固定DiffSingerソースをruntime bundleへ複製できません。" }
 $resourceLock = Join-Path $repo 'src/process/YourSinger.Process/processing/ml/worker/resources/diffsinger-source.lock.json'
 Copy-Item -LiteralPath $resourceLock -Destination (Join-Path $staging 'diffsinger-source.lock.json')
+# 証明書インシデント対応(#48): 他の依存を取得する前に最低版のpipへ更新する。
+& $python -m pip install --no-compile 'pip==26.2.2'
+if ($LASTEXITCODE -ne 0) { throw "専用Pythonのpip更新に失敗しました。" }
 & $python -m pip install --no-compile --requirement (Join-Path $PSScriptRoot 'diffsinger-training-requirements.lock.txt') --extra-index-url 'https://download.pytorch.org/whl/cu121' --report (Join-Path $staging 'dependencies-install-report.json')
 if ($LASTEXITCODE -ne 0) { throw "固定DiffSinger Trainer依存を導入できません。" }
 & $python -m pip check
 if ($LASTEXITCODE -ne 0) { throw "DiffSinger Trainer runtimeの依存が競合しています。" }
+& $python -I (Join-Path $PSScriptRoot 'verify_python_trust.py')
+if ($LASTEXITCODE -ne 0) { throw "DiffSinger Trainer runtimeのpip/certifiが最低版を満たしていません。" }
 
 # Trainer入口が同梱されたPythonと固定ソースの組合せで読み込めるかを確認する。
 & $python (Join-Path $PSScriptRoot 'probe_diffsinger_runtime.py') --root $runtimeDirectory --source $bundleSource --output (Join-Path $staging 'runtime-probe.json') --lock (Join-Path $staging 'diffsinger-source.lock.json')

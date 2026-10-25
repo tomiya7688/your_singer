@@ -1,4 +1,4 @@
-﻿# DiffSingerの音響学習入力
+# DiffSingerの音響学習入力
 
 ## 背景と目的
 
@@ -57,6 +57,11 @@ VoiceProject/training/diffsinger/<job-id>/
 入力変換だけでなく、固定したDiffSinger acoustic Trainerを読み込む独立runtimeを構築できます。
 既存のトークruntimeは変更しません。
 PowerShellからEドライブの完全なPython 3.12.10 runtimeを指定してください。
+
+構築処理は`tools/prepare_trainer_python.py`でPython本体と標準ライブラリだけを複製し、同梱の`ensurepip`からpipを初期化します。
+入力Pythonにある`site-packages`と`Scripts`は引き継がず、複製先のPython版・探索先・初期依存がpipだけであることを確認します。
+その後に各Trainerの固定依存を導入し、`pip check`を実行します。入力Pythonのライブラリは変更しません。
+
 
 ```powershell
 python tools/prepare_diffsinger_source.py
