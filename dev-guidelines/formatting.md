@@ -49,4 +49,5 @@ npm run format:python:check -- tests/worker/test_mfa_measurement.py
 
 `ruff.toml`はPython 3.11互換・100文字幅・LFを指定し、異なるRuff版の実行を拒否します。
 cacheは`artifacts/ruff-cache`へ保存し、私的素材・生成物・vendorを除外します。
+`force-exclude`により明示指定したパスにも除外を適用します。CIはPythonの変更がない場合も`--show-settings`で設定を読み込み、設定だけの変更も検証します。
 対象は今回のPythonファイルだけを列挙してください。CIの`format.yml`も変更Pythonファイルだけを同じ固定版で検査します。

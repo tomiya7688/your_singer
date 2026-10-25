@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from your_singer_ml.mfa_alignment import MfaForcedAligner
+from your_singer_ml.universal_features import _align_training_phonemes
 from your_singer_ml.mfa_measurement import MAX_ALIGNMENT_AUDIO_BYTES, audio_fingerprint
 
 
@@ -143,7 +144,7 @@ class MfaMeasurementTests(unittest.TestCase):
             (alignment / "measurements").symlink_to(outside, target_is_directory=True)
         except OSError:
             self.skipTest("この環境ではsymlink作成権限がありません。")
-        with self.assertRaisesRegex(ValueError, "alignment領域内"):
+        with self.assertRaisesRegex(RuntimeError, "alignment領域内"):
             self.run_alignment()
         self.assertFalse(list(outside.iterdir()))
 
@@ -157,7 +158,7 @@ class MfaMeasurementTests(unittest.TestCase):
                 ),
                 patch.object(Path, "open") as open_audio,
             ):
-                with self.assertRaisesRegex(ValueError, "通常ファイル"):
+                with self.assertRaisesRegex(RuntimeError, "通常ファイル"):
                     audio_fingerprint(self.audio)
                 open_audio.assert_not_called()
 
@@ -172,6 +173,46 @@ class MfaMeasurementTests(unittest.TestCase):
             ):
                 with self.assertRaisesRegex(RuntimeError, "サイズ"):
                     audio_fingerprint(self.audio)
+
+    # { 責務: [test_operational_rejection_does_not_fall_back_to_estimated_features: 入力と保存先の拒否を推定成功へ変えない] }
+    def test_operational_rejection_does_not_fall_back_to_estimated_features(self):
+        # 実際のalignと呼出境界を通し、入力拒否がValueError用の推定経路へ入らないことを確認する。
+        self.audio.unlink()
+        self.audio.mkdir()
+        with (
+            patch.object(
+                MfaForcedAligner,
+                "validate_resources",
+                return_value=(self.root / "python", self.root / "model"),
+            ),
+            patch("your_singer_ml.universal_features._align_phonemes") as estimate,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "通常ファイル"):
+                _align_training_phonemes(self.audio, self.root, ["a"], 1.0, 0.0, [])
+            estimate.assert_not_called()
+
+    # { 責務: [test_store_rejection_does_not_fall_back_to_estimated_features: 測定保存先の異常を抽出失敗として伝播する] }
+    def test_store_rejection_does_not_fall_back_to_estimated_features(self):
+        # { 責務: [write_result: 外部モデルを使わず検証可能なMFA結果を返す] }
+        def write_result(python_path, model_path, audio_path, run_root):
+            (run_root / "aligned.json").write_text(json.dumps(self.document), encoding="utf-8")
+
+        with (
+            patch.object(
+                MfaForcedAligner,
+                "validate_resources",
+                return_value=(self.root / "python", self.root / "model"),
+            ),
+            patch.object(MfaForcedAligner, "_run", side_effect=write_result),
+            patch(
+                "your_singer_ml.mfa_alignment.MfaMeasurementStore",
+                side_effect=ValueError("保存先が不正"),
+            ),
+            patch("your_singer_ml.universal_features._align_phonemes") as estimate,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "保存できません"):
+                _align_training_phonemes(self.audio, self.root, ["a", "i"], 1.0, 0.0, [])
+            estimate.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -102,13 +102,13 @@ class MfaForcedAligner:
         python_path, model_path = self.validate_resources()
         scratch_root = workspace / "alignment"
         if not scratch_root.resolve().is_relative_to(workspace.resolve()):
-            raise ValueError("MFAの作業領域がVoice Projectの外です。")
+            raise RuntimeError("MFAの作業領域がVoice Projectの外です。")
         scratch_root.mkdir(parents=True, exist_ok=True)
         if (
             scratch_root.resolve() == workspace.resolve()
             or not scratch_root.resolve().is_relative_to(workspace.resolve())
         ):
-            raise ValueError("MFAの作業領域がVoice Projectの外です。")
+            raise RuntimeError("MFAの作業領域がVoice Projectの外です。")
         scratch_root = scratch_root.resolve()
         with tempfile.TemporaryDirectory(prefix=".mfa-", dir=scratch_root) as temporary_directory:
             run_root = Path(temporary_directory)
@@ -159,17 +159,21 @@ class MfaForcedAligner:
         # 実行中に音声が変わった測定を保存・再利用しない。
         if audio_fingerprint(audio_path) != audio_sha256:
             raise RuntimeError("MFA実行中に元音声が変更されました。再解析してください。")
-        MfaMeasurementStore(scratch_root / "measurements").save(
-            document,
-            timings,
-            duration_sec,
-            audio_sha256,
-            {
-                "alignment_method": ALIGNMENT_METHOD,
-                "mfa_version": MFA_VERSION,
-                "model_sha256": MODEL_SHA256,
-            },
-        )
+        # 保存時のValueErrorも、未対応発音に限る既存の推定経路へ渡さない。
+        try:
+            MfaMeasurementStore(scratch_root / "measurements").save(
+                document,
+                timings,
+                duration_sec,
+                audio_sha256,
+                {
+                    "alignment_method": ALIGNMENT_METHOD,
+                    "mfa_version": MFA_VERSION,
+                    "model_sha256": MODEL_SHA256,
+                },
+            )
+        except ValueError as error:
+            raise RuntimeError("MFA測定記録を保存できませんでした。") from error
         return timings
 
     # {

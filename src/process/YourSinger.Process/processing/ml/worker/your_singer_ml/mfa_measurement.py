@@ -22,7 +22,7 @@ class MfaMeasurementStore:
     # }
     def __init__(self, root: Path):
         if root.is_symlink() or not root.resolve().is_relative_to(root.parent.resolve()):
-            raise ValueError("MFA測定記録はalignment領域内へ保存してください。")
+            raise RuntimeError("MFA測定記録はalignment領域内へ保存してください。")
         self.root = root
 
     # {
@@ -125,7 +125,7 @@ def copy_audio_snapshot(source: Path, destination: Path) -> str:
 def _bounded_audio_chunks(path: Path) -> Iterator[bytes]:
     metadata = path.stat()
     if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_ALIGNMENT_AUDIO_BYTES:
-        raise ValueError("MFA音声は1GiB以内の通常ファイルを指定してください。")
+        raise RuntimeError("MFA音声は1GiB以内の通常ファイルを指定してください。")
     # 読み始めたサイズに制限し、書き足し続ける入力を最後まで追いかけない。
     with path.open("rb") as stream:
         remaining = metadata.st_size

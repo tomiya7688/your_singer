@@ -83,6 +83,9 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($base) -or $base -match '^0+$') { $base = 'HEAD^' }
           $files = @(git -c core.quotepath=false diff --name-only --diff-filter=ACMR $base HEAD -- '*.py')
           if ($LASTEXITCODE -ne 0) { throw 'Pythonの整形対象を取得できません。' }
+          # Python差分がなくても、設定の構文と固定版の整合を検証する。
+          python -m ruff check --config ruff.toml --show-settings ./src/process/YourSinger.Process/processing/ml/worker/your_singer_ml/main.py | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Ruff設定を読み込めません。' }
           if ($files.Count -gt 0) {
             $targets = @($files | ForEach-Object { './' + $_ })
             npm run format:python:check -- $targets
