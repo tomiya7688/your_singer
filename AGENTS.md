@@ -1,66 +1,36 @@
-# AGENTS.md — 共同作業ルール
+<!-- shared-review-operations:v2:2026-10-24 -->
+## 全プロジェクトの作業レビューとPRレビュー（最新ユーザー指示）
 
-Claude Code、Codex、ChatGPT、Copilot など複数のAIエージェントと人が同じリポジトリで作業します。
-このファイルが全員共通の正本です。`CLAUDE.md` と `.github/copilot-instructions.md` はここを参照します。
+Eドライブまたは `C:/Users/tomiy/games` にソースコードを持つ全プロジェクトに適用する。Learning language / Learning_language / lenguage_learningは除外する。規模・初期段階・Gitの有無で除外しない。この規則は旧「大規模だけ」と旧Luna/Haiku未実施時の停止条件を置き換える。
+各作業の実装・関連テスト・自己レビュー後に、Codex `gpt-6-luna` low、Claude `haiku` low、Antigravity無料モデル、Jules無料モデル、Continue CLI無料モデル、Qwen Code無料モデル、Grok CLI無料モデルの7者へそれぞれレビューを依頼する。PR作成・更新時にはGitHub CopilotとCodeRabbitの両方にも依頼する。モデル直接API呼出しを指定CLIによる実施と偽らない。
+全員について枠切れ・未応答・接続失敗・未ログイン・未導入・無料か不明なら理由を1行記録して省略し、作業を続ける。無応答は原則90秒（最大180秒）、非同期Jules/PRは原則10分の確認期限で打ち切り、連続再試行・枠待ち・課金・自動昇格をしない。省略を成功にせず、有効な指摘の修正・必須テスト・CI・承認条件は維持する。
+AntigravityとGrokは、指定された対象・必要な周辺ファイルの読取を許可する。両者を含む全レビュアーに編集・削除・移動・状態変更・別レビュアー起動をさせない。秘密/認証ファイルは読取許可の対象外。`E:/projects/.review-private/` の読取・復号はCodex/Claude主担当だけが行い、秘密をモデル本文・ログ・Gitへ出さない。
+具体的な資料作成、各CLI起動、読取専用設定、タイムアウト、省略、PR依頼、結果記録は `E:/projects/REVIEW_OPERATIONS.md` を参照し、設定済みやdry-runだけで実施済みと報告しない。
+<!-- /shared-review-operations -->
 
-## 必ず守るもの
+# AGENTS.md — 共同作業の入口
 
-1. [`コーディング規約.md`](./コーディング規約.md) に従い、[`dev-guidelines/レビュー基準.md`](./dev-guidelines/レビュー基準.md) で確認します。例外は理由をPRに書きます。
-   開発参加者向けの資料は `dev-guidelines/` に置き、利用者向け(README)・オーナー向け(`docs/`)の文書と混ぜません。
-2. 作業の開始時に必ず `git pull` します(後述)。
-3. 作業の終了時にPRを作り、CIの結果と自己レビューを確認して、問題がなければマージします。
-4. 実行していない検証を「確認済み」と書きません。fixtureやモックの成功を、実モデル・実音声・GUIの成功として報告しません。
+Claude Code、Codex、ChatGPT、Copilotと人が共有する正本です。製品別の入口とskillsへ同じ規則を複製しません。
 
-## 作業の流れ
+## 常に守ること
 
-### 1. 開始: 最新化してからブランチを切る
+- 実装時は[コーディング規約](コーディング規約.md)、レビュー時は[レビュー基準](dev-guidelines/レビュー基準.md)に従います。例外の理由はPRに記載します。
+- 開始時に`git pull --ff-only`を実行し、対象IssueのコメントとオープンPRを確認します。失敗した場合は最新性を未確認と記録します。
+- 1ブランチは1Issueです。他者の変更を保持し、今回のファイルだけをstageします。
+- 作業終了時はPRを作成し、最新headのCI成功・自己レビュー解決・競合なしを確認してsquashマージします。手順は[作業フロー](dev-guidelines/workflow.md)に従います。
+- force push・mainへの直接push・他者のPRの無断マージを行いません。
+- 実行していない検証を確認済みと書きません。fixture、実モデル、実音声、GUI、CIの根拠をそれぞれ記録します。
+- このWindows端末では`E:\projects\your_singer`で作業し、一時ファイル・cache・非公開素材・生成物もE:内のGit無視対象へ置きます。実行前に[実行環境](dev-guidelines/execution.md)を参照してください。
+- 開発者向け資料は`dev-guidelines/`、設計・仕様は`docs/`、利用者向け説明はREADMEへ置きます。
 
-```powershell
-pwsh tools/dev/start_work.ps1 -Issue <番号> -Name <短い英語名>
-```
+## 必要なときだけ読む
 
-このスクリプトは、未コミットの変更がないことを確認し、`main` を `git pull --ff-only` で最新化してから `issue-<番号>-<名前>` ブランチを作ります。
-既存ブランチで作業を再開する場合も、先に `git pull --ff-only` してください。
-他のエージェントの作業と衝突しないよう、着手前に対象issueのコメントとオープンPRを確認します。
+| 作業 | 最初の参照先 |
+| --- | --- |
+| 対象の実装・テストを探す | [ys-context](.agents/skills/ys-context/SKILL.md)と[作業別の確認先](dev-guidelines/context-map.md)の該当行 |
+| 作業開始・検証・レビュー・コミット・PR/マージ | [作業フロー](dev-guidelines/workflow.md)の該当工程 |
+| Python・.NET・ML・配布ビルドを実行する | [実行環境](dev-guidelines/execution.md) |
+| 「次」「続けて」・担当交代・中断 | [引き継ぎ](dev-guidelines/handoff.md)と対象Issue/PRの最新記録 |
+| 指示やskillを追加・整理する | [保守方針と参照元](dev-guidelines/context-maintenance.md) |
 
-### 2. 実装
-
-- 1ブランチ = 1issue。無関係な変更を混ぜません。
-- 実装を変えたら、関連する `docs/` の説明、宣言コメント、テストも同じPRで更新します。
-- `artifacts/`、生成物、秘密情報、利用者の元素材はコミットしません。
-
-### 3. 終了: 検証してPRを作る
-
-1. `pwsh tools/dev/check.ps1` を実行します。変更範囲に応じて `-SkipDotnet` などで絞ってよく、絞った場合はPRに明記します。
-2. コミットは `feat(#番号): 日本語の要約` 形式にします(`fix` / `docs` / `test` / `refactor` も可)。
-3. push して、`.github/pull_request_template.md` に沿ったPRを作ります。タイトルはコミットと同じ形式にし、本文に `Closes #番号` を入れます。
-
-### 4. CIと自己レビュー
-
-- CI(`ビルド・回帰テスト`)が全て成功するまで待ちます。失敗したら原因を直して再pushします。CIを飛ばす・無効化する・テストを弱めて通すことは禁止です。
-- マージ前に、[`コーディング規約.md`](./コーディング規約.md) と [`dev-guidelines/レビュー基準.md`](./dev-guidelines/レビュー基準.md) に照らして自分のdiffをレビューし、結果をPRの本文またはコメントに残します。
-  - 命名、宣言コメント(JSON-like Comment Outs)、関数50/80行・ファイル300/500行
-  - 境界条件、失敗時の状態、削除・上書き・外部プロセス・パス結合の安全性
-  - docsと実装の一致、テストの有無、未実行の検証の明示
-- 作成者以外のエージェントや人がレビューした場合は、その指摘も全て解消します。
-
-### 5. マージ
-
-次を全て満たす場合にマージします。
-
-- CIが全て成功している
-- 自己レビューで未解決の指摘がない
-- `main` との競合がない(あれば `main` を取り込んで再度CIを通す)
-
-```powershell
-gh pr merge <PR番号> --squash --delete-branch
-```
-
-squashマージとし、マージ後に `main` へ戻って `git pull --ff-only` します。
-CIが失敗している、または自己レビューで問題が残る場合はマージせず、PRに状況を書いて作業を引き継ぎます。
-force push、`main` への直接push、他者のPRの無断マージはしません。
-
-## 引き継ぎ
-
-作業を途中で終える場合は、PR(またはissue)に「完了したこと・残り・確認済み/未確認」を書きます。
-次のエージェントはそれを読んでから着手します。
+skillsを自動発見しない環境では、上のリンク先を直接読んでください。ファイルを読めないChatGPTには、依頼者が入口と該当資料を渡してください。リンク先を全件展開せず、今回必要な節から原典へ進みます。

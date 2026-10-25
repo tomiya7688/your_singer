@@ -1,6 +1,7 @@
 @AGENTS.md
 
-# Claude Code 向け補足
+# Claude Codeの入口
 
-- 検証は `ys-check`、レビューは `ys-review`、コミットは `ys-commit`、PR作成からマージまでは `ys-finish` スキルを使います(`.claude/skills/`)。
-- 共同作業のルールと作業の流れは `AGENTS.md` が正本です。
+必要な作業だけで`.claude/skills/ys-check`・`ys-review`・`ys-commit`・`ys-finish`を使用します。
+対象探し・継続作業では[共通ys-context](.agents/skills/ys-context/SKILL.md)を参照してください。
+製品固有の呼出方法以外の規則は、AGENTSとリンク先を正本にします。
