@@ -39,7 +39,7 @@ class MfaMeasurementTests(unittest.TestCase):
         self.aligner = MfaForcedAligner(self.root)
 
     # { 責務: [run_alignment: 既存のalign入口を通して架空結果の検証・保存を実行する] }
-    def run_alignment(self, mutate_audio=False):
+    def run_alignment(self, mutate_audio=False, *, with_reference=False):
         # { 責務: [write_result: 外部プロセスの代わりに測定結果と任意の入力変更を再現する] }
         def write_result(python_path, model_path, audio_path, run_root):
             (run_root / "aligned.json").write_text(json.dumps(self.document), encoding="utf-8")
@@ -54,7 +54,8 @@ class MfaMeasurementTests(unittest.TestCase):
             ),
             patch.object(self.aligner, "_run", side_effect=write_result),
         ):
-            return self.aligner.align(self.audio, ["a", "i"], 1.0, self.root)
+            operation = self.aligner.measure if with_reference else self.aligner.align
+            return operation(self.audio, ["a", "i"], 1.0, self.root)
 
     # { 責務: [test_keeps_original_labels_and_unknown_gaps_separate: sil・空ラベル・未観測の隙間を分ける] }
     def test_keeps_original_labels_and_unknown_gaps_separate(self):
@@ -81,6 +82,27 @@ class MfaMeasurementTests(unittest.TestCase):
         )
         self.assertEqual("3.4.2", record["conditions"]["mfa_version"])
         self.assertFalse(list((self.root / "alignment").glob(".mfa-*")))
+
+    # { 責務: [test_reference_identifies_each_saved_measurement: 再実行後も各結果が自身の記録を指す] }
+    def test_reference_identifies_each_saved_measurement(self):
+        first = self.run_alignment(with_reference=True)
+        second = self.run_alignment(with_reference=True)
+        self.assertNotEqual(first.path, second.path)
+        for measurement in (first, second):
+            reference = measurement.reference(self.root)
+            record_path = self.root / reference["path"]
+            record_bytes = record_path.read_bytes()
+            record = json.loads(record_bytes)
+            self.assertFalse(Path(reference["path"]).is_absolute())
+            self.assertEqual(hashlib.sha256(record_bytes).hexdigest(), reference["sha256"])
+            self.assertEqual(record["audio_sha256"], reference["audio_sha256"])
+            self.assertEqual(record["phonemes"], measurement.timings)
+
+    # { 責務: [test_reference_rejects_another_workspace: 別プロジェクトへ測定記録参照を持ち込まない] }
+    def test_reference_rejects_another_workspace(self):
+        measurement = self.run_alignment(with_reference=True)
+        with self.assertRaisesRegex(RuntimeError, "外"):
+            measurement.reference(self.root / "another-project")
 
     # { 責務: [test_repeated_alignment_retains_previous_record: 再実行で既存測定を上書きしない] }
     def test_repeated_alignment_retains_previous_record(self):

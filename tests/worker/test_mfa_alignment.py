@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from your_singer_ml.mfa_measurement_result import MfaMeasurementResult
 from your_singer_ml.mfa_alignment import ALIGNMENT_METHOD, MODEL_SHA256, MfaForcedAligner
 from your_singer_ml.mfa_alignment_result import MfaAlignmentResultReader, MfaPronunciation
 from your_singer_ml.universal_features import _align_training_phonemes, extract_universal_features
@@ -166,24 +167,31 @@ class MfaExecutionTests(unittest.TestCase):
     # }
     def test_only_validated_measurement_gets_forced_alignment_method(self):
         measured = [{"phoneme": "a", "start_sec": 0.2, "end_sec": 0.9, "confidence": 0.0}]
-        with patch.object(MfaForcedAligner, "align", return_value=measured):
-            timings, confidence, method, warning = _align_training_phonemes(
+        with patch.object(
+            MfaForcedAligner,
+            "measure",
+            return_value=MfaMeasurementResult(
+                measured, Path("alignment/measurements/example.json"), "1" * 64, "2" * 64
+            ),
+        ):
+            timings, confidence, method, warning, reference = _align_training_phonemes(
                 Path("a.wav"), Path("."), ["a"], 1.0, 0.99, []
             )
         self.assertEqual(measured, timings)
         self.assertEqual(ALIGNMENT_METHOD, method)
         self.assertEqual(0.0, confidence)
         self.assertIn("未校正", warning)
+        self.assertEqual("alignment/measurements/example.json", reference["path"])
 
     # {
     #   責務: [test_unsupported_measurement_keeps_estimated_method: 対応できない音素の推定値を実測と誤記録しない]
     # }
     def test_unsupported_measurement_keeps_estimated_method(self):
         with (
-            patch.object(MfaForcedAligner, "align", side_effect=ValueError("unsupported phone")),
+            patch.object(MfaForcedAligner, "measure", side_effect=ValueError("unsupported phone")),
             patch("your_singer_ml.universal_features._phonemize", return_value=["a"]),
         ):
-            _, _, method, warning = _align_training_phonemes(
+            _, _, method, warning, reference = _align_training_phonemes(
                 Path("a.wav"),
                 Path("."),
                 ["a"],
@@ -193,6 +201,18 @@ class MfaExecutionTests(unittest.TestCase):
             )
         self.assertEqual("asr-word-boundary-proportional", method)
         self.assertEqual("unsupported phone", warning)
+        self.assertIsNone(reference)
+
+    # { 責務: [test_empty_phonemes_have_no_measurement_reference: 音素なしの応答へ実測参照を付けない] }
+    def test_empty_phonemes_have_no_measurement_reference(self):
+        with patch.object(MfaForcedAligner, "measure") as measure:
+            timings, confidence, method, warning, reference = _align_training_phonemes(
+                Path("unused.wav"), Path("."), [], 1.0, 0.0, []
+            )
+        measure.assert_not_called()
+        self.assertEqual([], timings)
+        self.assertEqual("unavailable", method)
+        self.assertIsNone(reference)
 
     # {
     #   責務: [test_supplied_transcript_is_aligned_without_running_asr: 修正歌詞がASRで上書きされないことを確認する]
@@ -216,7 +236,17 @@ class MfaExecutionTests(unittest.TestCase):
             patch("your_singer_ml.universal_features._phonemize", return_value=["a"]),
             patch(
                 "your_singer_ml.universal_features._align_training_phonemes",
-                return_value=([], 0.0, "unavailable", None),
+                return_value=(
+                    [],
+                    0.0,
+                    "fixture-method",
+                    None,
+                    {
+                        "path": "alignment/measurements/example.json",
+                        "sha256": "1" * 64,
+                        "audio_sha256": "2" * 64,
+                    },
+                ),
             ) as align,
             patch(
                 "your_singer_ml.universal_features._extract_frame_features",
@@ -231,6 +261,9 @@ class MfaExecutionTests(unittest.TestCase):
         transcribe.assert_not_called()
         self.assertEqual("修正歌詞", feature["transcript"])
         self.assertEqual(0.0, feature["asr_confidence"])
+        self.assertEqual(
+            "alignment/measurements/example.json", feature["alignment_measurement"]["path"]
+        )
         self.assertEqual(["a"], align.call_args.args[2])
 
 
