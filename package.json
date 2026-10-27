@@ -5,7 +5,9 @@
     "format": "prettier --write",
     "format:check": "prettier --check",
     "format:python": "python -m ruff format --config ruff.toml",
-    "format:python:check": "python -m ruff format --check --config ruff.toml"
+    "format:python:check": "python -m ruff format --check --config ruff.toml",
+    "format:csharp": "node tools/dev/format_csharp.cjs",
+    "format:csharp:check": "node tools/dev/format_csharp.cjs --check"
   },
   "devDependencies": {
     "prettier": "3.9.10"

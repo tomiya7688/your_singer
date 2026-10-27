@@ -43,6 +43,8 @@ public sealed class TranscriptCorrectionTests
         var view = await correction.BuildAsync(p.Workspace, true, Token);
         var projected = Assert.Single(view.Segments);
         Assert.Equal("かぎ", projected.Transcript);
+        Assert.Null(projected.AlignmentMeasurement);
+        Assert.Equal("transcript-review-estimated", projected.AlignmentMethod);
         Assert.Equal(0.82, projected.AsrConfidence, 3);
         Assert.Equal(new[] { "k", "a", "g", "i" }, projected.Phonemes.Select(x => x.Phoneme));
         Assert.Equal(2.0, projected.Phonemes[^1].EndSec, 3);

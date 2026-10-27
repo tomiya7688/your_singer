@@ -95,7 +95,7 @@ public sealed class PhonemeCandidateTests
         var service = new PhonemeCandidateService(p.DatasetRepository, worker);
         var plan = await service.PlanAsync(p.Workspace, "spk_a", Token);
         await File.AppendAllTextAsync(plan.ReferenceAudioPath, "changed", Token);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.GenerateAsync(p.Workspace, plan, Token));
+        await Assert.ThrowsAsync<InvalidDataException>(() => service.GenerateAsync(p.Workspace, plan, Token));
         Assert.Equal(0, worker.Calls);
     }
 

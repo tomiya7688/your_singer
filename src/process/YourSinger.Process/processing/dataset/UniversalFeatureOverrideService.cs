@@ -56,6 +56,7 @@ public sealed class UniversalFeatureOverrideService
         // 文字起こしを変更したら、以前の音素列と時刻を再利用しない。
         segment.Transcript = transcript;
         segment.Phonemes.Clear();
+        segment.AlignmentMeasurement = null;
         segment.AlignmentConfidence = 0;
         segment.AlignmentMethod = "invalidated-by-transcript-override";
         segment.AlignmentWarning = "文字起こしの変更後に音素境界の再解析が必要です。";

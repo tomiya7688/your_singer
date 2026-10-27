@@ -84,6 +84,9 @@ public sealed class TranscriptCorrectionService
             segment.AsrConfidence = review.Confidence;
             segment.AlignmentConfidence = Math.Clamp(review.Confidence * 0.8, 0, 1);
             segment.Phonemes.Clear();
+            // { 処理: [補正後の推定音素から以前の実測参照を外す] }
+            segment.AlignmentMeasurement = null;
+            segment.AlignmentMethod = "transcript-review-estimated";
 
             var step = review.DurationSec / review.CandidatePhonemes.Count;
             for (var index = 0; index < review.CandidatePhonemes.Count; index++)
@@ -120,16 +123,16 @@ public sealed class TranscriptCorrectionService
         UniversalVoiceSegment segment,
         string reason,
         double confidence = 0) => new()
-    {
-        SegmentId = segment.SegmentId,
-        SpeakerId = segment.SpeakerId,
-        State = CorrectionState.WeakObserved,
-        Method = ReviewVersion,
-        ApplicationStatus = CorrectionApplicationStatus.Deferred,
-        Confidence = confidence,
-        OriginalValue = segment.Transcript,
-        Reason = reason
-    };
+        {
+            SegmentId = segment.SegmentId,
+            SpeakerId = segment.SpeakerId,
+            State = CorrectionState.WeakObserved,
+            Method = ReviewVersion,
+            ApplicationStatus = CorrectionApplicationStatus.Deferred,
+            Confidence = confidence,
+            OriginalValue = segment.Transcript,
+            Reason = reason
+        };
 
     private static void Validate(TranscriptReview review)
     {

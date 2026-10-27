@@ -28,11 +28,18 @@ public sealed class DiffSingerAcousticInputService(MlWorkerClient workerClient)
         if (!File.Exists(Path.Combine(datasetDirectory, "dataset.json")))
             throw new FileNotFoundException("歌唱学習入力を先に生成してください。");
 
+        // { 処理: [workerへ渡す前に測定記録と保存済み項目を再照合する] }
+        var datasetHash = await DiffSingerAcousticDatasetValidator.ValidateAsync(workspace, job, cancellationToken);
+
         // worker側でも保存済み入力のfingerprintと補正設定を照合する。
         var result = await workerClient.SendAsync("prepare_diffsinger_acoustic", new
         {
-            project_root = workspace.RootPath, job_id = jobId, speaker_id = job.SpeakerId,
-            dataset_fingerprint = job.DatasetFingerprint, auto_correction_enabled = job.AutoCorrectionEnabled
+            project_root = workspace.RootPath,
+            job_id = jobId,
+            speaker_id = job.SpeakerId,
+            dataset_fingerprint = job.DatasetFingerprint,
+            auto_correction_enabled = job.AutoCorrectionEnabled,
+            dataset_sha256 = datasetHash
         }, cancellationToken);
         var expectedDirectory = Path.GetFullPath(Path.Combine(datasetDirectory, "acoustic-input"));
         if (!result.TryGetProperty("raw_data_dir", out var directory) ||
