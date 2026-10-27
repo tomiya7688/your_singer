@@ -7,11 +7,11 @@
 
 ## 成果物の一覧
 
-| 成果物                                                            | 生成元                                   | 署名・検証方式                         | 状況                     |
-| ----------------------------------------------------------------- | ---------------------------------------- | -------------------------------------- | ------------------------ |
-| `YourSinger-windows-x64.zip`(自己完結配布物)                      | `package-worker.yml`                     | SHA-256、Artifact Attestation(keyless) | 実装済み                 |
-| `SHA256SUMS`                                                      | `tools/package_distribution_archive.ps1` | Artifact Attestation(keyless)          | 実装済み                 |
-| `YourSinger.exe`、`workers/YourSinger.ML.exe`、`YourSinger.*.dll` | `build_windows_distribution.ps1`         | Authenticode署名とRFC 3161 timestamp   | 未実装(証明書の選定待ち) |
+| 成果物                                                            | 生成元                                   | 署名・検証方式                         | 状況                                                                        |
+| ----------------------------------------------------------------- | ---------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------- |
+| `YourSinger-windows-x64.zip`(自己完結配布物)                      | `package-worker.yml`                     | SHA-256、Artifact Attestation(keyless) | 実装済み                                                                    |
+| `SHA256SUMS`                                                      | `tools/package_distribution_archive.ps1` | Artifact Attestation(keyless)          | 実装済み                                                                    |
+| `YourSinger.exe`、`workers/YourSinger.ML.exe`、`YourSinger.*.dll` | `build_windows_distribution.ps1`         | Authenticode署名とtimestamp            | 開発段階は自己署名(`CN=Tomiya7688`)。公開リリースはSignPath Foundation(#62) |
 
 次の成果物は生成していません: macOS・Linux・Android向け成果物、container image、Python package、NuGet package、GitHub Release。生成を始める場合は、種類に合う署名方式を同じ文書へ追加してから公開します。
 
@@ -32,21 +32,22 @@
 
 `package-worker.yml` は約25分かかるため、PRでは自動実行せず、GitHub Actionsから手動(`workflow_dispatch`)で実行します。配布前の動作確認の扱いは、[作業開始からマージまで](../dev-guidelines/workflow.md)の「配布前の動作確認」に従います。
 
-## 公開リリースのゲート(未実装)
+## 開発段階の署名(自己署名)
 
-公開リリースは、`tools/verify_distribution_signing.ps1 -RequireAuthenticode` が成功した場合だけ行います。このオプションは、自社製のexe/dllにRFC 3161 timestamp付きの有効なAuthenticode署名が無いと失敗します。
-リリース用ワークフロー(`release-windows.yml`)は、Authenticode署名の方式が決まってから追加します。
+公開リリースまでは、手元で `tools/sign_distribution_self_signed.ps1` を実行し、自己署名証明書 `CN=Tomiya7688` で自社製バイナリに署名します。
 
-### 決めること
+- 証明書は、初回だけ `-CreateCertificate` を付けて、現在のユーザーの証明書ストア(`Cert:\CurrentUser\My`)に作ります。秘密鍵をPFXとして書き出したり、リポジトリへ置いたりしません。
+- 署名後に `tools/update_distribution_manifest.ps1` で `distribution-manifest.json` のhashを更新し、`verify_distribution_signing.ps1 -AllowSelfSigned` で署名者とtimestampを検証します。
+- 自己署名は信頼されたチェーンを持たないため、Windowsの発行元は「不明」のままです。公開配布の最終解にはしません。
+- CIの構築ワークフローでは署名しません(秘密鍵をCIへ渡さないため)。
 
-公開配布でWindowsの発行元が「不明」にならないよう、信頼されたCode Signing証明書が必要です。自己署名証明書は最終解にしません。候補は次のとおりです。
+## 公開リリースの署名とゲート(#62)
 
-- Azure Artifact Signing(旧Trusted Signing): 証明書の秘密鍵を持たず、GitHub ActionsからOIDCで署名できます。利用資格の審査や提供地域の条件があります。名称や条件は変更されることがあるため、選定時に公式ドキュメントで最新の内容を確認します。
-- EV/OVのCode Signing証明書: クラウドHSM経由の署名が必要です(秘密鍵のエクスポートは不可)。
-
-どの方式でも、秘密鍵・PFX・パスワードはリポジトリにコミットせず、GitHub Secretsまたは外部の署名サービスに置きます。
+公開リリースでは、SignPath Foundation(OSS向けの無料コード署名)で署名します。申請、ワークフローへの組み込み、リリースのゲートは #62 で行います。
+公開リリースは、`tools/verify_distribution_signing.ps1 -RequireAuthenticode -ExpectedSignerSubject "SignPath Foundation"` が成功した場合だけ行います。`-AllowSelfSigned` は使いません。
+秘密鍵・PFX・パスワードはリポジトリにコミットしません。SignPathのAPIトークンはGitHub Secretsに置きます。
 
 ## 既存成果物の確認
 
 2026-10-25時点で、GitHub Releaseは公開されていません。CIが生成する配布物(`YourSinger-windows-x64`)は14日で失効する開発用の成果物で、公開配布物ではありません。
-本変更より前に生成された配布物は未署名で、検証できません。公開リリースは、署名のゲートを通過したものだけにします。
+PR #53 より前に生成された配布物は未署名で、検証できません。公開リリースは、署名のゲートを通過したものだけにします。

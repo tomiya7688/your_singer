@@ -106,13 +106,7 @@ if (Test-Path (Join-Path $output "python.exe")) {
     throw "利用者向け配布ルートへPython実行ファイルを公開しません。"
 }
 
-$manifest = Get-ChildItem $output -File -Recurse | Sort-Object FullName | ForEach-Object {
-    [PSCustomObject]@{
-        path = [IO.Path]::GetRelativePath($output, $_.FullName).Replace("\", "/")
-        size = $_.Length
-        sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-    }
-}
+# ファイル一覧とhashは、署名後にも使う共通スクリプトで書き込む。
 @{
     schema_version = 1
     runtime = "win-x64"
@@ -122,7 +116,8 @@ $manifest = Get-ChildItem $output -File -Recurse | Sort-Object FullName | ForEac
     includes_phoneme_models = [bool]$IncludePhonemeModels
     includes_talk_trainer = $true
     includes_diffsinger_trainer = $true
-    files = $manifest
+    files = @()
 } | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 (Join-Path $output "distribution-manifest.json")
+& (Join-Path $PSScriptRoot "update_distribution_manifest.ps1") -DistributionDirectory $OutputDirectory
 
 Write-Host "Windows distribution: $output"
