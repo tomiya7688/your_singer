@@ -1,4 +1,4 @@
-<#
+﻿<#
   公開配布の前に、成果物の署名とチェックサムを検証するゲートです。
   使い方:
     pwsh tools/verify_distribution_signing.ps1 -ReleaseDirectory artifacts/release
@@ -15,6 +15,8 @@ param(
     [string]$ArchiveName = "YourSinger-windows-x64.zip",
     [switch]$RequireAuthenticode,
     [string]$ExpectedSignerSubject,
+    # 指定した場合、署名者の証明書のサムプリントも固定する(開発段階の自己署名で使う)。
+    [string]$ExpectedSignerThumbprint,
     [switch]$AllowSelfSigned,
     [switch]$SkipArchive
 )
@@ -49,7 +51,9 @@ function Get-SignatureFailure([IO.FileInfo]$Binary) {
     $isAcceptedStatus = $signature.Status -eq "Valid" -or ($AllowSelfSigned -and $isSelfSigned -and $signature.Status -in @("UnknownError", "NotTrusted"))
     if (-not $isAcceptedStatus) { return "$($Binary.FullName): 署名が有効ではありません ($($signature.Status))" }
     if (-not $signature.TimeStamperCertificate) { return "$($Binary.FullName): timestampがありません" }
-    if ($signer.Subject -notlike "*$ExpectedSignerSubject*") { return "$($Binary.FullName): 想定外の署名者です ($($signer.Subject))" }
+    # -like はSubject中の * や [ をワイルドカードとして扱うため、文字列として含むかで判定する。
+    if (-not $signer.Subject.Contains($ExpectedSignerSubject)) { return "$($Binary.FullName): 想定外の署名者です ($($signer.Subject))" }
+    if ($ExpectedSignerThumbprint -and $signer.Thumbprint -ne $ExpectedSignerThumbprint) { return "$($Binary.FullName): 想定外の証明書です ($($signer.Thumbprint))" }
 }
 
 if (-not $SkipArchive) { Assert-ArchiveChecksum }

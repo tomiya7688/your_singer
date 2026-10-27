@@ -1,4 +1,4 @@
-<#
+﻿<#
   開発段階の配布物を、手元の自己署名証明書(既定: CN=Tomiya7688)でAuthenticode署名します。
   公開リリースではSignPath Foundationで署名します(#62)。自己署名ではWindowsの発行元は「不明」のままです。
 
@@ -50,8 +50,8 @@ foreach ($target in $targets) {
     $result = Set-AuthenticodeSignature -LiteralPath $target.FullName -Certificate $signingCertificate `
         -HashAlgorithm SHA256 -TimestampServer $TimestampServer
     # 既存の署名が残っていても成功と誤認しないよう、指定した証明書で署名されたことを確認する。
-    if ($result.SignerCertificate.Thumbprint -ne $signingCertificate.Thumbprint) {
-        throw "署名に失敗しました: $($target.FullName) ($($result.StatusMessage))"
+    if ($result.SignerCertificate.Thumbprint -ne $signingCertificate.Thumbprint -or -not $result.TimeStamperCertificate) {
+        throw "署名またはtimestampの付与に失敗しました: $($target.FullName) ($($result.StatusMessage))"
     }
 }
 Write-Host "Signed $($targets.Count) files with $Subject"
@@ -59,4 +59,4 @@ Write-Host "Signed $($targets.Count) files with $Subject"
 # 署名でファイルが変わったため、manifestのhashを更新してから検証する。
 & (Join-Path $PSScriptRoot "update_distribution_manifest.ps1") -DistributionDirectory $DistributionDirectory
 & (Join-Path $PSScriptRoot "verify_distribution_signing.ps1") -DistributionDirectory $distribution -RequireAuthenticode `
-    -ExpectedSignerSubject $Subject -AllowSelfSigned -SkipArchive
+    -ExpectedSignerSubject $Subject -ExpectedSignerThumbprint $signingCertificate.Thumbprint -AllowSelfSigned -SkipArchive
