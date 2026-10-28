@@ -44,7 +44,8 @@ public sealed class UniversalFeatureOverrideService
         CancellationToken cancellationToken = default)
     {
         // 修正前の状態を読み込み、存在しないプロジェクトでは更新を止める。
-        var dataset = await _repository.LoadAsync(workspace, cancellationToken)
+        var snapshot = await _repository.LoadSnapshotAsync(workspace, cancellationToken);
+        var dataset = snapshot.Record
             ?? throw new InvalidOperationException(
                 "Universal Voice Datasetがありません。");
 
@@ -85,6 +86,6 @@ public sealed class UniversalFeatureOverrideService
 
         // 保存済みsegmentから派生カバレッジを同期してからデータセットを保存する。
         UniversalVoiceDatasetCoverageBuilder.Rebuild(dataset);
-        await _repository.SaveAsync(workspace, dataset, cancellationToken);
+        await _repository.SaveIfUnchangedAsync(workspace, dataset, snapshot.Revision, cancellationToken);
     }
 }

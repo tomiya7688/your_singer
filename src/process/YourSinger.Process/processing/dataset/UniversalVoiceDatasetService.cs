@@ -97,7 +97,7 @@ public sealed class UniversalVoiceDatasetService
         UniversalVoiceDatasetCoverageBuilder.Rebuild(context.Dataset);
 
         // 全segmentと来歴が揃ったデータセットを一度だけ保存する。
-        await _datasetRepository.SaveAsync(workspace, context.Dataset, cancellationToken);
+        await _datasetRepository.SaveIfUnchangedAsync(workspace, context.Dataset, context.ExistingRevision, cancellationToken);
         return context.Dataset;
     }
 
@@ -113,7 +113,8 @@ public sealed class UniversalVoiceDatasetService
         CancellationToken cancellationToken)
     {
         // キャッシュ再利用と修正適用のため、前回datasetと話者・分類情報を読む。
-        var existing = await _datasetRepository.LoadAsync(workspace, cancellationToken);
+        var snapshot = await _datasetRepository.LoadSnapshotAsync(workspace, cancellationToken);
+        var existing = snapshot.Record;
         var existingBySegment = existing?.Segments.ToDictionary(segment => segment.SegmentId)
             ?? new Dictionary<string, UniversalVoiceSegment>(StringComparer.Ordinal);
 
@@ -147,6 +148,7 @@ public sealed class UniversalVoiceDatasetService
         return new UniversalVoiceDatasetBuildContext(
             dataset,
             existing,
+            snapshot.Revision,
             existingBySegment,
             speakerBySegment,
             speakerEmbeddingById,
