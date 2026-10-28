@@ -12,6 +12,8 @@ from pathlib import Path
 from .diffsinger_audio_clip import DiffSingerAudioClip
 from .verified_file_source import normalize_existing_path, open_verified_file
 
+MAX_SINGING_DATASET_BYTES = 64 * 1024 * 1024
+
 
 # {
 #   責務: [DiffSingerAcousticInput: 歌唱jobを公式AcousticBinarizerの入力形式へ変換する]
@@ -37,10 +39,10 @@ class DiffSingerAcousticInput:
         # { 処理: [C#側が検証した同じdatasetバイト列だけを処理する] }
         dataset_path = self._require_file(str(self.dataset_root / "dataset.json"))
         with open_verified_file(dataset_path) as stream:
-            dataset_bytes = stream.read(16 * 1024 * 1024 + 1)
+            dataset_bytes = stream.read(MAX_SINGING_DATASET_BYTES + 1)
         expected = payload.get("dataset_sha256")
         if (
-            len(dataset_bytes) > 16 * 1024 * 1024
+            len(dataset_bytes) > MAX_SINGING_DATASET_BYTES
             or not isinstance(expected, str)
             or not re.fullmatch(r"[0-9a-f]{64}", expected)
             or hashlib.sha256(dataset_bytes).hexdigest() != expected

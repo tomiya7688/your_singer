@@ -15,7 +15,7 @@ internal static class DiffSingerAcousticDatasetValidator
     {
         var selected = await TrainingDatasetSnapshotService.ResolveJobAsync(new UniversalVoiceDatasetRepository(), workspace, job, token);
         var path = Path.Combine("training", "diffsinger", TrainingInputDirectory.RequireComponent(job.JobId), "dataset.json");
-        var bytes = await MfaMeasurementFiles.ReadRecordAsync(workspace, path, token);
+        var bytes = await MfaMeasurementFiles.ReadSingingDatasetAsync(workspace, path, token);
         DiffSingerDatasetRecord? document;
         try
         {

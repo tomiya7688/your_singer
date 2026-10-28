@@ -11,6 +11,7 @@ internal static class MfaMeasurementFiles
 {
     internal const long MaxAudioBytes = 1024L * 1024 * 1024;
     private const int MaxMeasurementBytes = 16 * 1024 * 1024;
+    internal const int MaxSingingDatasetBytes = 64 * 1024 * 1024;
 
     // { 責務: [Resolve: リンクを含まないproject内の既存通常ファイルを解決する] }
     internal static string Resolve(ProjectWorkspace workspace, string relativePath, long maxBytes)
@@ -59,13 +60,22 @@ internal static class MfaMeasurementFiles
     }
 
     // { 責務: [ReadRecordAsync: 上限と読込中のサイズを検査して測定JSONを読む] }
-    internal static async Task<byte[]> ReadRecordAsync(ProjectWorkspace workspace, string path, CancellationToken token)
+    internal static Task<byte[]> ReadRecordAsync(ProjectWorkspace workspace, string path, CancellationToken token) =>
+        ReadLimitedAsync(workspace, path, MaxMeasurementBytes, token);
+
+    // { 責務: [ReadSingingDatasetAsync: 歌唱datasetを測定記録とは別の上限で読み込む] }
+    internal static Task<byte[]> ReadSingingDatasetAsync(ProjectWorkspace workspace, string path, CancellationToken token) =>
+        ReadLimitedAsync(workspace, path, MaxSingingDatasetBytes, token);
+
+    // { 責務: [ReadLimitedAsync: 指定上限を守って入力バイト列を読み込む] }
+    private static async Task<byte[]> ReadLimitedAsync(ProjectWorkspace workspace, string path, int maxBytes, CancellationToken token)
     {
-        await using var stream = OpenRead(workspace, path, MaxMeasurementBytes);
-        if (stream.Length > MaxMeasurementBytes) throw new InvalidDataException("MFA測定記録が大きすぎます。");
-        var bytes = new byte[(int)stream.Length];
+        await using var stream = OpenRead(workspace, path, maxBytes);
+        var length = stream.Length;
+        if (length > maxBytes) throw new InvalidDataException("入力ファイルが大きすぎます。");
+        var bytes = new byte[(int)length];
         await stream.ReadExactlyAsync(bytes, token);
-        if (await stream.ReadAsync(new byte[1], token) != 0) throw new InvalidDataException("MFA測定記録が読込中に変更されました。");
+        if (await stream.ReadAsync(new byte[1], token) != 0) throw new InvalidDataException("入力ファイルが読込中に変更されました。");
         return bytes;
     }
 

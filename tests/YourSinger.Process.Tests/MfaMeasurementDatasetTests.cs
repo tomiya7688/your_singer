@@ -6,6 +6,7 @@ using YourSinger.Data.Models;
 using YourSinger.Process.Processing.Singing;
 using YourSinger.Process.Processing.Dataset;
 using YourSinger.Process.Processing.Ml.Bridge;
+using YourSinger.Process.Processing.Training;
 
 namespace YourSinger.Process.Tests;
 
@@ -17,6 +18,41 @@ public sealed class MfaMeasurementDatasetTests
 {
     private static CancellationToken Token => TestProject.Token;
     private static SpeakerTrainingSelection Singing => new() { SpeakerId = "spk_a", Target = TrainingTarget.Singing, AutoCorrectionEnabled = false };
+
+    // { 責務: [OversizeWriteRemovesStaging: 超過時に書き込みを止め一時領域を削除する] }
+    [Fact]
+    public async Task OversizeWriteRemovesStaging()
+    {
+        using var p = new TestProject();
+        var destination = Path.Combine(p.Workspace.RootPath, "bounded-job");
+        await Assert.ThrowsAsync<InvalidDataException>(() => TrainingInputDirectory.BuildAsync(destination, async staging =>
+        {
+            await using var file = File.Create(Path.Combine(staging, "dataset.json"));
+            using var limited = new LimitedWriteStream(file, 4);
+            await limited.WriteAsync(new byte[4], Token);
+            Assert.Equal(4, limited.Length);
+            await limited.WriteAsync(new byte[1], Token);
+            return true;
+        }, Token));
+        Assert.False(Directory.Exists(destination));
+        Assert.Empty(Directory.EnumerateDirectories(p.Workspace.RootPath, ".input-*.tmp"));
+    }
+
+    // { 責務: [SingingDatasetUsesItsOwnSizeLimit: 歌唱datasetと測定記録の上限を区別する] }
+    [Fact]
+    public async Task SingingDatasetUsesItsOwnSizeLimit()
+    {
+        using var p = new TestProject();
+        var path = Path.Combine(p.Workspace.RootPath, "size-check.json");
+        await using (var stream = File.Create(path))
+            stream.SetLength(16 * 1024 * 1024 + 1);
+        var data = await MfaMeasurementFiles.ReadSingingDatasetAsync(p.Workspace, "size-check.json", Token);
+        Assert.Equal(16 * 1024 * 1024 + 1, data.Length);
+        await Assert.ThrowsAsync<InvalidDataException>(() => MfaMeasurementFiles.ReadRecordAsync(p.Workspace, "size-check.json", Token));
+        await using (var stream = File.OpenWrite(path))
+            stream.SetLength(MfaMeasurementFiles.MaxSingingDatasetBytes + 1L);
+        await Assert.ThrowsAsync<InvalidDataException>(() => MfaMeasurementFiles.ReadSingingDatasetAsync(p.Workspace, "size-check.json", Token));
+    }
 
     // { 責務: [ReferenceRoundTripsToSingingDataset: 参照が保存され歌唱入力まで届くことを確認する] }
     [Fact]

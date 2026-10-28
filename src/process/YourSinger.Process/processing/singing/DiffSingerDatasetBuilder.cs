@@ -79,7 +79,8 @@ public sealed class DiffSingerDatasetBuilder(UniversalVoiceDatasetRepository dat
         return await TrainingInputDirectory.BuildAsync(root, async staging =>
         {
             await using var stream = File.Create(Path.Combine(staging, "dataset.json"));
-            await JsonSerializer.SerializeAsync(stream, record,
+            using var limited = new LimitedWriteStream(stream, MfaMeasurementFiles.MaxSingingDatasetBytes);
+            await JsonSerializer.SerializeAsync(limited, record,
                 new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower }, cancellationToken);
             return record;
         }, cancellationToken);
