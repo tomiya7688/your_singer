@@ -7,11 +7,11 @@
 
 ## 成果物の一覧
 
-| 成果物                                                            | 生成元                                   | 署名・検証方式                         | 状況                                                                        |
-| ----------------------------------------------------------------- | ---------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------- |
-| `YourSinger-windows-x64.zip`(自己完結配布物)                      | `package-worker.yml`                     | SHA-256、Artifact Attestation(keyless) | 実装済み                                                                    |
-| `SHA256SUMS`                                                      | `tools/package_distribution_archive.ps1` | Artifact Attestation(keyless)          | 実装済み                                                                    |
-| `YourSinger.exe`、`workers/YourSinger.ML.exe`、`YourSinger.*.dll` | `build_windows_distribution.ps1`         | Authenticode署名とtimestamp            | 開発段階は自己署名(`CN=Tomiya7688`)。公開リリースはSignPath Foundation(#62) |
+| 成果物                                                            | 生成元                                   | 署名・検証方式                         | 状況                                                                                                     |
+| ----------------------------------------------------------------- | ---------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `YourSinger-windows-x64.zip`(自己完結配布物)                      | `package-worker.yml`                     | SHA-256、Artifact Attestation(keyless) | 実装済み                                                                                                 |
+| `SHA256SUMS`                                                      | `tools/package_distribution_archive.ps1` | Artifact Attestation(keyless)          | 実装済み                                                                                                 |
+| `YourSinger.exe`、`workers/YourSinger.ML.exe`、`YourSinger.*.dll` | `build_windows_distribution.ps1`         | Authenticode署名とtimestamp            | 開発段階は自己署名(`CN=Tomiya7688`)。公開リリースはSignPath Foundation(ワークフロー実装済み、申請は未了) |
 
 次の成果物は生成していません: macOS・Linux・Android向け成果物、container image、Python package、NuGet package、GitHub Release。生成を始める場合は、種類に合う署名方式を同じ文書へ追加してから公開します。
 
@@ -26,7 +26,7 @@
 
 注意: CIは `--source-ref` で実行時の参照元(`main` またはタグ)まで固定して検証します。利用者向けの手順(README)は、生成元のワークフローまでを検証します。公開リリースが始まったら、READMEに `--source-ref refs/tags/v<版>` を追加します。
 
-署名検証の既知の制限: `verify_distribution_signing.ps1` は、timestampの方式(従来方式かRFC 3161か)を区別できません。Authenticode署名の実装時に、`signtool` の `/tr` で署名し、`signtool verify` で確認します。
+`verify_distribution_signing.ps1 -RequireRfc3161` は、署名のPKCS#7を読み、timestampがRFC 3161方式(OID `1.3.6.1.4.1.311.3.3.1`)であることを確認します。従来方式のtimestampは失敗にします。`Set-AuthenticodeSignature` の署名は従来方式、`signtool sign /tr` の署名はRFC 3161方式になることを、手元で確認済みです。
 
 ## 構築ワークフローの実行方法
 
@@ -43,8 +43,29 @@
 
 ## 公開リリースの署名とゲート(#62)
 
-公開リリースでは、SignPath Foundation(OSS向けの無料コード署名)で署名します。申請、ワークフローへの組み込み、リリースのゲートは #62 で行います。
-公開リリースは、`tools/verify_distribution_signing.ps1 -RequireAuthenticode -ExpectedSignerSubject "SignPath Foundation"` が成功した場合だけ行います。`-AllowSelfSigned` は使いません。
+公開リリースでは、SignPath Foundation(OSS向けの無料コード署名)で署名します。
+
+### 流れ
+
+タグ `v*` を push すると `package-worker.yml` が動き、次の順に進みます。どれか1つでも失敗すると、その時点で止まりGitHub Releaseは作られません。
+
+1. 前提の確認: `SIGNPATH_API_TOKEN`(secret)と、`SIGNPATH_ORGANIZATION_ID`・`SIGNPATH_PROJECT_SLUG`(variables)の設定、タグのコミットが `main` に含まれること。構築(約25分)の前に確認します。
+2. 配布物を構築し、起動確認を行います。
+3. `tools/stage_signing_files.ps1 -Mode Collect` で自社製のexe/dllだけを取り出し、`actions/upload-artifact` でSignPathへ渡します(配布物全体は数GBのため送りません)。
+4. `signpath/github-action-submit-signing-request` で署名します。署名済みファイルは `stage_signing_files.ps1 -Mode Restore` が、取り出したものと同じ集合であることを確認して書き戻し、`update_distribution_manifest.ps1` でmanifestを更新します。
+5. ZIPと`SHA256SUMS`を作り、`verify_distribution_signing.ps1 -RequireAuthenticode -ExpectedSignerSubject "SignPath Foundation" -RequireRfc3161` を必須のゲートにします。`-AllowSelfSigned` は使いません。
+6. Artifact Attestationを作って検証します。
+7. 別ジョブ `release-draft`(`contents: write` だけを持つ)が、SHA-256とattestationを再確認し、Releaseの**下書き**を作ります。公開は人が行います。ZIPが2GiBを超える場合はReleaseへ添付できないため、このジョブは失敗します。
+
+### オーナーが行う設定(未了)
+
+- [ ] SignPath Foundationへ申請し、承認後にorganization・project・signing policy(slug: `release-signing`)・artifact configuration(slug: `initial`、内容は [`docs/signpath/artifact-configuration.xml`](./signpath/artifact-configuration.xml))を作る
+- [ ] SignPath側のtrusted build systemにGitHub.comを追加し、このリポジトリに限定する
+- [ ] リポジトリのsecret `SIGNPATH_API_TOKEN`、variables `SIGNPATH_ORGANIZATION_ID`・`SIGNPATH_PROJECT_SLUG` を設定する
+- [ ] 最初の公開リリースの前に、SignPathが実際に出力する署名済みファイルの配置(`output-artifact-directory` の中身)で `Restore` が通ることを、テスト用タグで確認する
+
+署名済みの出力が想定と違う場合も、`Restore` が集合の不一致として失敗し、署名されていない配布物がリリースへ進むことはありません。
+
 秘密鍵・PFX・パスワードはリポジトリにコミットしません。SignPathのAPIトークンはGitHub Secretsに置きます。
 
 ## 既存成果物の確認

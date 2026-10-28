@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPathの artifact configuration(slug: initial)に登録する内容です。
+  package-worker.yml が渡す zip(自社製の exe / dll だけを含む)の全ファイルに Authenticode 署名します。
+  SignPathの画面で登録するときに、スキーマの検証結果を確認してください。
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file-set>
+      <include path="**/*.exe" />
+      <include path="**/*.dll" />
+      <for-each>
+        <authenticode-sign />
+      </for-each>
+    </pe-file-set>
+  </zip-file>
+</artifact-configuration>
