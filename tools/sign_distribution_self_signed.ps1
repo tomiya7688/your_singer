@@ -22,6 +22,7 @@ param(
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "BuildPathSafety.ps1")
+. (Join-Path $PSScriptRoot "DistributionBinaries.ps1")
 $distribution = Resolve-ArtifactBuildPath $repo $DistributionDirectory
 
 # { 責務: [Get-SigningCertificate: 署名に使う有効なコード署名証明書を1つ返す] }
@@ -43,8 +44,7 @@ function Get-SigningCertificate {
 
 $signingCertificate = Get-SigningCertificate
 # 検証スクリプトと同じ規則で、自社製バイナリだけを署名する。
-$targets = @(Get-ChildItem $distribution -Recurse -File |
-    Where-Object { $_.Name -in @("YourSinger.exe", "YourSinger.ML.exe") -or $_.Name -like "YourSinger.*.dll" })
+$targets = Get-OwnBinaries $distribution
 if ($targets.Count -eq 0) { throw "署名対象の自社製バイナリが見つかりません。" }
 foreach ($target in $targets) {
     $result = Set-AuthenticodeSignature -LiteralPath $target.FullName -Certificate $signingCertificate `

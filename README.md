@@ -267,9 +267,29 @@ v1 は以下を基本構成とします。
    gh attestation verify .\SHA256SUMS --repo tomiya7688/your_singer --signer-workflow tomiya7688/your_singer/.github/workflows/package-worker.yml
    ```
 
+   公開リリースの配布物は、さらに生成元のタグまで固定して検証できます(`v1.0.0` の部分は取得した版に置き換えます)。
+
+   ```powershell
+   gh attestation verify .\YourSinger-windows-x64.zip --repo tomiya7688/your_singer --signer-workflow tomiya7688/your_singer/.github/workflows/package-worker.yml --source-ref refs/tags/v1.0.0
+   ```
+
    検証に失敗した配布物は実行しないでください。
 
-3. 公開リリースでは、`YourSinger.exe` にSignPath Foundationの有効なAuthenticode署名とtimestampが付く予定です。署名の有無と署名者は、ファイルのプロパティの「デジタル署名」タブで確認できます。開発中の配布物は自己署名(`Tomiya7688`)のため、Windowsが発行元を「不明」と表示します。
+3. 公開リリースでは、`YourSinger.exe` などの自社製バイナリにSignPath Foundationの有効なAuthenticode署名とtimestampが付きます。署名の有無と署名者は、ファイルのプロパティの「デジタル署名」タブで確認でき、PowerShellでは次のように確認できます。署名者に `SignPath Foundation` が含まれ、`Status` が `Valid` であることを確認してください(公開リリースはまだありません)。
+
+   ```powershell
+   Get-AuthenticodeSignature .\YourSinger.exe | Format-List Status, SignerCertificate
+   ```
+
+   開発中の配布物は自己署名(`Tomiya7688`)のため、Windowsが発行元を「不明」と表示します。
+
+## コード署名ポリシー
+
+無料のコード署名は[SignPath.io](https://signpath.io)が提供し、証明書は[SignPath Foundation](https://signpath.org)が発行します(申請の承認後に有効になります。現在は未承認です)。署名するのは、このリポジトリのGitHub Actionsが公開タグから構築した、自社製のバイナリだけです。
+
+- 役割: コミッター・レビュアー・承認者は、リポジトリオーナーの [tomiya7688](https://github.com/tomiya7688) です。
+- 署名の依頼は、`main` に含まれるコミットのタグ `v*` から、GitHub-hostedのrunnerで構築した成果物に対してだけ行います。
+- 署名の過程でSignPathへ送るのは、ソースから構築した自社製のexe/dllだけです。利用者のデータは扱いません。
 
 ## ライセンス
 
