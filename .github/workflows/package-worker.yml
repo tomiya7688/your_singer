@@ -25,6 +25,8 @@ jobs:
   package-windows:
     runs-on: windows-latest
     timeout-minutes: 120
+    # タグ実行(リリース)だけ、必須レビュー付きのEnvironment「release」のsecretを使う。workflowを改変したタグ実行でも承認なしにはtokenを読めない。
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     # 成果物のattestation(OIDCによるkeyless署名)に必要。他は読み取りのみ。
     permissions:
       contents: read
@@ -36,6 +38,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # 手動実行でタグを選ぶと、署名なしの成果物にタグ起点のattestationが付いてしまうため拒否する。
+      - name: 手動実行でのタグ指定を拒否
+        if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: throw "手動実行ではタグを指定できません。リリースはタグのpushで実行します。"
       # 署名できない設定のまま25分の構築をしないよう、リリースの前提を最初に確認する。
       - name: リリースの前提を確認(タグ実行のみ)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -48,7 +55,9 @@ jobs:
           foreach ($name in @("SIGNPATH_API_TOKEN", "SIGNPATH_ORGANIZATION_ID", "SIGNPATH_PROJECT_SLUG")) {
             if (-not [Environment]::GetEnvironmentVariable($name)) { throw "$name が未設定です。署名できないため、リリースを作りません。" }
           }
-          # mainに入っていないコミットのタグからは、リリースを作らない。
+          # mainに入っていないコミットのタグからは、リリースを作らない。mainの参照は明示的に取得する。
+          git fetch origin main
+          if ($LASTEXITCODE -ne 0) { throw "origin/mainを取得できませんでした。" }
           git merge-base --is-ancestor $env:GITHUB_SHA origin/main
           if ($LASTEXITCODE -ne 0) { throw "タグのコミットがmainに含まれていません。" }
       - uses: actions/setup-python@v5
@@ -209,6 +218,8 @@ jobs:
           artifact-configuration-slug: initial
           github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
           wait-for-completion: true
+          # 承認待ちを含めて30分まで待つ(既定は10分)。
+          wait-for-completion-timeout-in-seconds: 1800
           output-artifact-directory: artifacts/signing-output
       - name: 署名済みバイナリを書き戻してmanifestを更新(タグ実行のみ)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -227,6 +238,13 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: ./tools/verify_distribution_signing.ps1 -ReleaseDirectory artifacts/release -DistributionDirectory artifacts/windows-distribution -RequireAuthenticode -ExpectedSignerSubject "SignPath Foundation" -RequireRfc3161
+      # GitHub Releaseの1ファイルの上限は2GiB。attestationを発行する前に検出する。
+      - name: ZIPの大きさを確認(タグ実行のみ)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $size = (Get-Item artifacts/release/YourSinger-windows-x64.zip).Length
+          if ($size -ge 2GB) { throw "ZIPが2GiB以上です($size bytes)。Releaseへ添付できません。" }
       # 未保護のブランチで変更したworkflowからattestationを発行しないよう、mainとリリースタグに限定する。
       # それ以外のrefの手動実行は、構築と配布物の確認だけを行う。
       - name: 最終成果物のArtifact Attestationを作成
@@ -242,9 +260,12 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_REF: ${{ github.ref }}
         run: |
+          # タグ名に含まれる記号をシェルが解釈しないよう、環境変数で受け取る。
           foreach ($subject in @("YourSinger-windows-x64.zip", "SHA256SUMS")) {
-            gh attestation verify (Join-Path "artifacts/release" $subject) --repo "${{ github.repository }}" --signer-workflow "${{ github.repository }}/.github/workflows/package-worker.yml" --source-ref "${{ github.ref }}"
+            gh attestation verify (Join-Path "artifacts/release" $subject) --repo $env:REPOSITORY --signer-workflow "$env:REPOSITORY/.github/workflows/package-worker.yml" --source-ref $env:SOURCE_REF
             if ($LASTEXITCODE -ne 0) { throw "$subject のattestation検証に失敗しました。" }
           }
       - uses: actions/upload-artifact@v4
@@ -269,6 +290,10 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          SOURCE_REF: ${{ github.ref }}
+          SOURCE_SHA: ${{ github.sha }}
         run: |
           # GitHub Releaseの1ファイルの上限は2GiB。超える場合は公開できないため失敗させる。
           size=$(stat -c %s release/YourSinger-windows-x64.zip)
@@ -277,5 +302,6 @@ jobs:
             exit 1
           fi
           (cd release && sha256sum -c SHA256SUMS)
-          gh attestation verify release/YourSinger-windows-x64.zip --repo "${{ github.repository }}" --signer-workflow "${{ github.repository }}/.github/workflows/package-worker.yml" --source-ref "${{ github.ref }}"
-          gh release create "${{ github.ref_name }}" release/* --repo "${{ github.repository }}" --verify-tag --draft --title "${{ github.ref_name }}" --notes "署名と検証が完了した配布物です。公開前に、README の「配布物の検証」の手順で確認してください。"
+          # ビルド後にタグが付け替えられても、同じコミットから生成されたものだけを通す。
+          gh attestation verify release/YourSinger-windows-x64.zip --repo "$REPOSITORY" --signer-workflow "$REPOSITORY/.github/workflows/package-worker.yml" --source-ref "$SOURCE_REF" --source-digest "$SOURCE_SHA"
+          gh release create "$TAG" release/YourSinger-windows-x64.zip release/SHA256SUMS --repo "$REPOSITORY" --verify-tag --draft --title "$TAG" --notes "署名と検証が完了した配布物です。公開前に、README の「配布物の検証」の手順で確認してください。"

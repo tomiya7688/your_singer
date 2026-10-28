@@ -61,10 +61,14 @@
 
 - [ ] SignPath Foundationへ申請し、承認後にorganization・project・signing policy(slug: `release-signing`)・artifact configuration(slug: `initial`、内容は [`docs/signpath/artifact-configuration.xml`](./signpath/artifact-configuration.xml))を作る
 - [ ] SignPath側のtrusted build systemにGitHub.comを追加し、このリポジトリに限定する
-- [ ] リポジトリのsecret `SIGNPATH_API_TOKEN`、variables `SIGNPATH_ORGANIZATION_ID`・`SIGNPATH_PROJECT_SLUG` を設定する
+- [ ] GitHubのEnvironment `release` を作り、必須レビュアー(オーナー)を設定し、デプロイできるタグを `v*` に限定する。secret `SIGNPATH_API_TOKEN` と variables `SIGNPATH_ORGANIZATION_ID`・`SIGNPATH_PROJECT_SLUG` は、リポジトリ全体ではなくこのEnvironmentに置く。タグ実行のworkflowはタグのコミットの内容で動くため、Environmentの承認がないと、workflowを改変したタグ実行からtokenを読めないようにするためです
+- [ ] タグ `v*` を作成できる人を限定するtag rulesetを設定する
 - [ ] 最初の公開リリースの前に、SignPathが実際に出力する署名済みファイルの配置(`output-artifact-directory` の中身)で `Restore` が通ることを、テスト用タグで確認する
+- [ ] 最初の証明書が発行されたら、署名者の確認(現在は Subject に `SignPath Foundation` を含むこと)に、証明書のsubject全体またはthumbprintの固定を追加する
 
 署名済みの出力が想定と違う場合も、`Restore` が集合の不一致として失敗し、署名されていない配布物がリリースへ進むことはありません。
+
+同じタグで `release-draft` を再実行するときは、先に作られた下書きReleaseを削除してください(既存のReleaseがあると `gh release create` は失敗します)。手動実行(`workflow_dispatch`)でタグを指定することはできません。署名なしの成果物にタグ起点のattestationが付くためです。
 
 秘密鍵・PFX・パスワードはリポジトリにコミットしません。SignPathのAPIトークンはGitHub Secretsに置きます。
 
