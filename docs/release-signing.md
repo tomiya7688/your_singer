@@ -13,7 +13,7 @@
 | `SHA256SUMS`                                                      | `tools/package_distribution_archive.ps1` | Artifact Attestation(keyless)          | 実装済み                                                                                                 |
 | `YourSinger.exe`、`workers/YourSinger.ML.exe`、`YourSinger.*.dll` | `build_windows_distribution.ps1`         | Authenticode署名とtimestamp            | 開発段階は自己署名(`CN=Tomiya7688`)。公開リリースはSignPath Foundation(ワークフロー実装済み、申請は未了) |
 
-次の成果物は生成していません: macOS・Linux・Android向け成果物、container image、Python package、NuGet package、GitHub Release。生成を始める場合は、種類に合う署名方式を同じ文書へ追加してから公開します。
+次の成果物は生成していません: macOS・Linux・Android向け成果物、container image、Python package、NuGet package。GitHub Releaseは、タグ `v*` の実行が下書きだけを作ります(後述)。新しい成果物の生成を始める場合は、種類に合う署名方式を同じ文書へ追加してから公開します。
 
 リポジトリ内のTrainer用Python runtimeやMFA bundleなど、第三者のruntimeは配布ZIPの内側に含まれます。これらは固定hash・固定版で管理し、ZIP全体をattestationの対象にします。
 
@@ -24,7 +24,7 @@
 3. 同じワークフローで `gh attestation verify --signer-workflow` を実行し、attestationが生成元のワークフローと一致することを検証します。
 4. `tools/verify_distribution_signing.ps1` が、`SHA256SUMS` と最終ZIPの一致を確認します。
 
-注意: CIは `--source-ref` で実行時の参照元(`main` またはタグ)まで固定して検証します。利用者向けの手順(README)は、生成元のワークフローまでを検証します。公開リリースが始まったら、READMEに `--source-ref refs/tags/v<版>` を追加します。
+注意: CIは `--source-ref` で実行時の参照元(`main` またはタグ)まで固定して検証します。利用者向けの手順(README)は、生成元のワークフローまでを検証し、公開リリースの配布物には `--source-ref refs/tags/v<版>` でタグまで固定する手順も載せています。
 
 `verify_distribution_signing.ps1 -RequireRfc3161` は、署名のPKCS#7を読み、timestampがRFC 3161方式(OID `1.3.6.1.4.1.311.3.3.1`)であることを確認します。従来方式のtimestampは失敗にします。`Set-AuthenticodeSignature` の署名は従来方式、`signtool sign /tr` の署名はRFC 3161方式になることを、手元で確認済みです。
 
@@ -55,7 +55,7 @@
 4. `signpath/github-action-submit-signing-request` で署名します。署名済みファイルは `stage_signing_files.ps1 -Mode Restore` が、取り出したものと同じ集合であることを確認して書き戻し、`update_distribution_manifest.ps1` でmanifestを更新します。
 5. ZIPと`SHA256SUMS`を作り、`verify_distribution_signing.ps1 -RequireAuthenticode -ExpectedSignerSubject "SignPath Foundation" -RequireRfc3161` を必須のゲートにします。`-AllowSelfSigned` は使いません。
 6. Artifact Attestationを作って検証します。
-7. 別ジョブ `release-draft`(`contents: write` だけを持つ)が、SHA-256とattestationを再確認し、Releaseの**下書き**を作ります。公開は人が行います。ZIPが2GiBを超える場合はReleaseへ添付できないため、このジョブは失敗します。
+7. 別ジョブ `release-draft`(`contents: write` と読み取り専用の `attestations: read` だけを持つ)が、SHA-256とattestationを再確認し、Releaseの**下書き**を作ります。公開は人が行います。ZIPが2GiBを超える場合はReleaseへ添付できないため、このジョブは失敗します。
 
 ### オーナーが行う設定(未了)
 

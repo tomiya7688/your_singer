@@ -281,6 +281,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # gh attestation verify がattestationを読むために必要(読み取りのみ)。
+      attestations: read
     steps:
       - uses: actions/download-artifact@v4
         with:
