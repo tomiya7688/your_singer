@@ -48,9 +48,21 @@ if ($DryRun) {
     return
 }
 
-# Environmentが無ければ作る。必須レビュアーと対象タグの制限は、GitHubの画面で設定する。
-gh api --method PUT "repos/$Repository/environments/$Environment" --silent
-if ($LASTEXITCODE -ne 0) { throw "Environment「$Environment」を作成できませんでした。" }
+# Environmentを作り、保護を設定する: 必須レビュアーは実行した本人、デプロイできるのはタグ v* だけ。
+# タグ実行のworkflowはタグのコミットの内容で動くため、承認なしに秘密鍵を読ませないための保護です。
+$userId = [int](gh api user --jq .id)
+if ($LASTEXITCODE -ne 0) { throw "GitHubのユーザーを取得できませんでした。gh auth login を確認してください。" }
+$protection = @{
+    reviewers = @(@{ type = "User"; id = $userId })
+    deployment_branch_policy = @{ protected_branches = $false; custom_branch_policies = $true }
+} | ConvertTo-Json -Depth 5
+$protection | gh api --method PUT "repos/$Repository/environments/$Environment" --input - --silent
+if ($LASTEXITCODE -ne 0) { throw "Environment「$Environment」を作成・保護できませんでした。" }
+$existingTagPolicy = gh api "repos/$Repository/environments/$Environment/deployment-branch-policies" --jq '.branch_policies[] | select(.name == "v*" and .type == "tag") | .name'
+if (-not $existingTagPolicy) {
+    @{ name = "v*"; type = "tag" } | ConvertTo-Json | gh api --method POST "repos/$Repository/environments/$Environment/deployment-branch-policies" --input - --silent
+    if ($LASTEXITCODE -ne 0) { throw "デプロイ可能なタグ(v*)の制限を設定できませんでした。" }
+}
 
 # 秘密は標準入力で渡し、コマンドライン引数やログに出さない。
 [Convert]::ToBase64String($pfxBytes) | gh secret set SELF_SIGN_PFX_BASE64 --repo $Repository --env $Environment
@@ -60,4 +72,5 @@ if ($LASTEXITCODE -ne 0) { throw "SELF_SIGN_PFX_PASSWORD を登録できませ�
 gh variable set SELF_SIGN_THUMBPRINT --repo $Repository --env $Environment --body $thumbprint
 if ($LASTEXITCODE -ne 0) { throw "SELF_SIGN_THUMBPRINT を登録できませんでした。" }
 
-Write-Host "Environment「$Environment」へ登録しました。GitHubの画面で、必須レビュアーとデプロイ可能なタグ(v*)の制限を設定してください。"
+Write-Host "Environment「$Environment」へ登録し、必須レビュアー(あなた)とデプロイ可能なタグ(v*)の制限を設定しました。"
+Write-Host "再実行すると証明書が作り直され、thumbprintが変わります(以前の署名とは別の証明書になります)。"

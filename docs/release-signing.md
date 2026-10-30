@@ -67,9 +67,11 @@ gh auth login   # 初回のみ
 pwsh tools/new_release_self_signed_cert.ps1 -Repository tomiya7688/your_singer
 ```
 
-このスクリプトは、リリース用の自己署名証明書(`CN=Tomiya7688`)を作り、Environment `release` のsecret `SELF_SIGN_PFX_BASE64`・`SELF_SIGN_PFX_PASSWORD` と、variable `SELF_SIGN_THUMBPRINT` を登録します。秘密鍵とパスワードはファイルへ書かず、画面にも表示しません。`-DryRun` を付けると、何も登録せずに作成と確認だけを行います。
+このスクリプトは、リリース用の自己署名証明書(`CN=Tomiya7688`)を作り、Environment `release` を作成して保護(必須レビュアーは実行した本人、デプロイできるのはタグ `v*` だけ)を設定し、secret `SELF_SIGN_PFX_BASE64`・`SELF_SIGN_PFX_PASSWORD` と、variable `SELF_SIGN_THUMBPRINT` を登録します。秘密鍵とパスワードはファイルへ書かず、画面にも表示しません。`-DryRun` を付けると、何も登録せずに作成と確認だけを行います。
 
-- 手元の開発用の証明書とは別の証明書です。秘密鍵はGitHubのEnvironment secretとして保存されるため、Environmentに必須レビュアーとタグの制限(下記)を必ず設定してください。
+- 手元の開発用の証明書とは別の証明書です。秘密鍵はGitHubのEnvironment secretとして保存されるため、Environmentの保護が前提です。再実行すると証明書が作り直され、thumbprintが変わります。
+- 一部だけ設定されている(SignPathの3項目の一部など)場合や、thumbprintの変数が空の場合は、ワークフローが失敗します。署名者は証明書のthumbprintまで固定して検証します。
+- Environmentの保護の設定(GitHub APIの呼び出し)は、実際のGitHubでは未検証です。実行後に、リポジトリの Settings → Environments → release で、必須レビュアーとタグの制限を確認してください。
 - 自己署名は信頼チェーンを持たないため、利用者のWindowsは発行元を「不明」と表示します。timestampは従来方式で、RFC 3161は要求しません(SignPathのリリースだけ要求します)。
 - SignPathの設定(secret・variables)が揃うと、自動でSignPathの署名に切り替わります。切り替えたら、Environmentから `SELF_SIGN_*` を削除してください。
 
