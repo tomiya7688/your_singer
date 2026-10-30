@@ -74,7 +74,18 @@ jobs:
           "mode=$mode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "SIGNING_MODE=$mode" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "署名方式: $mode"
-          # mainに入っていないコミットのタグからは、リリースを作らない。mainの参照は明示的に取得する。
+      # 証明書の不備を、25分の構築の後ではなく最初に検出する。読み込めること、秘密鍵があること、thumbprintが変数と一致することを確認する。
+      - name: 自己署名の証明書を確認(自己署名のタグ実行のみ)
+        if: steps.mode.outputs.mode == 'self-signed'
+        shell: pwsh
+        env:
+          SELF_SIGN_PFX_BASE64: ${{ secrets.SELF_SIGN_PFX_BASE64 }}
+          SELF_SIGN_PFX_PASSWORD: ${{ secrets.SELF_SIGN_PFX_PASSWORD }}
+          SELF_SIGN_THUMBPRINT: ${{ vars.SELF_SIGN_THUMBPRINT }}
+        run: |
+          $certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new([Convert]::FromBase64String($env:SELF_SIGN_PFX_BASE64), $env:SELF_SIGN_PFX_PASSWORD.TrimEnd("`r", "`n"))
+          if (-not $certificate.HasPrivateKey) { throw "自己署名の証明書に秘密鍵がありません。" }
+          if ($certificate.Thumbprint -ne $env:SELF_SIGN_THUMBPRINT) { throw "証明書のthumbprintが変数SELF_SIGN_THUMBPRINTと一致しません。" }          # mainに入っていないコミットのタグからは、リリースを作らない。mainの参照は明示的に取得する。
           git fetch origin main
           if ($LASTEXITCODE -ne 0) { throw "origin/mainを取得できませんでした。" }
           git merge-base --is-ancestor $env:GITHUB_SHA origin/main
@@ -215,7 +226,7 @@ jobs:
           }
       # SignPathの承認が下りるまでの間は、自己署名(CN=Tomiya7688)で署名する。証明書はEnvironment「release」のsecretから読み、使い終わったファイルは削除する。
       - name: 自己署名(CN=Tomiya7688)で署名(自己署名のタグ実行のみ)
-        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'self-signed'
+        if: startsWith(github.ref, 'refs/tags/v') && steps.mode.outputs.mode == 'self-signed'
         shell: pwsh
         env:
           SELF_SIGN_PFX_BASE64: ${{ secrets.SELF_SIGN_PFX_BASE64 }}
@@ -236,19 +247,19 @@ jobs:
           }
       # 以下のSignPathへの署名依頼は、配布物全体(数GB)ではなく自社製のexe/dllだけを渡す。
       - name: 署名対象の自社製バイナリを取り出し(SignPathのタグ実行のみ)
-        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'signpath'
+        if: startsWith(github.ref, 'refs/tags/v') && steps.mode.outputs.mode == 'signpath'
         shell: pwsh
         run: ./tools/stage_signing_files.ps1 -Mode Collect -StagingDirectory artifacts/signing-input
       - name: 署名対象をアップロード(SignPathのタグ実行のみ)
         id: upload-unsigned
-        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'signpath'
+        if: startsWith(github.ref, 'refs/tags/v') && steps.mode.outputs.mode == 'signpath'
         uses: actions/upload-artifact@v4
         with:
           name: signing-input
           path: artifacts/signing-input
           retention-days: 1
       - name: SignPath Foundationで署名(SignPathのタグ実行のみ)
-        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'signpath'
+        if: startsWith(github.ref, 'refs/tags/v') && steps.mode.outputs.mode == 'signpath'
         uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -262,7 +273,7 @@ jobs:
           wait-for-completion-timeout-in-seconds: 1800
           output-artifact-directory: artifacts/signing-output
       - name: 署名済みバイナリを書き戻してmanifestを更新(SignPathのタグ実行のみ)
-        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'signpath'
+        if: startsWith(github.ref, 'refs/tags/v') && steps.mode.outputs.mode == 'signpath'
         shell: pwsh
         run: |
           ./tools/stage_signing_files.ps1 -Mode Restore -StagingDirectory artifacts/signing-output
@@ -275,13 +286,13 @@ jobs:
           ./tools/verify_distribution_signing.ps1 -ReleaseDirectory artifacts/release
       # 署名と検証のどちらかが失敗したら、ここで止まりリリースは作られない。
       - name: 公開リリースの署名ゲート(SignPathのタグ実行のみ)
-        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'signpath'
+        if: startsWith(github.ref, 'refs/tags/v') && steps.mode.outputs.mode == 'signpath'
         shell: pwsh
         run: ./tools/verify_distribution_signing.ps1 -ReleaseDirectory artifacts/release -DistributionDirectory artifacts/windows-distribution -RequireAuthenticode -ExpectedSignerSubject "SignPath Foundation" -RequireRfc3161
       # 自己署名のゲート。署名者はCN=Tomiya7688、変数SELF_SIGN_THUMBPRINTがあれば証明書のthumbprintも固定する。
       - name: 自己署名のゲート(自己署名のタグ実行のみ)
         id: self-signed-gate
-        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'self-signed'
+        if: startsWith(github.ref, 'refs/tags/v') && steps.mode.outputs.mode == 'self-signed'
         shell: pwsh
         env:
           SELF_SIGN_THUMBPRINT: ${{ vars.SELF_SIGN_THUMBPRINT }}
