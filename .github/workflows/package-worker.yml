@@ -301,13 +301,10 @@ jobs:
           ./tools/verify_distribution_signing.ps1 -ReleaseDirectory artifacts/release -DistributionDirectory artifacts/windows-distribution -RequireAuthenticode -ExpectedSignerSubject "CN=Tomiya7688" -ExpectedSignerThumbprint $env:SELF_SIGN_THUMBPRINT -AllowSelfSigned
           # リリース下書きのジョブはEnvironmentの変数を読めないため、検証済みの値を出力で渡す。
           "thumbprint=$env:SELF_SIGN_THUMBPRINT" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-      # GitHub Releaseの1ファイルの上限は2GiB。attestationを発行する前に検出する。
-      - name: ZIPの大きさを確認(タグ実行のみ)
-        if: startsWith(github.ref, 'refs/tags/v')
+      # GitHub Releaseの1ファイルの上限は2GiB。ZIPを分割し、各分割ファイルのhashをSHA256SUMSへ追記する(#72)。
+      - name: ZIPを2GiB未満の分割ファイルにする
         shell: pwsh
-        run: |
-          $size = (Get-Item artifacts/release/YourSinger-windows-x64.zip).Length
-          if ($size -ge 2GB) { throw "ZIPが2GiB以上です($size bytes)。Releaseへ添付できません。" }
+        run: ./tools/split_release_archive.ps1
       # 未保護のブランチで変更したworkflowからattestationを発行しないよう、mainとリリースタグに限定する。
       # それ以外のrefの手動実行は、構築と配布物の確認だけを行う。
       - name: 最終成果物のArtifact Attestationを作成
@@ -317,6 +314,7 @@ jobs:
         with:
           subject-path: |
             artifacts/release/YourSinger-windows-x64.zip
+            artifacts/release/YourSinger-windows-x64.zip.0*
             artifacts/release/SHA256SUMS
       - name: Attestationを検証
         if: steps.attest.outcome == 'success'
@@ -327,10 +325,16 @@ jobs:
           SOURCE_REF: ${{ github.ref }}
         run: |
           # タグ名に含まれる記号をシェルが解釈しないよう、環境変数で受け取る。
-          foreach ($subject in @("YourSinger-windows-x64.zip", "SHA256SUMS")) {
+          $parts = @(Get-ChildItem artifacts/release -Filter "YourSinger-windows-x64.zip.0*" | Sort-Object Name | ForEach-Object Name)
+          if ($parts.Count -eq 0) { throw "分割ファイルがありません。" }
+          foreach ($subject in (@("YourSinger-windows-x64.zip", "SHA256SUMS") + $parts)) {
             gh attestation verify (Join-Path "artifacts/release" $subject) --repo $env:REPOSITORY --signer-workflow "$env:REPOSITORY/.github/workflows/package-worker.yml" --source-ref $env:SOURCE_REF
             if ($LASTEXITCODE -ne 0) { throw "$subject のattestation検証に失敗しました。" }
           }
+      # 配布するのは分割ファイルとSHA256SUMS。結合前のZIPは分割ファイルから復元できるため、成果物の保存量を倍にしない。
+      - name: 成果物から結合前のZIPを除く
+        shell: pwsh
+        run: Remove-Item artifacts/release/YourSinger-windows-x64.zip
       - uses: actions/upload-artifact@v4
         with:
           name: YourSinger-windows-x64
@@ -351,7 +355,7 @@ jobs:
         with:
           name: YourSinger-windows-x64
           path: release
-      - name: ZIPの大きさを確認して下書きを作成
+      - name: 分割ファイルを検証して下書きを作成
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -362,15 +366,28 @@ jobs:
           SIGNING_MODE: ${{ needs.package-windows.outputs.signing_mode }}
           SELF_SIGN_THUMBPRINT: ${{ needs.package-windows.outputs.self_sign_thumbprint }}
         run: |
-          # GitHub Releaseの1ファイルの上限は2GiB。超える場合は公開できないため失敗させる。
-          size=$(stat -c %s release/YourSinger-windows-x64.zip)
-          if [ "$size" -ge 2147483648 ]; then
-            echo "ZIPが2GiBを超えています($size bytes)。Releaseへ添付できません。" >&2
-            exit 1
-          fi
-          (cd release && sha256sum -c SHA256SUMS)
-          # ビルド後にタグが付け替えられても、同じコミットから生成されたものだけを通す。
-          gh attestation verify release/YourSinger-windows-x64.zip --repo "$REPOSITORY" --signer-workflow "$REPOSITORY/.github/workflows/package-worker.yml" --source-ref "$SOURCE_REF" --source-digest "$SOURCE_SHA"
+          # GitHub Releaseの1ファイルの上限は2GiB。超える分割ファイルがあれば失敗させる。
+          parts=(release/YourSinger-windows-x64.zip.0*)
+          [ -e "${parts[0]}" ] || { echo "分割ファイルがありません。" >&2; exit 1; }
+          for part in "${parts[@]}"; do
+            size=$(stat -c %s "$part")
+            if [ "$size" -ge 2147483648 ]; then
+              echo "$part が2GiB以上です($size bytes)。Releaseへ添付できません。" >&2
+              exit 1
+            fi
+          done
+          # 結合前のZIPはこの成果物に含まれないため、分割ファイルのhashを確認し、結合したZIPがZIP全体のhashと一致することも確認する。
+          (cd release && sha256sum -c --ignore-missing SHA256SUMS)
+          cat "${parts[@]}" > rebuilt.zip
+          expected=$(grep ' \*YourSinger-windows-x64\.zip$' release/SHA256SUMS | cut -d' ' -f1)
+          [ -n "$expected" ] || { echo "SHA256SUMSにZIP全体の行がありません。" >&2; exit 1; }
+          echo "$expected  rebuilt.zip" | sha256sum -c
+          # ビルド後にタグが付け替えられても、同じコミットから生成されたものだけを通す。結合したZIPのattestationを確認する。
+          gh attestation verify rebuilt.zip --repo "$REPOSITORY" --signer-workflow "$REPOSITORY/.github/workflows/package-worker.yml" --source-ref "$SOURCE_REF" --source-digest "$SOURCE_SHA"
+          for part in "${parts[@]}"; do
+            gh attestation verify "$part" --repo "$REPOSITORY" --signer-workflow "$REPOSITORY/.github/workflows/package-worker.yml" --source-ref "$SOURCE_REF" --source-digest "$SOURCE_SHA"
+          done
+          rm rebuilt.zip
           # 自己署名の間はプレリリースとし、Windowsが発行元を「不明」と表示することと、確認するthumbprintを説明に書く。
           if [ "$SIGNING_MODE" = "signpath" ]; then
             flags=""
@@ -382,4 +399,4 @@ jobs:
             echo "署名方式またはthumbprintが不正です(mode=$SIGNING_MODE)。" >&2
             exit 1
           fi
-          gh release create "$TAG" release/YourSinger-windows-x64.zip release/SHA256SUMS --repo "$REPOSITORY" --verify-tag --draft $flags --title "$TAG" --notes "$notes"
+          gh release create "$TAG" "${parts[@]}" release/SHA256SUMS --repo "$REPOSITORY" --verify-tag --draft $flags --title "$TAG" --notes "$notes"
