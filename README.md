@@ -281,7 +281,11 @@ v1 は以下を基本構成とします。
    Get-AuthenticodeSignature .\YourSinger.exe | Format-List Status, SignerCertificate
    ```
 
-   開発中の配布物は自己署名(`Tomiya7688`)のため、Windowsが発行元を「不明」と表示します。
+   SignPath Foundationの承認が下りるまでの間、プレリリースの配布物は自己署名(`CN=Tomiya7688`)です。この場合、Windowsは発行元を「不明」と表示し、`Status` は `Valid` になりません。代わりに、署名者が `CN=Tomiya7688` で、証明書のthumbprintがReleaseの説明に書かれた値と一致することを確認してください。
+
+   ```powershell
+   (Get-AuthenticodeSignature .\YourSinger.exe).SignerCertificate | Format-List Subject, Thumbprint
+   ```
 
 ## コード署名ポリシー
 
