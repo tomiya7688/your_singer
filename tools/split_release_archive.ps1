@@ -21,6 +21,8 @@ $sumsPath = Join-Path $output "SHA256SUMS"
 foreach ($requiredPath in @($archivePath, $sumsPath)) {
     if (-not (Test-Path $requiredPath -PathType Leaf)) { throw "先にpackage_distribution_archive.ps1を実行してください: $requiredPath" }
 }
+# 空のZIPは分割できない。
+if ((Get-Item $archivePath).Length -le 0) { throw "ZIPが空です: $archivePath" }
 # -Filter の "名前.*" は拡張子なしの名前(ZIP自体)にも一致するため、番号付きの名前だけを -like で判定する。
 if (Get-ChildItem $output | Where-Object { $_.Name -like "$ArchiveName.[0-9][0-9][0-9]" }) { throw "分割ファイルが既にあります。作り直す場合は先にpackage_distribution_archive.ps1を実行してください。" }
 
@@ -33,6 +35,7 @@ function Write-ArchiveParts {
         $index = 0
         while ($source.Position -lt $source.Length) {
             $index++
+            if ($index -gt 999) { throw "分割数が上限(999)を超えました。PartSizeBytesを大きくしてください。" }
             $partName = "{0}.{1:D3}" -f $ArchiveName, $index
             $hash = [Security.Cryptography.IncrementalHash]::CreateHash([Security.Cryptography.HashAlgorithmName]::SHA256)
             $part = [IO.File]::Create((Join-Path $output $partName))
@@ -52,6 +55,6 @@ function Write-ArchiveParts {
     return $lines
 }
 
-$partLines = Write-ArchiveParts
+$partLines = @(Write-ArchiveParts)
 [IO.File]::AppendAllText($sumsPath, (($partLines -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
 Write-Host "Split into $($partLines.Count) parts (max $PartSizeBytes bytes each): $output"
