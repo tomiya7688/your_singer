@@ -27,6 +27,9 @@ jobs:
     timeout-minutes: 120
     # タグ実行(リリース)だけ、必須レビュー付きのEnvironment「release」のsecretを使う。workflowを改変したタグ実行でも承認なしにはtokenを読めない。
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
+    # 選んだ署名方式を、リリース下書きのジョブへ渡す。
+    outputs:
+      signing_mode: ${{ steps.mode.outputs.mode }}
     # 成果物のattestation(OIDCによるkeyless署名)に必要。他は読み取りのみ。
     permissions:
       contents: read
@@ -44,17 +47,27 @@ jobs:
         shell: pwsh
         run: throw "手動実行ではタグを指定できません。リリースはタグのpushで実行します。"
       # 署名できない設定のまま25分の構築をしないよう、リリースの前提を最初に確認する。
+      # 署名方式は、SignPathの設定が揃っていればSignPath、無ければ自己署名(CN=Tomiya7688)を使う。どちらも無ければ失敗する。
       - name: リリースの前提を確認(タグ実行のみ)
+        id: mode
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
           SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SELF_SIGN_PFX_BASE64: ${{ secrets.SELF_SIGN_PFX_BASE64 }}
+          SELF_SIGN_PFX_PASSWORD: ${{ secrets.SELF_SIGN_PFX_PASSWORD }}
         run: |
-          foreach ($name in @("SIGNPATH_API_TOKEN", "SIGNPATH_ORGANIZATION_ID", "SIGNPATH_PROJECT_SLUG")) {
-            if (-not [Environment]::GetEnvironmentVariable($name)) { throw "$name が未設定です。署名できないため、リリースを作りません。" }
-          }
+          $missing = @("SIGNPATH_API_TOKEN", "SIGNPATH_ORGANIZATION_ID", "SIGNPATH_PROJECT_SLUG") | Where-Object { -not [Environment]::GetEnvironmentVariable($_) }
+          $hasSignPath = $missing.Count -eq 0
+          $hasSelfSigned = [bool]$env:SELF_SIGN_PFX_BASE64 -and [bool]$env:SELF_SIGN_PFX_PASSWORD
+          if ($hasSignPath) { $mode = "signpath" }
+          elseif ($hasSelfSigned) { $mode = "self-signed" }
+          else { throw "SignPathの設定も自己署名の証明書(SELF_SIGN_PFX_*)も未設定です。署名できないため、リリースを作りません。" }
+          "mode=$mode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "SIGNING_MODE=$mode" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "署名方式: $mode"
           # mainに入っていないコミットのタグからは、リリースを作らない。mainの参照は明示的に取得する。
           git fetch origin main
           if ($LASTEXITCODE -ne 0) { throw "origin/mainを取得できませんでした。" }
@@ -194,21 +207,38 @@ jobs:
             $modelMissing = @($json.result.issues | Where-Object { $_ -match "manifestまたはlock" })
             if ($modelMissing.Count -eq 0) { throw "モデルなし包装の不足理由が想定と異なります: $response" }
           }
-      # 以下の署名は、配布物全体(数GB)ではなく自社製のexe/dllだけをSignPathへ渡す。
-      - name: 署名対象の自社製バイナリを取り出し(タグ実行のみ)
-        if: startsWith(github.ref, 'refs/tags/v')
+      # SignPathの承認が下りるまでの間は、自己署名(CN=Tomiya7688)で署名する。証明書はEnvironment「release」のsecretから読み、使い終わったファイルは削除する。
+      - name: 自己署名(CN=Tomiya7688)で署名(自己署名のタグ実行のみ)
+        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'self-signed'
+        shell: pwsh
+        env:
+          SELF_SIGN_PFX_BASE64: ${{ secrets.SELF_SIGN_PFX_BASE64 }}
+          SELF_SIGN_PFX_PASSWORD: ${{ secrets.SELF_SIGN_PFX_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "self-sign.pfx"
+          try {
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SELF_SIGN_PFX_BASE64))
+            $password = ConvertTo-SecureString $env:SELF_SIGN_PFX_PASSWORD -AsPlainText -Force
+            [void](Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password)
+          } finally {
+            if (Test-Path $pfx) { Remove-Item $pfx -Force }
+          }
+          ./tools/sign_distribution_self_signed.ps1
+      # 以下のSignPathへの署名依頼は、配布物全体(数GB)ではなく自社製のexe/dllだけを渡す。
+      - name: 署名対象の自社製バイナリを取り出し(SignPathのタグ実行のみ)
+        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'signpath'
         shell: pwsh
         run: ./tools/stage_signing_files.ps1 -Mode Collect -StagingDirectory artifacts/signing-input
-      - name: 署名対象をアップロード(タグ実行のみ)
+      - name: 署名対象をアップロード(SignPathのタグ実行のみ)
         id: upload-unsigned
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'signpath'
         uses: actions/upload-artifact@v4
         with:
           name: signing-input
           path: artifacts/signing-input
           retention-days: 1
-      - name: SignPath Foundationで署名(タグ実行のみ)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: SignPath Foundationで署名(SignPathのタグ実行のみ)
+        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'signpath'
         uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -221,8 +251,8 @@ jobs:
           # 承認待ちを含めて30分まで待つ(既定は10分)。
           wait-for-completion-timeout-in-seconds: 1800
           output-artifact-directory: artifacts/signing-output
-      - name: 署名済みバイナリを書き戻してmanifestを更新(タグ実行のみ)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: 署名済みバイナリを書き戻してmanifestを更新(SignPathのタグ実行のみ)
+        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'signpath'
         shell: pwsh
         run: |
           ./tools/stage_signing_files.ps1 -Mode Restore -StagingDirectory artifacts/signing-output
@@ -234,10 +264,17 @@ jobs:
           ./tools/package_distribution_archive.ps1
           ./tools/verify_distribution_signing.ps1 -ReleaseDirectory artifacts/release
       # 署名と検証のどちらかが失敗したら、ここで止まりリリースは作られない。
-      - name: 公開リリースの署名ゲート(タグ実行のみ)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: 公開リリースの署名ゲート(SignPathのタグ実行のみ)
+        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'signpath'
         shell: pwsh
         run: ./tools/verify_distribution_signing.ps1 -ReleaseDirectory artifacts/release -DistributionDirectory artifacts/windows-distribution -RequireAuthenticode -ExpectedSignerSubject "SignPath Foundation" -RequireRfc3161
+      # 自己署名のゲート。署名者はCN=Tomiya7688、変数SELF_SIGN_THUMBPRINTがあれば証明書のthumbprintも固定する。
+      - name: 自己署名のゲート(自己署名のタグ実行のみ)
+        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNING_MODE == 'self-signed'
+        shell: pwsh
+        env:
+          SELF_SIGN_THUMBPRINT: ${{ vars.SELF_SIGN_THUMBPRINT }}
+        run: ./tools/verify_distribution_signing.ps1 -ReleaseDirectory artifacts/release -DistributionDirectory artifacts/windows-distribution -RequireAuthenticode -ExpectedSignerSubject "CN=Tomiya7688" -ExpectedSignerThumbprint $env:SELF_SIGN_THUMBPRINT -AllowSelfSigned
       # GitHub Releaseの1ファイルの上限は2GiB。attestationを発行する前に検出する。
       - name: ZIPの大きさを確認(タグ実行のみ)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -296,6 +333,8 @@ jobs:
           TAG: ${{ github.ref_name }}
           SOURCE_REF: ${{ github.ref }}
           SOURCE_SHA: ${{ github.sha }}
+          SIGNING_MODE: ${{ needs.package-windows.outputs.signing_mode }}
+          SELF_SIGN_THUMBPRINT: ${{ vars.SELF_SIGN_THUMBPRINT }}
         run: |
           # GitHub Releaseの1ファイルの上限は2GiB。超える場合は公開できないため失敗させる。
           size=$(stat -c %s release/YourSinger-windows-x64.zip)
@@ -306,4 +345,12 @@ jobs:
           (cd release && sha256sum -c SHA256SUMS)
           # ビルド後にタグが付け替えられても、同じコミットから生成されたものだけを通す。
           gh attestation verify release/YourSinger-windows-x64.zip --repo "$REPOSITORY" --signer-workflow "$REPOSITORY/.github/workflows/package-worker.yml" --source-ref "$SOURCE_REF" --source-digest "$SOURCE_SHA"
-          gh release create "$TAG" release/YourSinger-windows-x64.zip release/SHA256SUMS --repo "$REPOSITORY" --verify-tag --draft --title "$TAG" --notes "署名と検証が完了した配布物です。公開前に、README の「配布物の検証」の手順で確認してください。"
+          # 自己署名の間はプレリリースとし、Windowsが発行元を「不明」と表示することと、確認するthumbprintを説明に書く。
+          if [ "$SIGNING_MODE" = "signpath" ]; then
+            flags=""
+            notes="SignPath Foundationで署名し、検証が完了した配布物です。公開前に、README の「配布物の検証」の手順で確認してください。"
+          else
+            flags="--prerelease"
+            notes="自己署名(CN=Tomiya7688)の配布物です。Windowsは発行元を「不明」と表示します。署名者の証明書のthumbprintは ${SELF_SIGN_THUMBPRINT:-未設定} です。公開前に、README の「配布物の検証」の手順で確認してください。"
+          fi
+          gh release create "$TAG" release/YourSinger-windows-x64.zip release/SHA256SUMS --repo "$REPOSITORY" --verify-tag --draft $flags --title "$TAG" --notes "$notes"
