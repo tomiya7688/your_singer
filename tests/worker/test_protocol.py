@@ -21,14 +21,23 @@ class WorkerProtocolTests(unittest.TestCase):
     def invoke(self, request: str, handler=None, import_error=None):
         output, errors = io.StringIO(), io.StringIO()
         module = SimpleNamespace(classify_content=handler or (lambda payload: payload))
-        with patch.object(sys, "stdin", io.StringIO(request)), patch.object(sys, "stdout", output), \
-             patch.object(sys, "stderr", errors), patch.object(worker.importlib, "import_module",
-                 return_value=module, side_effect=import_error):
+        with (
+            patch.object(sys, "stdin", io.StringIO(request)),
+            patch.object(sys, "stdout", output),
+            patch.object(sys, "stderr", errors),
+            patch.object(
+                worker.importlib, "import_module", return_value=module, side_effect=import_error
+            ),
+        ):
             worker.main()
         return output.getvalue(), errors.getvalue()
 
     def request(self, **changes):
-        value = {"request_id": "日本語要求", "command": "classify_content", "payload": {"text": "こんにちは"}}
+        value = {
+            "request_id": "日本語要求",
+            "command": "classify_content",
+            "payload": {"text": "こんにちは"},
+        }
         value.update(changes)
         return json.dumps(value, ensure_ascii=False) + "\n"
 
@@ -44,6 +53,7 @@ class WorkerProtocolTests(unittest.TestCase):
         def noisy(payload):
             print("ライブラリの進捗ログ")
             return payload
+
         output, errors = self.invoke(self.request(), handler=noisy)
         self.assertEqual(json.loads(output)["status"], "ok")
         self.assertNotIn("進捗ログ", output)
@@ -57,7 +67,13 @@ class WorkerProtocolTests(unittest.TestCase):
         self.assertIsNone(response["result"])
 
     def test_malformed_json_and_payload_are_errors(self):
-        for request in ("{\n", "[]\n", self.request(payload=[]), self.request(request_id=123), self.request(command="unknown")):
+        for request in (
+            "{\n",
+            "[]\n",
+            self.request(payload=[]),
+            self.request(request_id=123),
+            self.request(command="unknown"),
+        ):
             with self.subTest(request=request):
                 output, _ = self.invoke(request)
                 self.assertEqual(json.loads(output)["status"], "error")
@@ -71,6 +87,7 @@ class WorkerProtocolTests(unittest.TestCase):
     def test_handler_failure_preserves_request_id(self):
         def fail(payload):
             raise RuntimeError("処理失敗")
+
         output, _ = self.invoke(self.request(), handler=fail)
         self.assertEqual(json.loads(output)["request_id"], "日本語要求")
         self.assertEqual(json.loads(output)["error"], "処理失敗")
@@ -81,9 +98,15 @@ class WorkerProtocolTests(unittest.TestCase):
 
     def test_unknown_command_works_without_ml_dependencies_in_subprocess(self):
         env = dict(os.environ, PYTHONPATH=str(WORKER))
-        result = subprocess.run([sys.executable, "-m", "your_singer_ml.main"],
-            input=self.request(command="unknown"), capture_output=True,
-            encoding="utf-8", env=dict(env, PYTHONIOENCODING="utf-8"), timeout=30, check=False)
+        result = subprocess.run(
+            [sys.executable, "-m", "your_singer_ml.main"],
+            input=self.request(command="unknown"),
+            capture_output=True,
+            encoding="utf-8",
+            env=dict(env, PYTHONIOENCODING="utf-8"),
+            timeout=30,
+            check=False,
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], "error")
         self.assertEqual(len(result.stdout.splitlines()), 1)
