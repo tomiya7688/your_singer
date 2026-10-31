@@ -16,21 +16,23 @@ commitは`323a5693245b827caba0ab1a7371fe5ca885b061`です。
 
 1. `DiffSingerDatasetBuilder.BuildAsync`が、歌唱jobの選択区間と実測alignmentを再検証します。
 2. `DiffSingerAcousticInputService.PrepareAsync`が、ML workerの`prepare_diffsinger_acoustic`を呼び出します。
-3. workerがjob ID・話者ID・fingerprint・補正設定を照合します。
-4. workerが音素列の最初の開始時刻から最後の終了時刻までをPCMサンプル単位で切り出します。
+3. workerがjob ID・話者ID・fingerprint・補正設定と、アプリが検証した`dataset.json`のハッシュを照合します。
+4. workerが音声を一時コピーし、測定時のハッシュと一致したコピーだけをPCMサンプル単位で切り出します。
 5. workerが公式CSV、音素辞書、設定の一部と変換記録を一時領域へ保存し、完成後に配置します。
 
 ```text
 VoiceProject/training/diffsinger/<job-id>/
-├─ dataset.json                 # v1-10.4: 元音声内の実測開始・終了時刻を含む
+├─ dataset.json                 # v1-10.5-mfa-measurement: 元音声内の実測開始・終了時刻を含む
 └─ acoustic-input/
    ├─ transcriptions.csv        # name,ph_seq,ph_dur
    ├─ wavs/segment_<hash>.wav    # 実測範囲に対応するPCM16モノラル音声
+   ├─ measurements/             # ハッシュを照合した測定記録のコピー
    ├─ dictionary-ja.txt         # 入力に現れた音素だけの恒等対応辞書
    ├─ dataset-config.json       # 公式dictionaries/datasets設定の一部
    └─ provenance.json           # 元segment、サンプル境界、job設定
 ```
 
+測定記録はハッシュを照合して完成品内にコピーし、`provenance.json`に相対パスとハッシュを記録します。
 音声の先頭・末尾だけを除き、各音素長を引き伸ばしたり、音声の途中を詰めたりしません。
 サンプル境界への丸めによる音声長の差は最大1サンプルです。
 元音声・共通特徴量は変更しません。
@@ -42,7 +44,7 @@ VoiceProject/training/diffsinger/<job-id>/
 
 ## 必要な入力と失敗時の対応
 
-歌唱jobと、それに対応する`v1-10.4`の`dataset.json`を用意してください。
+歌唱jobと、それに対応する`v1-10.5-mfa-measurement`の`dataset.json`を用意してください。
 実測方法は`mfa-japanese-phone-forced-alignment-v1`、音声はPCM16モノラルWAVです。
 音素列・開始時刻・終了時刻・音素長は同じ個数で、有限な数値を持つ必要があります。
 音声と特徴量は同じVoice Project内に保存してください。領域外の参照やリンク先は拒否します。
@@ -50,6 +52,7 @@ VoiceProject/training/diffsinger/<job-id>/
 旧入力、job不一致、途中の未解析区間、境界の範囲外はエラーになります。
 該当区間を再解析し、新しい歌唱jobを作成してください。
 同じjobの既存入力は上書きしません。失敗時は元入力と元音声が残ります。
+`dataset.json`は16 MiB以内、音声は1 GiB以内が必要です。音声の一時コピーを作業領域に作成し、処理後に削除します。
 現在は処理APIまでの実装であり、画面からこの段階だけを実行する操作は接続していません。
 
 ## 歌唱Trainer専用runtimeの構築
@@ -61,7 +64,6 @@ PowerShellからEドライブの完全なPython 3.12.10 runtimeを指定して�
 構築処理は`tools/prepare_trainer_python.py`でPython本体と標準ライブラリだけを複製し、同梱の`ensurepip`からpipを初期化します。
 入力Pythonにある`site-packages`と`Scripts`は引き継がず、複製先のPython版・探索先・初期依存がpipだけであることを確認します。
 その後に各Trainerの固定依存を導入し、`pip check`を実行します。入力Pythonのライブラリは変更しません。
-
 
 ```powershell
 python tools/prepare_diffsinger_source.py
@@ -119,3 +121,11 @@ Windows配布スクリプトとpackage-worker CIにDiffSinger専用runtime・固
 私的な音声・歌詞・特徴・生成物はGit無視対象のVoice Projectまたは`artifacts`へ保管してください。
 公開用fixtureや配布bundleへは含めません。
 
+### MFA測定記録の由来
+
+歌唱用`dataset.json`の各項目は`alignment_measurement`に、Voice Project相対の測定記録パスと記録・音声のSHA-256を保持します。
+アプリは作成時に、音声・記録・音素時刻と固定モデル条件を照合し、不一致を拒否します。
+不一致が表示された場合は、共通datasetを再構築してから学習ジョブを作り直してください。
+この参照だけで無音のSP分類や息のAP分類が完了したことにはなりません。
+
+歌唱学習用の `dataset.json` は最大 64 MiB です。上限を超える場合は学習対象を分割してください。MFA測定記録の上限は 16 MiB です。

@@ -24,6 +24,7 @@ public sealed class UniversalFeatureOverrideTests
         Assert.Empty(updated.Phonemes);
         Assert.Equal(0, updated.AlignmentConfidence);
         Assert.Equal("invalidated-by-transcript-override", updated.AlignmentMethod);
+        Assert.Null(updated.AlignmentMeasurement);
     }
 
     // {
@@ -41,8 +42,11 @@ public sealed class UniversalFeatureOverrideTests
         await edits.SetTranscriptAsync(project.Workspace, "edited", "最終の修正", TestProject.Token);
         var source = new SourceRecord
         {
-            SourceId = "src_a", Path = Path.Combine(project.Workspace.SegmentsPath, "edited.wav"),
-            MediaType = MediaType.Audio, ContentHash = "fixture", AnalysisVersion = "fixture"
+            SourceId = "src_a",
+            Path = Path.Combine(project.Workspace.SegmentsPath, "edited.wav"),
+            MediaType = MediaType.Audio,
+            ContentHash = "fixture",
+            AnalysisVersion = "fixture"
         };
         var service = CreateFeatureService(project);
         var first = Assert.Single((await service.BuildAsync(project.Workspace, [source], TestProject.Token)).Segments);
@@ -54,12 +58,17 @@ public sealed class UniversalFeatureOverrideTests
         await service.BuildAsync(project.Workspace, [source], TestProject.Token);
         var callsPath = Path.Combine(project.Workspace.RootPath, "feature-calls.txt");
         Assert.Single(await File.ReadAllLinesAsync(callsPath, TestProject.Token));
+        Assert.NotNull(first.AlignmentMeasurement);
+        // { 処理: [測定記録が変わった場合は同じキャッシュキーでも再抽出する] }
+        await File.AppendAllTextAsync(Path.Combine(project.Workspace.RootPath, first.AlignmentMeasurement.Path), " ", TestProject.Token);
+        await service.BuildAsync(project.Workspace, [source], TestProject.Token);
+        Assert.Equal(2, (await File.ReadAllLinesAsync(callsPath, TestProject.Token)).Length);
         await edits.SetTranscriptAsync(project.Workspace, "edited", "変更後の歌詞", TestProject.Token);
         var changed = Assert.Single((await service.BuildAsync(project.Workspace, [source], TestProject.Token)).Segments);
         Assert.Equal("変更後の歌詞", changed.Transcript);
         Assert.Single(changed.Phonemes);
         Assert.NotEqual(first.CacheKey, changed.CacheKey);
-        Assert.Equal(2, (await File.ReadAllLinesAsync(callsPath, TestProject.Token)).Length);
+        Assert.Equal(3, (await File.ReadAllLinesAsync(callsPath, TestProject.Token)).Length);
     }
 
     // {
@@ -72,15 +81,28 @@ public sealed class UniversalFeatureOverrideTests
     {
         var python = Environment.GetEnvironmentVariable("YOURSINGER_TEST_PYTHON") ?? "python";
         var code = """
-            import json,sys
+            import hashlib,json,sys,wave
             from pathlib import Path
             request=json.loads(sys.stdin.readline()); payload=request['payload']
             assert isinstance(payload['transcript_override'],str)
             with (Path(payload['workspace_path'])/'feature-calls.txt').open('a',encoding='utf-8') as calls:
                 calls.write('called\n')
-            feature=dict(segment_id=payload['segment_id'],source_id=payload['source_id'],audio_path=payload['audio_path'],
+            root=Path(payload['workspace_path']); audio=Path(payload['audio_path'])
+            with wave.open(str(audio),'rb') as wav:
+                duration=wav.getnframes()/wav.getframerate()
+            audio_hash=hashlib.sha256(audio.read_bytes()).hexdigest()
+            phones=[dict(phoneme='a',start_sec=0.0,end_sec=0.1,confidence=0.95)]
+            record=dict(schema_version=1,audio_sha256=audio_hash,duration_sec=duration,phonemes=phones,
+                mfa_intervals=[dict(start_sec=0.0,end_sec=0.1,label='a')],
+                conditions=dict(alignment_method='mfa-japanese-phone-forced-alignment-v1',mfa_version='3.4.2',
+                    model_sha256='85928ffb1024486872a677a92e1fa94d2f997462d0b84c73a58aa9bb0e35179a'),
+                confidence_calibrated=False,breath_classification_run=False)
+            record_bytes=json.dumps(record).encode(); relative='alignment/measurements/edited.json'
+            record_path=root/relative; record_path.parent.mkdir(parents=True,exist_ok=True); record_path.write_bytes(record_bytes)
+            feature=dict(segment_id=payload['segment_id'],source_id=payload['source_id'],audio_path=str(audio.relative_to(root)),
+                alignment_measurement=dict(path=relative,sha256=hashlib.sha256(record_bytes).hexdigest(),audio_sha256=audio_hash),
                 cache_key=payload['cache_key'],transcript=payload['transcript_override'],asr_confidence=0.95,
-                phonemes=[dict(phoneme='a',start_sec=0.0,end_sec=0.1,confidence=0.95)],alignment_confidence=0.95,
+                phonemes=phones,alignment_confidence=0.95,
                 alignment_method='mfa-japanese-phone-forced-alignment-v1',f0_feature_path='features/edited-f0.json',
                 energy_feature_path='features/edited-energy.json',voicing_feature_path='features/edited-voicing.json')
             print(json.dumps(dict(request_id=request['request_id'],status='ok',result=feature),ensure_ascii=False))

@@ -27,6 +27,9 @@ public sealed class TrainingDatasetSnapshotService(UniversalVoiceDatasetReposito
         foreach (var segment in dataset.Segments)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            // { 処理: [保存済みsegmentの実測参照を投影とfingerprint作成前に検証する] }
+            if (segment.AlignmentMeasurement is not null)
+                await MfaMeasurementValidator.ValidateFeatureAsync(workspace, segment, cancellationToken);
             if (speakerBySegment is not null)
             {
                 segment.SpeakerEmbedding.Clear();
@@ -57,8 +60,12 @@ public sealed class TrainingDatasetSnapshotService(UniversalVoiceDatasetReposito
     {
         return Hash(new
         {
-            version = "training-snapshot-3", dataset.SchemaVersion, dataset.StageVersion,
-            correctionVersion = AutoCorrectionService.StageVersion, enabled, pitchSettings,
+            version = "training-snapshot-3",
+            dataset.SchemaVersion,
+            dataset.StageVersion,
+            correctionVersion = AutoCorrectionService.StageVersion,
+            enabled,
+            pitchSettings,
             segments = dataset.Segments.OrderBy(x => x.SegmentId, StringComparer.Ordinal).ToArray(),
             corrections = corrections.OrderBy(x => x.SegmentId, StringComparer.Ordinal)
                 .ThenBy(x => x.SpeakerId, StringComparer.Ordinal).ThenBy(x => x.Phoneme, StringComparer.Ordinal)
@@ -70,10 +77,13 @@ public sealed class TrainingDatasetSnapshotService(UniversalVoiceDatasetReposito
 
     public static string CreateJobFingerprint(string snapshotFingerprint, string speakerId,
         TrainingTarget target, IEnumerable<string> segmentIds) => Hash(new
-    {
-        version = "training-job-input-2", snapshotFingerprint, speakerId, target,
-        segmentIds = segmentIds.Order(StringComparer.Ordinal).ToArray()
-    });
+        {
+            version = "training-job-input-2",
+            snapshotFingerprint,
+            speakerId,
+            target,
+            segmentIds = segmentIds.Order(StringComparer.Ordinal).ToArray()
+        });
 
     public static async Task<IReadOnlyList<UniversalVoiceSegment>> ResolveJobAsync(
         UniversalVoiceDatasetRepository repository, ProjectWorkspace workspace, TrainingJobRecord job,

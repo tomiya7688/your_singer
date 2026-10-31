@@ -26,7 +26,7 @@ namespace YourSinger.Process.Processing.Dataset;
 public sealed class UniversalVoiceDatasetService
 {
     public const string SchemaVersion = "1";
-    public const string StageVersion = "v1-05.4-mfa-jtalkdict";
+    public const string StageVersion = "v1-05.5-mfa-measurement";
 
     private readonly MlWorkerClient _worker;
     private readonly AudioPreprocessingRepository _preprocessingRepository;
@@ -209,7 +209,8 @@ public sealed class UniversalVoiceDatasetService
         if (context.ExistingSegmentsById.TryGetValue(segment.SegmentId, out var cached) &&
             cached.CacheKey == cacheKey &&
             cached.AlignmentMethod != "invalidated-by-transcript-override" &&
-            UniversalVoiceDatasetSegmentReader.HasFeatureFiles(workspace, cached))
+            UniversalVoiceDatasetSegmentReader.HasFeatureFiles(workspace, cached) &&
+            await MfaMeasurementValidator.CanReuseAsync(workspace, cached, cancellationToken))
         {
             AppendCachedSegment(context, cached);
             return;
@@ -231,6 +232,12 @@ public sealed class UniversalVoiceDatasetService
 
         // ワーカー出力を内部モデルへ変換し、既存の話者・分類情報を付与する。
         var feature = UniversalVoiceDatasetSegmentReader.ParseWorkerResult(result);
+        // { 処理: [要求した音声と実測を照合してからworker結果を保存する] }
+        if (!string.Equals(Path.GetFullPath(feature.AudioPath, workspace.RootPath),
+                Path.GetFullPath(segment.AudioPath, workspace.RootPath),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            throw new InvalidDataException("特徴抽出結果の音声が要求した区間と一致しません。");
+        await MfaMeasurementValidator.ValidateFeatureAsync(workspace, feature, cancellationToken);
         AttachSpeakerAndContent(context, segment.SegmentId, feature);
         context.Dataset.Segments.Add(feature);
         UniversalVoiceDatasetProvenanceBuilder.AddForSegment(

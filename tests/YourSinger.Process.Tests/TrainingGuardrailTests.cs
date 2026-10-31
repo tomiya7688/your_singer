@@ -71,7 +71,9 @@ public sealed class TrainingGuardrailTests
         var view = await p.Correction().BuildAsync(p.Workspace, false, Token);
         var job = new TrainingJobRecord
         {
-            JobId = "estimated-direct", SpeakerId = "spk_a", Target = TrainingTarget.Singing,
+            JobId = "estimated-direct",
+            SpeakerId = "spk_a",
+            Target = TrainingTarget.Singing,
             AutoCorrectionEnabled = false,
             DatasetFingerprint = TrainingDatasetSnapshotService.CreateJobFingerprint(
                 view.Fingerprint, "spk_a", TrainingTarget.Singing, ["estimated"]),
@@ -170,7 +172,7 @@ public sealed class TrainingGuardrailTests
             .BuildAsync(p.Workspace, job, "話者", Token));
         var parent = Path.Combine(p.Workspace.RootPath, "training", "style-bert-vits2");
         Assert.False(Directory.Exists(Path.Combine(parent, job.JobId)));
-        Assert.Empty(Directory.GetDirectories(parent, ".input-*.tmp"));
+        Assert.True(!Directory.Exists(parent) || Directory.GetDirectories(parent, ".input-*.tmp").Length == 0);
         Assert.Equal(original, await File.ReadAllBytesAsync(Path.Combine(p.Workspace.SegmentsPath, "a.wav"), Token));
     }
 

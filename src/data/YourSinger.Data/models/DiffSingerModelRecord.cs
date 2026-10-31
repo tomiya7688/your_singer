@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace YourSinger.Data.Models;
 
 // { 責務: [DiffSingerDatasetRecord: 歌唱jobと入力項目の対応を保存する] }
@@ -7,6 +9,7 @@ public sealed class DiffSingerDatasetRecord
     public required string JobId { get; init; }
     public required string SpeakerId { get; init; }
     public required string DatasetFingerprint { get; init; }
+    [JsonRequired]
     public bool AutoCorrectionEnabled { get; init; }
     public List<DiffSingerTrainingItem> Items { get; init; } = [];
 }
@@ -23,6 +26,7 @@ public sealed class DiffSingerTrainingItem
     public List<string> Phonemes { get; init; } = [];
     public List<double> DurationsSec { get; init; } = [];
     public string AlignmentMethod { get; init; } = "";
+    public AlignmentMeasurementReference? AlignmentMeasurement { get; init; }
     public List<double> PhonemeStartsSec { get; init; } = [];
     public List<double> PhonemeEndsSec { get; init; } = [];
     public required string F0FeaturePath { get; init; }

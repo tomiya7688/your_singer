@@ -9,8 +9,11 @@ on:
         "**/*.yml",
         "**/*.yaml",
         "**/*.py",
+        "**/*.cs",
+        "**/*.cjs",
         "ruff.toml",
         "tools/dev/requirements-format.txt",
+        "tools/dev/format_csharp.cjs",
         ".prettierignore",
         ".npmrc",
         ".gitignore",
@@ -24,8 +27,11 @@ on:
         "**/*.yml",
         "**/*.yaml",
         "**/*.py",
+        "**/*.cs",
+        "**/*.cjs",
         "ruff.toml",
         "tools/dev/requirements-format.txt",
+        "tools/dev/format_csharp.cjs",
         ".prettierignore",
         ".npmrc",
         ".gitignore",
@@ -63,7 +69,7 @@ jobs:
           # 新規ブランチや手動実行では直前commitを比較元にする。
           $base = $env:FORMAT_BASE
           if ([string]::IsNullOrWhiteSpace($base) -or $base -match '^0+$') { $base = 'HEAD^' }
-          $files = @(git -c core.quotepath=false diff --name-only --diff-filter=ACMR $base HEAD -- '*.md' '*.json' '*.yml' '*.yaml')
+          $files = @(git -c core.quotepath=false diff --name-only --diff-filter=ACMR $base HEAD -- '*.md' '*.json' '*.yml' '*.yaml' '*.cjs')
           if ($LASTEXITCODE -ne 0) { throw '整形対象の変更ファイルを取得できません。' }
           # 固定の設定ファイルも検査し、ファイル名をオプションとして解釈させない。
           $targets = @($files + @('package.json', '.prettierrc.json', '.github/workflows/format.yml') | Select-Object -Unique | ForEach-Object { './' + $_ })
@@ -90,4 +96,22 @@ jobs:
             $targets = @($files | ForEach-Object { './' + $_ })
             npm run format:python:check -- $targets
             if ($LASTEXITCODE -ne 0) { throw 'Pythonの整形確認に失敗しました。' }
+          }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.401"
+      - name: 変更したC#ファイルの固定版formatterを検査
+        shell: pwsh
+        env:
+          FORMAT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          $base = $env:FORMAT_BASE
+          if ([string]::IsNullOrWhiteSpace($base) -or $base -match '^0+$') { $base = 'HEAD^' }
+          node --check ./tools/dev/format_csharp.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'C#整形スクリプトの構文が不正です。' }
+          $files = @(git -c core.quotepath=false diff --name-only --diff-filter=ACMR $base HEAD -- '*.cs')
+          if ($LASTEXITCODE -ne 0) { throw 'C#の整形対象を取得できません。' }
+          if ($files.Count -gt 0) {
+            node ./tools/dev/format_csharp.cjs --check @files
+            if ($LASTEXITCODE -ne 0) { throw 'C#の整形確認に失敗しました。' }
           }

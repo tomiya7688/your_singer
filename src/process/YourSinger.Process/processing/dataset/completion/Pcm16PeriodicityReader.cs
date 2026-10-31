@@ -11,18 +11,28 @@ internal sealed class Pcm16PeriodicityReader : IAsyncDisposable
     private readonly long _sampleCount;
     private readonly int _sampleRate;
     public string ContentHash { get; }
+    public double DurationSec => (double)_sampleCount / _sampleRate;
 
     private Pcm16PeriodicityReader(FileStream stream, long dataOffset, long sampleCount, int sampleRate, string hash)
     {
         _stream = stream; _dataOffset = dataOffset; _sampleCount = sampleCount; _sampleRate = sampleRate; ContentHash = hash;
     }
 
-    public static async Task<Pcm16PeriodicityReader> OpenAsync(string path, CancellationToken token)
+    public static async Task<Pcm16PeriodicityReader> OpenAsync(string path, CancellationToken token, long? maxBytes = null)
     {
         var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return await OpenAsync(stream, token, maxBytes);
+    }
+
+    // { 責務: [OpenAsync: 検査済みの同じハンドルから音声を読み取る] }
+    public static async Task<Pcm16PeriodicityReader> OpenAsync(FileStream stream, CancellationToken token, long? maxBytes = null)
+    {
         try
         {
-            var hash = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, token));
+            // { 処理: [上限内の音声を読み、読込中の伸縮を拒否する] }
+            var hash = maxBytes.HasValue
+                ? await HashBoundedAsync(stream, maxBytes.Value, token)
+                : Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, token));
             stream.Position = 0;
             using var reader = new BinaryReader(stream, Encoding.ASCII, leaveOpen: true);
             if (stream.Length < 44 || Four(reader) != "RIFF") throw Invalid();
@@ -69,6 +79,24 @@ internal sealed class Pcm16PeriodicityReader : IAsyncDisposable
             await stream.DisposeAsync();
             throw;
         }
+    }
+
+    // { 責務: [HashBoundedAsync: 音声の開始時サイズを上限付きでhashし、読込中の伸縮を拒否する] }
+    private static async Task<string> HashBoundedAsync(FileStream stream, long maxBytes, CancellationToken token)
+    {
+        var remaining = stream.Length;
+        if (remaining > maxBytes) throw new InvalidDataException("音声がサイズ上限を超えています。");
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[81920];
+        while (remaining > 0)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, remaining)), token);
+            if (read == 0) throw new InvalidDataException("音声のサイズが読込中に変更されました。");
+            hash.AppendData(buffer, 0, read); remaining -= read;
+        }
+        if (await stream.ReadAsync(buffer.AsMemory(0, 1), token) != 0)
+            throw new InvalidDataException("音声のサイズが読込中に変更されました。");
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
 
     public PitchEvidence Evaluate(double timeSec, double f0, double step)
