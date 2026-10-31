@@ -77,7 +77,23 @@ project/
     "asr_confidence": 0.95,
     "pitch_reliability": 0.88
   },
-  "accepted": true
+  "accepted": true,
+  "training_assessment": {
+    "talk": {
+      "eligibility": "eligible",
+      "quality_confidence": 0.82,
+      "coverage_utility": 0.65,
+      "training_weight": 0.78,
+      "reason_codes": []
+    },
+    "singing": {
+      "eligibility": "ineligible",
+      "quality_confidence": null,
+      "coverage_utility": null,
+      "training_weight": 0.0,
+      "reason_codes": ["speech_segment"]
+    }
+  }
 }
 ```
 
@@ -165,6 +181,8 @@ project/
 
 これにより同じ解析結果から、補完ON/OFFや出力形式を変えて再学習できます。
 
+学習ジョブには `training_mode`（`auto` / `fine_tune` / `from_scratch`）、利用checkpointとそのversion、実際に選択された学習方式、weighting policy/version、データ分割条件、評価結果を別途保存します。
+
 ## キャッシュ
 
 キャッシュは少なくとも以下のキーで無効化できる構造にします。
@@ -194,7 +212,9 @@ cache key = hash(source_hash + stage + stage_version + settings_hash)
 
 ## 将来拡張: Source Profile
 
-v1.0.0ではSource Profileを利用したAdaptive Trainingを必須にしません。
+v1.0.0ではSource Profileを利用した**高度な**Adaptive Trainingを必須にしません。
+
+一方、**区間別の使用適格性・品質・学習価値に基づく基本的な学習weightingはv1.0.0必須**です。Source Profileを用いた全体的な学習戦略の最適化と区別します。
 ただし、将来追加できるようにSource / Segment metadataは拡張可能な構造にします。
 
 Source Profileは「元データがどのような素材か」を表す解析結果です。
@@ -248,3 +268,20 @@ Source Profileは将来的に次の用途で利用します。
 Adaptive TrainingはSource Profileごとに完全に別パイプラインを作るのではなく、Universal Voice Datasetを共通基盤とし、その後段の入力方法・重み・学習戦略を変更する形を基本とします。
 
 Source Profileの収集・可視化はv1.x、学習戦略への本格反映はv2.x以降を想定します。詳細は `roadmap.md` を参照してください。
+
+
+## v1: 区間ごとの学習適格性・重み情報
+
+`training_assessment` は概念モデルであり、実装時のschemaはversionを固定して定義します。
+
+- `eligibility`: 用途ごとの使用適格性
+- `reason_codes`: 除外／補正／評価の理由
+- `quality_confidence`: 測定済みなら0〜1、未計測または未校正ならnullと測定状態を別記
+- `coverage_utility`: 希少音素・音域・文脈等の価値（測定状態を区別）
+- `training_weight`: 対象Trainerが実際に利用した重み
+- `weighting_policy_version`: 重み計算のversion
+- `override`: ユーザーによる区間採否・分類の上書きと履歴
+
+**nullを0と同一視して自動除外しません。** 品質が低くても有用な区間は原則として非ゼロweightで保持します。適格性・weightは歌唱用とトーク用で別々に設定できるようにします。
+
+詳細は `docs/training-strategy.md` を参照してください。
