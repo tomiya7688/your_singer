@@ -209,7 +209,6 @@ cache key = hash(source_hash + stage + stage_version + settings_hash)
 - 後から別モデル形式を追加できる
 - どの処理で値が変わったか追跡できる
 
-
 ## 将来拡張: Source Profile
 
 v1.0.0ではSource Profileを利用した**高度な**Adaptive Trainingを必須にしません。
@@ -268,7 +267,6 @@ Source Profileは将来的に次の用途で利用します。
 Adaptive TrainingはSource Profileごとに完全に別パイプラインを作るのではなく、Universal Voice Datasetを共通基盤とし、その後段の入力方法・重み・学習戦略を変更する形を基本とします。
 
 Source Profileの収集・可視化はv1.x、学習戦略への本格反映はv2.x以降を想定します。詳細は `roadmap.md` を参照してください。
-
 
 ## v1: 区間ごとの学習適格性・重み情報
 
