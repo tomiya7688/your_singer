@@ -44,6 +44,8 @@ jobs:
       - name: 回帰・データ境界・ワーカー通信テスト
         env:
           YOURSINGER_TEST_PYTHON: ${{ steps.python.outputs.python-path }}
+          # 実FFmpegの取り込みテスト(FfmpegImportTests)は、この変数があるときだけ実行される。FFmpegは前の手順で導入済み。
+          YOURSINGER_TEST_FFMPEG: ffmpeg
         run: dotnet test tests/YourSinger.Process.Tests/YourSinger.Process.Tests.csproj --configuration Release --logger "trx;LogFileName=regression.trx" --results-directory TestResults -- RunConfiguration.MaxCpuCount=1
       - name: テスト結果を保存
         if: always()
