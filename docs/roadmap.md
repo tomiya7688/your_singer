@@ -120,7 +120,7 @@ Training
 調整候補:
 
 - dataset sampling ratio
-- segment weighting
+- Source Profileに応じた動的なsegment weighting（基本weightingはv1から提供）
 - augmentation強度
 - completion / correction強度
 - 実測値 / 推定値の重み
