@@ -269,7 +269,6 @@ ON/OFFは「品質」と「忠実度」の単純なトレードオフとして�
 - 将来の独自形式を追加しても前処理基盤を作り直さない
 - 警告はユーザーの判断材料として出し、不必要に処理を禁止しない
 
-
 ## 13. 技術アーキテクチャ / 配布要件
 
 v1 の技術構成は以下を基準とします。
@@ -303,7 +302,6 @@ C# 側は UI / Project / Job / Data / ML Worker Control を担当し、Python �
 
 詳細な責務境界・IPC・worker配布方式は `docs/architecture.md` を正とする。
 
-
 ## 14. ライセンス方針
 
 - Your Singer 本体は Apache License 2.0 とする。
@@ -315,7 +313,6 @@ C# 側は UI / Project / Job / Data / ML Worker Control を担当し、Python �
 - 同梱する第三者コンポーネントはリリース前にライセンス確認を行い、必要なNOTICE・ライセンス文・帰属表示を配布物へ含める。
 
 詳細は `docs/license-policy.md` を正とする。
-
 
 ## 15. モデル学習と実用性
 
