@@ -20,7 +20,8 @@
 ## 実装済みの仕組み
 
 1. `tools/package_distribution_archive.ps1` が配布フォルダをZIP化し、`SHA256SUMS` を作ります。ZIP64対応のAPIを使うため、2GBを超える配布物も作れます。
-2. `package-worker.yml` が、`actions/attest-build-provenance` でZIPと`SHA256SUMS`のattestationを作ります。OIDCを使うkeyless方式で、秘密鍵を持ちません。attestationを作るのは、`main` とリリースタグ(`v*`)から実行した場合だけです。未保護のブランチで変更したワークフローから、attestationを発行させないためです。
+   GitHub Releaseは1ファイル2GiBまでのため、`tools/split_release_archive.ps1` がZIPを1900MiBごとの分割ファイル(`.zip.001`、`.002`、...)にし、各ファイルのSHA-256を`SHA256SUMS`へ追記します(#72)。配布するのは分割ファイルと`SHA256SUMS`で、結合前のZIPは成果物から除きます。結合したZIPは、`SHA256SUMS`のZIP全体の行とattestationで確認できます。
+2. `package-worker.yml` が、`actions/attest-build-provenance` でZIP、各分割ファイル、`SHA256SUMS`のattestationを作ります。OIDCを使うkeyless方式で、秘密鍵を持ちません。attestationを作るのは、`main` とリリースタグ(`v*`)から実行した場合だけです。未保護のブランチで変更したワークフローから、attestationを発行させないためです。
 3. 同じワークフローで `gh attestation verify --signer-workflow` を実行し、attestationが生成元のワークフローと一致することを検証します。
 4. `tools/verify_distribution_signing.ps1` が、`SHA256SUMS` と最終ZIPの一致を確認します。
 
@@ -56,7 +57,7 @@
 4. 【SignPath】`signpath/github-action-submit-signing-request` で署名します。署名済みファイルは `stage_signing_files.ps1 -Mode Restore` が、取り出したものと同じ集合であることを確認して書き戻し、`update_distribution_manifest.ps1` でmanifestを更新します。【自己署名】secretの証明書を読み込み、`sign_distribution_self_signed.ps1` で署名します(PFXは読み込み後に削除します)。
 5. ZIPと`SHA256SUMS`を作り、署名方式ごとのゲートを必須にします。SignPathは `verify_distribution_signing.ps1 -RequireAuthenticode -ExpectedSignerSubject "SignPath Foundation" -RequireRfc3161`(`-AllowSelfSigned` は使いません)。自己署名は `-ExpectedSignerSubject "CN=Tomiya7688" -ExpectedSignerThumbprint <変数SELF_SIGN_THUMBPRINT> -AllowSelfSigned` です。
 6. Artifact Attestationを作って検証します。
-7. 別ジョブ `release-draft`(`contents: write` と読み取り専用の `attestations: read` だけを持つ)が、SHA-256とattestationを再確認し、Releaseの**下書き**を作ります。自己署名の場合はプレリリースとし、説明に署名者のthumbprintを書きます。公開は人が行います。ZIPが2GiBを超える場合はReleaseへ添付できないため、このジョブは失敗します(分割は #72 で対応します)。
+7. 別ジョブ `release-draft`(`contents: write` と読み取り専用の `attestations: read` だけを持つ)が、各分割ファイルのSHA-256、結合したZIPのSHA-256とattestationを再確認し、分割ファイルと`SHA256SUMS`を添付したReleaseの**下書き**を作ります。自己署名の場合はプレリリースとし、説明に署名者のthumbprintを書きます。公開は人が行います。2GiB以上の分割ファイルがあれば失敗します。
 
 ### 承認までの自己署名リリース
 

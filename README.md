@@ -252,19 +252,31 @@ v1 は以下を基本構成とします。
 
 ## 配布物の検証
 
-配布物(`YourSinger-windows-x64.zip`)は、ダウンロード後に次の手順で真正性を確認できます。現在は開発段階のため、公開リリースはまだありません。
+配布物(`YourSinger-windows-x64.zip`)は、GitHub Releaseの1ファイルの上限(2GiB)のため、`YourSinger-windows-x64.zip.001`、`.002` のように分割して配布します。ダウンロード後に、次の手順で結合して真正性を確認できます。現在は開発段階のため、公開リリースはまだありません。
 
-1. 同じ場所に置いた `SHA256SUMS` で、ZIPのSHA-256を照合します。
+1. すべての分割ファイルと `SHA256SUMS` を同じフォルダーに置き、PowerShellで、そのフォルダーを開いて番号順に結合します。
 
    ```powershell
-   $actual = (Get-FileHash .\YourSinger-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
-   $expected = (Get-Content .\SHA256SUMS).Split()[0].ToLower()
-   $actual -eq $expected
+   $zip = Join-Path $PWD.Path "YourSinger-windows-x64.zip"
+   $out = [IO.File]::Create($zip)
+   Get-ChildItem .\YourSinger-windows-x64.zip.0* | Sort-Object Name | ForEach-Object {
+     $in = [IO.File]::OpenRead($_.FullName); $in.CopyTo($out); $in.Dispose()
+   }
+   $out.Dispose()
    ```
 
-   `SHA256SUMS` には `<ハッシュ> *<ファイル名>` の形式で1行が書かれています。結果が `True` になることを確認してください。`False` の場合は、ダウンロードし直してください。
+2. `SHA256SUMS` で、結合したZIPと各分割ファイルのSHA-256を照合します。
 
-2. [GitHub CLI](https://cli.github.com/) で、このリポジトリのワークフローが生成したことを検証します。
+   ```powershell
+   Get-Content .\SHA256SUMS | ForEach-Object {
+     $hash, $name = $_ -split ' \*'
+     [pscustomobject]@{ File = $name; Match = ((Get-FileHash $name -Algorithm SHA256).Hash.ToLower() -eq $hash) }
+   }
+   ```
+
+   `SHA256SUMS` には `<ハッシュ> *<ファイル名>` の形式で、ZIP全体と各分割ファイルの行が書かれています。すべての行が `Match = True` になることを確認してください。`False` の場合は、ダウンロードし直してください。
+
+3. [GitHub CLI](https://cli.github.com/) で、このリポジトリのワークフローが生成したことを検証します。
 
    ```powershell
    gh auth login   # 初回のみ。GitHubにログインしていない場合に必要です
@@ -280,7 +292,7 @@ v1 は以下を基本構成とします。
 
    検証に失敗した配布物は実行しないでください。
 
-3. 公開リリースでは、`YourSinger.exe` などの自社製バイナリにSignPath Foundationの有効なAuthenticode署名とtimestampが付きます。署名の有無と署名者は、ファイルのプロパティの「デジタル署名」タブで確認でき、PowerShellでは次のように確認できます。署名者に `SignPath Foundation` が含まれ、`Status` が `Valid` であることを確認してください(公開リリースはまだありません)。
+4. 公開リリースでは、`YourSinger.exe` などの自社製バイナリにSignPath Foundationの有効なAuthenticode署名とtimestampが付きます。署名の有無と署名者は、ファイルのプロパティの「デジタル署名」タブで確認でき、PowerShellでは次のように確認できます。署名者に `SignPath Foundation` が含まれ、`Status` が `Valid` であることを確認してください(公開リリースはまだありません)。
 
    ```powershell
    Get-AuthenticodeSignature .\YourSinger.exe | Format-List Status, SignerCertificate
