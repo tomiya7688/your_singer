@@ -28,8 +28,12 @@ Quality Analysis
 Optional Completion & Correction
   ↓
 Universal Voice Dataset
+  ↓
+Eligibility / Quality / Utility / Training Weight
   ├─→ Singing Dataset Builder → Singing Trainer → Singing Exporter
   └─→ Talk Dataset Builder    → Talk Trainer    → Talk Exporter
+                                         ↓
+                               Inference / Compatibility / Quality verification
 ```
 
 ## 1. Media Scan
@@ -115,6 +119,8 @@ FFmpeg等を利用し、入力コンテナ / コーデック差を前段で吸�
 分類信頼度も保存します。
 
 歌唱モデルには singing を中心に、トークモデルには speech を中心に利用します。
+
+素材の事前仕分けはユーザーに要求しません。分類が曖昧な区間はconfidenceと用途別の使用適格性を考慮し、単純に破棄せず、必要ならユーザー修正へ回します。
 
 ## 8. Feature Extraction
 
@@ -209,3 +215,14 @@ FFmpeg等を利用し、入力コンテナ / コーデック差を前段で吸�
 - Talk: Style-Bert-VITS2 系
 
 将来の独自形式も同じ中間データセットから生成できるようにします。
+
+
+## 13. Weighted Training & Verification（v1必須）
+
+**低品質データの一律破棄はしません。** 使用適格性・品質信頼性・音素／音域等の学習価値を分けて評価し、対象用途ごとのweightを学習器へ反映します。
+
+適格だが品質に難のある区間も学習候補として保持し、誤話者・利用不能な破損・ユーザー明示除外等のみ根拠を残して除外します。未校正・未計測confidenceは「低信頼と測定された値」と区別します。
+
+学習方法は事前学習済みcheckpointからの追加学習と、モデル初期化からの新規学習に対応します。学習後は歌唱／トークの実際の推論、対象形式での読み込み、品質検査まで行います。
+
+詳細は `docs/training-strategy.md` を参照してください。
