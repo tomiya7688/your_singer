@@ -20,6 +20,10 @@ v1.0.0に必要な基盤を段階的に実装し、実素材で検証します�
 - 50音 / 音素カバレッジ診断
 - 歌唱向け品質診断
 - 自動補完 / 補正 ON/OFF
+- 低品質でも有用な区間を生かす用途別の基本weighting（適格性・品質・学習価値で判定）
+- 学習モード（自動／事前学習モデルからの追加学習／新規学習）
+- 自動Speech/Singing振り分け（手動での事前仕分け不要）
+- 学習後の実推論・品質・互換性検証
 - 学習ジョブ管理
 - OpenUtau / DiffSinger系出力
 - Style-Bert-VITS2系出力
@@ -44,6 +48,10 @@ v1.0.0に必要な基盤を段階的に実装し、実素材で検証します�
 - 50音 / 音素カバレッジ診断
 - 品質警告
 - 補完 / 補正 ON/OFF（既定ON）
+- 基本的なセグメント別学習weighting（低品質でも有用なデータは活用）
+- 歌唱・トークそれぞれの追加学習および最初からの新規学習
+- 入力をユーザーに事前分類させない自動振り分け
+- 学習後の実音声生成・対象アプリ互換性・品質検証
 - 歌唱のみ / トークのみ / 両方の生成
 - ローカルGPUを基本とした学習
 - ハードウェアに応じた High Quality / Balanced / Lightweight 等のモデルプロファイル
@@ -54,7 +62,7 @@ v1.0.0に必要な基盤を段階的に実装し、実素材で検証します�
 
 ### v1.0.0では必須にしないもの
 
-- 元データ種別に応じた高度なAdaptive Training
+- Source Profileを用いた高度なAdaptive Training（v1の基本weightingとは別）
 - 独自モデル形式
 - 声色の時系列スクリプト制御
 - realtime voice runtime
@@ -93,11 +101,11 @@ Source Profileは単一ファイル単位だけでなく、セグメント・話
 
 ### Adaptive Trainingの準備
 
-この段階では、Source Profileを学習戦略へ直接反映する前に、データ収集・保存・診断の安定化を優先します。
+この段階では、v1で実装済みの区間別weightingを基礎として、Source Profileを学習戦略へ直接反映する前に、データ収集・保存・診断の安定化を優先します。
 
 ## v2.x — Adaptive Training
 
-元データの性質に応じて、学習への入力方法や学習戦略を自動調整します。
+元データの性質に応じて、v1の基本的なweightingを超えた学習への入力方法や学習戦略を自動調整します。
 
 ```text
 Source / Segment Profiles
@@ -112,7 +120,7 @@ Training
 調整候補:
 
 - dataset sampling ratio
-- segment weighting
+- Source Profileに応じた動的なsegment weighting（基本weightingはv1から提供）
 - augmentation強度
 - completion / correction強度
 - 実測値 / 推定値の重み
@@ -167,6 +175,10 @@ v1で構築したUniversal Voice Datasetとモデル生成基盤を利用し、�
 - realtime / low-latency inference
 
 詳細は `future-format.md` を参照してください。
+
+## v1とv2の境界
+
+v1.0.0から品質・希少性に基づく重み付き学習、素材自動分類、追加学習／新規学習、実推論での検証を提供します。v2.xはSource Profileによる戦略の最適化・動的切替を高度化します。詳細は `training-strategy.md` を参照してください。
 
 ## 設計上の原則
 
