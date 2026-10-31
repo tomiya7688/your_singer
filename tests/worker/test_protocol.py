@@ -83,7 +83,7 @@ class WorkerProtocolTests(unittest.TestCase):
         env = dict(os.environ, PYTHONPATH=str(WORKER))
         result = subprocess.run([sys.executable, "-m", "your_singer_ml.main"],
             input=self.request(command="unknown"), capture_output=True,
-            encoding="utf-8", env=dict(env, PYTHONIOENCODING="utf-8"), timeout=10, check=False)
+            encoding="utf-8", env=dict(env, PYTHONIOENCODING="utf-8"), timeout=30, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], "error")
         self.assertEqual(len(result.stdout.splitlines()), 1)

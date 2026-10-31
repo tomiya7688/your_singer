@@ -10,7 +10,9 @@ public sealed class PythonWorkerFactAttribute : FactAttribute
         [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = -1)
         : base(sourceFilePath, sourceLineNumber)
     {
-        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("YOURSINGER_TEST_PYTHON")))
+        // CI(GitHub Actions)で変数が空のときは、黙ってスキップして緑にならないよう、スキップせず失敗させる。
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("YOURSINGER_TEST_PYTHON")) &&
+            Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true")
             Skip = "プロセス境界テストにはYOURSINGER_TEST_PYTHONの指定が必要です。";
     }
 }
@@ -64,14 +66,29 @@ public sealed class WorkerProcessTests
         var client = await ClientAsync(p,
             "with open(r['payload']['pid_path'], 'w') as f:\n    f.write(str(os.getpid()))\ntime.sleep(60)\n");
         using var canceled = CancellationTokenSource.CreateLinkedTokenSource(Token);
-        canceled.CancelAfter(TimeSpan.FromSeconds(3));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            client.SendAsync("test", new { pid_path = pidPath }, canceled.Token));
-        var pid = int.Parse(await File.ReadAllTextAsync(pidPath, Token), System.Globalization.CultureInfo.InvariantCulture);
+        var sending = client.SendAsync("test", new { pid_path = pidPath }, canceled.Token);
+
+        // ワーカーがPIDを書き終えてからキャンセルする(起動が遅いCIでも、書きかけのファイルを読まない)。
+        var pid = 0;
+        for (var attempt = 0; attempt < 300 && pid == 0; attempt++)
+        {
+            if (File.Exists(pidPath) && int.TryParse(
+                    await File.ReadAllTextAsync(pidPath, Token),
+                    System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var parsed))
+                pid = parsed;
+            else
+                await Task.Delay(50, Token);
+        }
+        Assert.True(pid > 0, "worker did not publish its PID");
+
+        canceled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sending);
         try
         {
             using var process = System.Diagnostics.Process.GetProcessById(pid);
-            Assert.True(process.HasExited);
+            Assert.True(process.WaitForExit(5000), "worker process was not terminated after cancellation");
         }
         catch (ArgumentException)
         {

@@ -13,7 +13,9 @@ public sealed class FfmpegFactAttribute : FactAttribute
         [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = -1)
         : base(sourceFilePath, sourceLineNumber)
     {
-        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("YOURSINGER_TEST_FFMPEG")))
+        // CI(GitHub Actions)で変数が空のときは、黙ってスキップして緑にならないよう、スキップせず失敗させる。
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("YOURSINGER_TEST_FFMPEG")) &&
+            Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true")
             Skip = "実FFmpeg検証にはYOURSINGER_TEST_FFMPEGの指定が必要です。";
     }
 }
