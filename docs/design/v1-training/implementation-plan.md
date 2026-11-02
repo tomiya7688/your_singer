@@ -75,9 +75,22 @@
 | A24 | [#103](https://github.com/tomiya7688/your_singer/issues/103) | SBV2未学習文章の実読み上げと状態記録 | A14,A22 |
 | A25 | [#104](https://github.com/tomiya7688/your_singer/issues/104) | 歌詞＋音符の実歌唱とOpenUtau互換検証 | A17,A22（A18は任意） |
 | A26 | [#105](https://github.com/tomiya7688/your_singer/issues/105) | checkpoint評価・比較・選定理由 | A24,A25 |
-| A27 | [#106](https://github.com/tomiya7688/your_singer/issues/106) | 日本語UI上のmode・重み・検証状態 | A06,A09,A22,A24,A25 |
+| A27 | [#106](https://github.com/tomiya7688/your_singer/issues/106) | 3つのUI Issueの統合操作確認 | A33,A34,A35 |
 | A28 | [#107](https://github.com/tomiya7688/your_singer/issues/107) | CI回帰/fixture E2Eと偽成功排除 | A06,A07,A12,A13,A14,A15,A22 |
-| A29 | [#108](https://github.com/tomiya7688/your_singer/issues/108) | 実GPUの4学習経路・実配布物の総合受入 | A20〜A28、PR #74 |
+| A29 | [#108](https://github.com/tomiya7688/your_singer/issues/108) | 実GPU・配布・UIの総合受入ゲート（機能開発を含まない） | A20,A21,A27,A28,A30,A31,A32 |
+
+### Phase 5a: UI・実GPU・配布をさらに小分け
+
+| Issue | 単独の成果物 | 先行 |
+|---|---|---|
+| A30 [#109](https://github.com/tomiya7688/your_singer/issues/109) | 実GPUのSBV2 fine-tune / scratch、読み上げ試験 | A12,A14,A23,A24 |
+| A31 [#110](https://github.com/tomiya7688/your_singer/issues/110) | 実GPUのDiffSinger fine-tune / scratch、歌唱試験 | A13,A15,A17,A23,A25 |
+| A32 [#111](https://github.com/tomiya7688/your_singer/issues/111) | クリーンWindows配布物の単一起動とruntime検証 | A30,A31,A35、PR #74 |
+| A33 [#112](https://github.com/tomiya7688/your_singer/issues/112) | 学習mode・Preflightの日本語UIだけ | A05,A09 |
+| A34 [#113](https://github.com/tomiya7688/your_singer/issues/113) | 学習採用/除外/重みの日本語UIだけ | A04,A06 |
+| A35 [#114](https://github.com/tomiya7688/your_singer/issues/114) | 検証ステータス/生成音声試聴の日本語UIだけ | A24,A25,A26 |
+
+A27 (#106) は A33〜A35 の操作統合だけ、A29 (#108) は A30〜A32 までの実機・配布記録を照合するリリース判定だけを扱う。大きな実装を1Issueで行わない。
 
 **Phase 5 Gate:** Trainer完了／checkpoint検査／export／実推論／品質／外部互換を混ぜない。real GPU + クリーンWindows配布テストに完走証跡がない段階でv1.0.0を完成扱いしない。
 
@@ -88,6 +101,8 @@
 - A08（特徴共有）・A19（capability確認）は歌唱/トークのTrainer接続と並行できる。
 - A10とA11、A12とA13、A14とA15は**別ブランチ・別PR**にして並行可能。ただし共通recordへの変更時は依存PRを明示。
 - A24とA25は同じVerification schemaを利用するので先にstatus contractを固定し、別々に実装可能。
+- A33とA34は別UI部分として並行可能。A35は検証recordが確定してから開始し、A27で統合する。
+- A30とA31は別GPU学習経路なので並行可能。A32とA29は両者の証跡が揃ってから開始する。
 
 ## 1 Issueを始めるときの最小コンテキスト
 
