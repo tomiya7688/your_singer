@@ -214,6 +214,7 @@ exporters/
 - [トーク学習用Trainerの同梱・構築](docs/talk-trainer-bundle.md)
 - [モデル出力・互換形式](docs/model-outputs.md)
 - [学習方式・重み付きデータ活用・品質検証](docs/training-strategy.md)
+- [v1学習の詳細設計・実装Issue一覧](docs/design/v1-training/README.md)
 - [技術アーキテクチャ / 配布設計](docs/architecture.md)
 - [バージョンロードマップ](docs/roadmap.md)
 - [ライセンス方針](docs/license-policy.md)
