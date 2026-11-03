@@ -189,3 +189,18 @@
 **v1必須**: 目標の指定、話者×用途・質感向けの素材量棚卸し、targetごと独立した学習計画、歌唱→トーク/発話→歌唱という少量/片側素材の適応可能性判定、対応経路での実生成評価。
 
 **v2以降**: Source Profileを使った詳細な収録条件・話法・録音品質によるレシピ最適化、動的な補正強度、モデルアンサンブルと定量学習されたPlanner最適化。v1の「目的と質感と手持ちデータから計画を作る」基礎をv2に先送りしない。
+
+## 10. 小粒度Issueの依存順
+
+このテーマの実装順は以下とし、既存の [学習Issue親 #79](https://github.com/tomiya7688/your_singer/issues/79) と、既存の [実装一覧PR #115](https://github.com/tomiya7688/your_singer/pull/115) の追加条件として扱う。PR #115がマージされた後に依存順の一覧へ取り込む。
+
+1. [#84](https://github.com/tomiya7688/your_singer/issues/84): ユーザー指定のtarget/texture/参考区間とmodeの保存（ほかのIssueと並行可）
+2. [#132](https://github.com/tomiya7688/your_singer/issues/132): 教師用途別の実効素材量と声質参照量を棚卸し（#80/#81/#82/#87依存）
+3. [#133](https://github.com/tomiya7688/your_singer/issues/133): TalkTrainingStrategyPlanner（#132/#98依存）
+4. [#134](https://github.com/tomiya7688/your_singer/issues/134): SingingTrainingStrategyPlanner（#132/#98依存、#133とは並行可）
+5. [#88](https://github.com/tomiya7688/your_singer/issues/88): Backend Preflightによる計画候補の確定（#84/#132/#133/#134依存）
+6. [#112](https://github.com/tomiya7688/your_singer/issues/112): 目標→質感→素材量→推奨計画の日本語UI
+7. [#100](https://github.com/tomiya7688/your_singer/issues/100): 歌唱のみ→トーク実接続、[#99](https://github.com/tomiya7688/your_singer/issues/99): 発話のみ→歌唱実接続
+8. [#108](https://github.com/tomiya7688/your_singer/issues/108): 実音声生成と最終受入
+
+各Issueは自分の責務だけを実装し、複数のトレーナーや歌唱/トークの能力を大きな一つのIssueへ戻さない。
