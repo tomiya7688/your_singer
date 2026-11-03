@@ -27,7 +27,7 @@ Your Singerのユーザーは **生成目的（トーク／歌唱／両方）** 
 - YamahaによるVOCALOIDの歴史: https://www.vocaloid.com/en/anniversary/history/
 - Synthesizer V 2のパラメータ: https://sv2.docs.dreamtonics.com/en/parameters
 - OpenUtauのDiffSinger表現軸: https://openutau.com/DiffSinger-support/
-- Style-Bert-VITS2公式: https://github.com/aces-inc/Style-Bert-VITS2
+- Style-Bert-VITS2公式: https://github.com/litagin02/Style-Bert-VITS2
 - CosyVoice 3のスタイル/感情制御: https://cosyvoice.org/blog/whats-new-in-cosyvoice-3
 - Qwen3-TTSのVoiceDesign等: https://github.com/QwenLM/Qwen3-TTS
 
