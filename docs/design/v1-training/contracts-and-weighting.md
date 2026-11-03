@@ -70,7 +70,7 @@
 
 ## 3. v1の決定的な重み計算（初期policy）
 
-この式は **v1の初期仕様と回帰テストの基準**。モデル実測で改善が確認できた変更はpolicy versionを更新する（過去結果を書き換えない）。
+この式は **v1の初期仕様と回帰テストの基準**であり、**高い生成品質を保証する実証済みの最適式ではない**。測定の信頼性・対象タスク・品質劣化の種類によって選別可能性が変わるため、[解析精度評価と信頼度校正](../v1-quality/quality-gates.md) でgold setと実出力を比較したうえで既定に採用する。モデル実測で改善が確認できた変更はpolicy versionを更新する（過去結果を書き換えない）。
 
 - 対象話者×用途ごとにeligible集合 `E` を確定する。
 - 各区間 `i` の `Q_i`（品質）と `U_i`（学習価値）は0〜1。未計測は**評価上の中立値0.5**を使用するが、保存状態はunknownのまま。
@@ -86,12 +86,13 @@
 
 ### Q算出
 
-1. 利用できる校正済み指標から、用途に関係するものだけ抽出する。初期候補: audio品質（noise, music_leak, reverb, clippingから適合した0〜1品質値）、ASR confidence、phoneme alignment confidence。歌唱ではF0 reliabilityを追加。
+1. 利用できる校正済み指標から、用途に関係するものだけ抽出する。未校正のcos類似度、ASR logprob、F0周期性を0〜1へclampしただけで確率や品質に変換しない。初期候補: audio品質（noise, music_leak, reverb, clippingから適合した0〜1品質値）、ASR confidence、phoneme alignment confidence。歌唱ではF0 reliabilityを追加。
 2. `measured` の項目だけの算術平均をQとする（すべて同等重みのv1初期実装）。
 3. `uncalibrated`、`legacy_unknown`、`unavailable`、`invalid` は**0に変換しない**。全項目が未計測なら `Q=0.5` という評価用中立値を使い、`quality.status=unavailable` と理由を残す。
 4. audio品質は現行 `AudioPreprocessingRecord.Quality` の元ファイル指標を、セグメント指標であるかのように再ラベルしない。元の粒度をprovenanceに含める。
 5. audio品質の各指標の向き（高い=良い／悪い）と適用対象は `AudioQualityAnalyzer` とテストに合わせて確定する。測定されない品質項目は無視。
-6. true value 0.0（測定済み）は低品質として扱う。**MFAの未校正0は `uncalibrated` として値を使わない**（既存 #63）。
+6. 同じモデル・同じ劣化から生じた相関した複数scoreを独立した品質証拠として重複計上しない。モデルが欠ける場合は未校正を中立扱いした旨を残し、追加の検証が必要な状態とする。
+7. true value 0.0（測定済み）は低品質として扱う。**MFAの未校正0は `uncalibrated` として値を使わない**（既存 #63）。
 
 ### U算出（観測根拠がある音素・音域のみ）
 
