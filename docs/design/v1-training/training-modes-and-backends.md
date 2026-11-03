@@ -9,6 +9,10 @@
 
 ## 最上位の入力は生成目的と目標声質
 
+- 質感プリセットは [音声方式・質感分類](texture-preset-taxonomy.md) とRegistryの定義を参照する。
+- データの方向性（会話/歌唱の多さ、総量、希少音素・音域、品質）に応じた学習戦略選択は [データProfile設計](data-profile-strategy-selection.md) を参照する。
+- 第三者が戦略を登録できるよう、[Strategy Plugin API](strategy-plugin-api.md) を用いて内蔵とModの学習方法を同じ候補選定へ渡す。Exporter Registryとは別にする。
+
 詳細な設計正本は [生成目的・質感・素材量からの学習計画](goal-texture-data-planner.md)。
 
 **ユーザーは最初に生成目的（talk/singing/both）と目標声質・質感を選ぶ。** その後、同じ話者の発話・歌唱・声質参照に使える素材の「実効量」を用途別に棚卸しして、学習計画を構成する。
