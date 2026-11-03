@@ -211,4 +211,13 @@
 7. [#100](https://github.com/tomiya7688/your_singer/issues/100): 歌唱のみ→トーク実接続、[#99](https://github.com/tomiya7688/your_singer/issues/99): 発話のみ→歌唱実接続
 8. [#108](https://github.com/tomiya7688/your_singer/issues/108): 実音声生成と最終受入
 
+### プリセット分類・学習戦略登録の子Issue
+
+- [#136](https://github.com/tomiya7688/your_singer/issues/136) A39: 質感プリセットのschemaとRegistry
+- [#137](https://github.com/tomiya7688/your_singer/issues/137) A40: データプロフィールに適合した学習戦略の宣言JSON/Registry
+- [#138](https://github.com/tomiya7688/your_singer/issues/138) A41: 独自学習Worker Providerの登録/IPC/実行
+- [#139](https://github.com/tomiya7688/your_singer/issues/139) A42: Mod配置・再読み込み・有効化と日本語UI
+
+この4件は音声の生成目的を決める機能ではなく、**指定済み目的・質感に対して学習方法を拡張する機能**である。#136と#132は並行可能。#137は#136・#132・#133/#134との契約を確認してから、#138/#139はRegistry完成後に着手する。
+
 各Issueは自分の責務だけを実装し、複数のトレーナーや歌唱/トークの能力を大きな一つのIssueへ戻さない。
