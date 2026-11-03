@@ -4,6 +4,13 @@
 
 この文書は [学習方式とBackend設計](training-modes-and-backends.md)、[自動振り分けと相互利用](routing-and-cross-domain.md) を具体化する設計正本である。
 
+関連する正本:
+- [質感プリセット分類・音声モデル系統調査](texture-preset-taxonomy.md)
+- [素材の方向性から学習戦略を自動選択](data-profile-strategy-selection.md)
+- [第三者・Modの学習戦略登録API](strategy-plugin-api.md)
+
+既存の `Source Profile / Adaptive Training` で議論した「会話が多い・歌唱が多い・素材が大量/少量」という方向性診断は、v1の学習計画にも取り込む。高度な収録環境別最適化だけをv2で拡張する。
+
 **決定順序は「生成目的 → 目標の声質・質感 → 解析済み素材の量・多様性・信頼性 → 実行可能な学習工程の構成 → 学習・評価」とする。**
 ユーザーの作りたいモデルを素材の多数派から自動決定しない。トーク素材が無いから歌唱モデルへ勝手に切り替えることも、歌唱素材が無いからトークモデルへ勝手に切り替えることもしない。
 
@@ -44,7 +51,7 @@
 ```
 
 - `target`: `talk` または `singing`。内部では両方を**別Job**に展開する。その他の出力方式は将来のExporter拡張で追加。
-- `texture`: **目標の音色・発声傾向**。元データがspeech/singingどちらかを意味しない。初期UIは「素材の声を自然に維持」「歌唱時のような張り」「柔らかい」「息を含む」等の説明しやすい候補を想定するが、実装時は具体的なBackendで再現できる項目だけを提示する。
+- `texture`: **目標の音色・発声傾向**。元データがspeech/singingどちらかを意味しない。クラシックな電子的音声、高表現・複雑な声、自然、明瞭、柔らかい、力強い等のプリセット分類は `texture-preset-taxonomy.md` に定義。プリセット自体はModから追加可能で、各Backendで再現できるものだけを利用可能と表示する。
 - `reference_segment_ids`: ユーザーが任意に選ぶ「この感じの声」の見本。話者が一致すること、元音声が参照可能であることを検証する。指定無しも許可し、適格な参照区間を自動推薦できる。
 - `strength`: 目標質感の反映度を示す任意の希望値。Backendに対応パラメータが無い場合は**使ったことにせずunsupportedと表示**。初期版は無理に連続制御を公開せず、presetや参照区間による指定を優先してよい。
 - `training_preference`: `auto`（推奨） / `prefer_fine_tune` / `prefer_from_scratch` / `force_fine_tune` / `force_from_scratch` の設計上の候補。旧 `auto/fine_tune/from_scratch` の意味を維持しつつ、推奨と強制を分ける。強制指定時は暗黙fallback禁止。最初の画面では高度な設定として折りたたむ。
@@ -92,6 +99,7 @@
 - `TalkTrainingStrategyPlanner`: **自然な発話能力と指定声質**を組み立てる
 - `SingingTrainingStrategyPlanner`: **音符に従う歌唱能力と指定声質**を組み立てる
 - `BackendCapabilityRegistry`: fixed checkpoint/Trainerに実際に可能な工程を列挙する
+- `TrainingStrategyRegistry`: 内蔵/第三者が登録した学習方法と対応preset、データ量条件、実行可能stageを列挙する。Exporter Registryとは独立。
 - `TrainingPlanResolver`: 実行可能性を検証し、候補計画を評価して確定する（目的を変更しない）
 - `TrainingJobPlanningService`: 確定した計画・入力fingerprint・provenanceを保存する
 
@@ -100,9 +108,9 @@
 1. ユーザーのtargetとtextureを確定し、参照区間の話者・内容・hashを検証。
 2. 対象話者の共通データを棚卸しする。**必要なのは目標と同種の音声だけではない**。
 3. 目標の主要能力（talk=発音/文からの発話/韻律、singing=歌詞/音符/音高/時間長）と目標声質を別要件として分ける。
-4. 既存事前学習モデル、声質適応、スタイル適応、目的別追加学習、新規学習の各工程の利用条件を固定Backend能力表から照合する。
+4. 内蔵/Modの `TrainingStrategyRegistry` から、選択した質感のtraitsとデータ方向性profileに対応した学習方法を列挙する。既存事前学習モデル、声質適応、スタイル適応、目的別追加学習、新規学習の各工程の利用条件を固定Backend能力表から照合する。
 5. 実行可能な段階的計画を複数候補として構成する。例: `base_tts→timbre_adaptation_from_singing→talk_style_adjustment→evaluate`。
-6. データ量・多様性・欠損・品質・GPU/VRAM・事前学習資源の条件で候補を比較する。高品質を保証しない計画には警告。**Fine-tune vs scratchを先に決めない**。
+6. 会話主体/歌唱主体/混在/少量/大量/低品質だが希少な区間等の重複可能なProfileと、データ量・多様性・欠損・品質・GPU/VRAM・事前学習資源の条件で候補を比較する。高品質を保証しない計画には警告。**Fine-tune vs scratchを先に決めない**。
 7. 採用計画と代替候補・棄却理由・実際に使うデータ源/重み・checkpoint hash・stage versionを保存してから学習開始。
 8. 生成後は指定目的の実音声生成と**指定textureへの近さ**を評価し、必要なら別候補計画またはcheckpointを比較。ユーザー指定目的/質感を密かに変更しない。
 
@@ -186,7 +194,7 @@
 
 ## 9. v1とv2の境界
 
-**v1必須**: 目標の指定、話者×用途・質感向けの素材量棚卸し、targetごと独立した学習計画、歌唱→トーク/発話→歌唱という少量/片側素材の適応可能性判定、対応経路での実生成評価。
+**v1必須**: 目的・質感プリセットの指定、話者×用途・質感向けの素材量と方向性profile、targetごと独立した学習計画、歌唱→トーク/発話→歌唱という少量/片側素材の適応可能性判定、登録された内蔵/Mod学習戦略の照合、対応経路での実生成評価。
 
 **v2以降**: Source Profileを使った詳細な収録条件・話法・録音品質によるレシピ最適化、動的な補正強度、モデルアンサンブルと定量学習されたPlanner最適化。v1の「目的と質感と手持ちデータから計画を作る」基礎をv2に先送りしない。
 
