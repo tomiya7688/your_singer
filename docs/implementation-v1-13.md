@@ -24,6 +24,12 @@ v1では独自形式そのものは実装しない。
 
 具体形式固有のconfig生成・ファイル配置は各Exporter内部へ閉じ込める。
 
+## Exporter登録と学習戦略登録の違い
+
+このIssue #14で実装した `ExporterRegistry` は**モデルをどの形式で書き出すか**を登録する機構である。`TrainingStrategyRegistry` は**どの学習/声質適応工程を使うか**を登録する別機構であり、第三者やModユーザーによる学習方法追加は [strategy-plugin-api](design/v1-training/strategy-plugin-api.md) に設計する。
+
+ExporterはすべてのStrategyを知る必要がなく、Strategyが生成する成果物を互換情報に基づいて受け取る。新たな学習方式を追加するためにExporterの分岐コードを増やさない。
+
 ## Registry
 
 `ExporterRegistry` へ `IModelExporter` を登録する。
