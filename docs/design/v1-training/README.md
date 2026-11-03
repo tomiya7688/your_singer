@@ -2,6 +2,8 @@
 
 ## この文書の位置づけ
 
+今回の学習戦略は **生成目的 → 質感プリセット → 素材の方向性（会話/歌唱/量/品質） → 登録済み学習方法の選択・組み合わせ** で構成する。自動判断するのは学習工程であり、ユーザー指定の目標ではない。
+
 本ディレクトリは `docs/training-strategy.md` のv1必須要件を、個別Issueで実装できる入出力契約・責務・検証に落とした設計正本です。将来の `docs/roadmap.md` の Source Profile駆動Adaptive Training（v2.x）とは区別します。
 
 **製品のゴール**: ユーザーが雑多な動画・音声フォルダを投入するだけで、話者を選び、歌唱／トーク／両方のモデルを現実に生成・試聴・出力できること。品質の低い素材を機械的に捨てず、有用性に応じて扱う。
@@ -56,10 +58,14 @@ Data Layer（project workspace内への永続化）
 
 ## 読む順番
 
-1. [データ契約・重み付け](contracts-and-weighting.md)
-2. [自動仕分けと声質特徴の共有](routing-and-cross-domain.md)
-3. [学習モード・Trainer統合](training-modes-and-backends.md)
-4. [検証・完成判定](verification-and-release.md)
-5. [実装Issueの依存順](implementation-plan.md)
+1. [目的・質感・素材量からの学習計画](goal-texture-data-planner.md)
+2. [音声方式・質感プリセットの分類](texture-preset-taxonomy.md)
+3. [素材傾向からの学習方法選択](data-profile-strategy-selection.md)
+4. [第三者/Mod戦略登録](strategy-plugin-api.md)
+5. [データ契約・重み付け](contracts-and-weighting.md)
+6. [自動仕分けと声質特徴の共有](routing-and-cross-domain.md)
+7. [学習モード・Trainer統合](training-modes-and-backends.md)
+8. [検証・完成判定](verification-and-release.md)
+9. [実装Issueの依存順](implementation-plan.md)
 
 実行・レビュー手順は `AGENTS.md`、`dev-guidelines/workflow.md`、`tools/dev/check.ps1` を正とする。
