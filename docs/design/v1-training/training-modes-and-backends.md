@@ -60,7 +60,7 @@
 }
 ```
 
-- `requested_training_mode` はユーザー設定、`resolved_training_mode` は事前チェック確定後の実行契約。Autoを毎回Worker側で勝手に解決し直さない。
+- `requested_training_mode` はユーザーの高度な初期化希望、`resolved_training_mode` は**単一Trainer工程に対する互換記録**である。複数工程の計画では各stageに `resolved_training_mode` を保持し、計画全体がfine-tuneかscratchの二者択一であるように扱わない。Autoを毎回Worker側で勝手に解決し直さない。
 - `initialization.type` は `pretrained_checkpoint` または `random_initialization`。scratch時の `components` は空であること。
 - 内容が結果に影響するConfig、weight manifest、seed、version、resource SHA、user overrideはfingerprintへ含める。
 - 相対パスはProjectWorkspace範囲内だけ。外部固定bundleは既存のresource lockで照合する。
@@ -76,8 +76,8 @@
 2. Talk/Singingそれぞれについて発話/歌唱能力と話者声質の必要条件を分け、利用可能な事前学習能力と声質適応を検証する。
 3. `target` とbackendの対応・互換版を確認。
 4. backendの `supported_modes`、声質参照／教師データの受入能力、初期重み要件、モデル構成（音響/時間長/ピッチ等）を確認。
-5. 素材の**目的別教師量と声質参照量を別々に**確認し、音素／音域カバレッジ・評価用素材・GPU/VRAMを診断する。基準値未満なら根拠つき警告。成立不可能な条件（空dataset等）は明示的にエラー。
-6. `auto` は適合checkpointの有無だけでは決めず、**目標を満たす段階的な候補計画**（例: 事前学習TTS＋歌唱由来声質適応＋発話評価）を比較する。各工程でfine_tune/from_scratch等の成立可否を調べる。**どちらも成立しなければジョブ作成を失敗**。非対応モードへ無言で切替えない。
+5. 素材の**目的別教師量と声質参照量を別々に**確認し、音素／音域カバレッジ・評価用素材・GPU/VRAMを診断する。基準値未満なら根拠つき警告。成立不可能な条件（選択話者の音声が全くなく声質参照もない等）は明示的にエラー。ただし**talk教師0件でもsinging声質参照と対応TTS能力があれば候補計画を作る**。
+6. `auto` は適合checkpointの有無だけでは決めず、**目標を満たす段階的な候補計画**（例: 事前学習TTS＋歌唱由来声質適応＋発話評価）を比較する。各工程でfine_tune/from_scratch等の成立可否を調べる。**目標を実現する候補計画が一つも成立しなければ、理由を示して学習開始を止める**。非対応モードへ無言で切替えない。
 7. `fine_tune` 指定の工程は初期重みの存在・形式・hash・版互換を検証し、欠損時はエラー。
 8. `from_scratch` 指定の工程はモデル初期化と音声合成pretrained checkpointを使用しないことを確認する。
 9. 結果（requested goal/texture、inventory hash、plan stages、各stageのresolved mode、config、seed、resource IDs）を不変manifestへ保存してから実行する。
