@@ -18,6 +18,14 @@
 
 **学習手法を先に決めるのではない。** Fine-tune / scratchは段階ごとの初期化方式にすぎない。詳細は [目標→素材量→学習計画](design/v1-training/goal-texture-data-planner.md)。
 
+## 登録された学習戦略の自動選択
+
+目的・質感を指定した後、`SpeakerDataInventory` のspeech/singing教師量、声質参照量、独立フレーズ数、音素/音域カバレッジ、品質と校正状態を確認する。各値の十分性はBackendと学習strategyごとの条件で判断し、絶対分数だけで分岐しない。
+
+`TrainingStrategyRegistry`（内蔵とMod）から適用候補を取得し、Talk/SingingそれぞれのStrategyPlannerがステージ候補を構成する。学習mode（fine_tune/scratch）はstageごとの初期化手段であり、最上位で学習方法を選ぶ唯一の軸ではない。利用したプリセット・strategy/providerのID/version・能力・source_profile hash・選定理由を学習Jobへ保存する。
+
+モデルの系統調査とプリセットは [texture-preset-taxonomy](design/v1-training/texture-preset-taxonomy.md)、素材方向性は [data-profile-strategy-selection](design/v1-training/data-profile-strategy-selection.md)、第三者登録は [strategy-plugin-api](design/v1-training/strategy-plugin-api.md) を参照する。
+
 ## 学習対象
 
 `TrainingTarget` は以下を持つ。
