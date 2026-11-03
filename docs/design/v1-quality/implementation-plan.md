@@ -15,9 +15,12 @@
 
 既存 [#63](https://github.com/tomiya7688/your_singer/issues/63): MFA confidence=0（未校正）の誤除外を修正。
 
+**第1着手は #129（正解付きデータの仕様・分割）。** 次に #117 のBaseline測定へ進み、測定がないままアルゴリズムだけ増やさない。
+
 | 順 | Issue | 1件の成果物 | 依存 |
 |---|---|---|---|
-| Q00 | [#117](https://github.com/tomiya7688/your_singer/issues/117) | 正解付き素材・分割・Baselineレポート | なし |
+| Q00a | [#129](https://github.com/tomiya7688/your_singer/issues/129) | 正解付き素材のannotation schemaとsource/session分割 | なし |
+| Q00 | [#117](https://github.com/tomiya7688/your_singer/issues/117) | 固定素材を入力にする現行single-path Baseline runner | Q00a |
 | Q01 | [#118](https://github.com/tomiya7688/your_singer/issues/118) | raw/sep/cleanedの候補manifest・元時刻への変換 | Q00 |
 | Q02 | [#119](https://github.com/tomiya7688/your_singer/issues/119) | rawを残し素材条件で候補生成 | Q01 |
 
@@ -27,7 +30,8 @@
 
 | Issue | 単独の成果物 | 依存 |
 |---|---|---|
-| Q03 [#120](https://github.com/tomiya7688/your_singer/issues/120) | 第2系統の分離モデルAdapter＋資源ロック | Q02,Q00 |
+| Q03a [#130](https://github.com/tomiya7688/your_singer/issues/130) | 第2分離モデルとcheckpointのライセンス・資源・実行条件固定 | Q00 |
+| Q03 [#120](https://github.com/tomiya7688/your_singer/issues/120) | 選定済み第2系統の分離モデルAdapter＋資源ロック | Q02,Q00,Q03a |
 | Q04 [#121](https://github.com/tomiya7688/your_singer/issues/121) | 目的別候補品質判定・選択・rawへの戻り道 | Q03,Q00 |
 | Q05 [#122](https://github.com/tomiya7688/your_singer/issues/122) | 話者複数窓/重複話者/未校正スコア | Q01,Q00 |
 | Q06 [#123](https://github.com/tomiya7688/your_singer/issues/123) | 会話/歌唱のwindowと曖昧区間・混在分割 | Q00,Q01 |
@@ -48,7 +52,8 @@
 
 ## 並行可能な作業
 
-- Q00開始後、Q01と評価・注釈の拡張は並行可能だが、gold holdoutをモデルに合わせて変更しない。
+- Q00aで素材分割と注釈契約を固定した後にQ00を実行する。Q00開始後、Q01と評価・注釈の拡張は並行可能だが、gold holdoutをモデルに合わせて変更しない。
+- Q03aはQ00ができれば独立して比較と配布権利の調査を進められる。Q03の本体実装はQ03aで選択資源とlicenseが固定されてから。
 - Q01確定後、Q05（話者）、Q06（分類）、Q08（F0）は別モジュールとして並行可能。
 - Q02後、Q07（ASR）とQ03（第二分離）を並行可能。Q04はQ03完了後に選択評価。
 - Q09はPR #68が未統合なら接続先を先に確認。Q10はstatus契約で #80/#83と整合。
