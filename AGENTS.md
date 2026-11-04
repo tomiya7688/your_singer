@@ -32,6 +32,7 @@ Claude Code、Codex、ChatGPT、Copilotと人が共有する正本です。製�
 ## 常に守ること
 
 - 実装時は[コーディング規約](コーディング規約.md)、レビュー時は[レビュー基準](dev-guidelines/レビュー基準.md)に従います。例外の理由はPRに記載します。
+- Issueの実装は、[着手前チェック](dev-guidelines/implementation-ready.md)（重複PR・先行Issue・契約・要決定・触るファイル）を満たしてから始めます。揃わないときは推測で進めず、Issueに書いて返します。
 - 開始時に`git pull --ff-only`を実行し、対象IssueのコメントとオープンPRを確認します。失敗した場合は最新性を未確認と記録します。
 - 1ブランチは1Issueです。他者の変更を保持し、今回のファイルだけをstageします。
 - 作業終了時はPRを作成し、最新headのCI成功・自己レビュー解決・競合なしを確認してsquashマージします。手順は[作業フロー](dev-guidelines/workflow.md)に従います。
@@ -44,6 +45,8 @@ Claude Code、Codex、ChatGPT、Copilotと人が共有する正本です。製�
 
 | 作業                                          | 最初の参照先                                                                                              |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 担当Issueの設計を読む（実装前）               | [設計書の索引](docs/design/README.md)で担当Issueの実装パケットだけを開く                                  |
+| 設計が食い違う・決められない                  | [決定記録](docs/design/decisions.md)と[着手前チェック](dev-guidelines/implementation-ready.md)の該当節    |
 | 対象の実装・テストを探す                      | [ys-context](.agents/skills/ys-context/SKILL.md)と[作業別の確認先](dev-guidelines/context-map.md)の該当行 |
 | 作業開始・検証・レビュー・コミット・PR/マージ | [作業フロー](dev-guidelines/workflow.md)の該当工程                                                        |
 | Python・.NET・ML・配布ビルドを実行する        | [実行環境](dev-guidelines/execution.md)                                                                   |
