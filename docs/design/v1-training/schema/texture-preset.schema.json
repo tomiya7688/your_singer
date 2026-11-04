@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Your Singer v1 design contract. 本体に実装済みであることを示すものではありません。",
+  "title": "Your Singer TexturePreset Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "preset_id",
+    "version",
+    "display_name_ja",
+    "description_ja",
+    "supported_targets",
+    "traits",
+    "required_capability_tags",
+    "preferred_strategy_tags"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "preset_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_.-]*$",
+      "minLength": 5,
+      "maxLength": 128
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "display_name_ja": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "description_ja": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "supported_targets": {
+      "type": "array",
+      "items": {
+        "enum": ["talk", "singing"]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "traits": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "syntheticness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "expressiveness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "breathiness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "tension": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "articulation": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "required_capability_tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$"
+      }
+    },
+    "preferred_strategy_tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$"
+      }
+    }
+  }
+}
