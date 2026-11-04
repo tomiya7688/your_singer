@@ -45,6 +45,8 @@ Data Layer（project workspace内への永続化）
 
 上の新しいService名は**提案名**。正式採用時には既存フォルダ命名・公開APIに合わせる。Python workerは `src/process/YourSinger.Process/processing/ml/worker/` 配下とし、独立した第4層にしない。UI/DataからPythonを直接呼ばない。
 
+解析精度の改善は [v1複数モデル協調・評価設計](../v1-quality/README.md) を参照する。候補音声/話者/音素/F0のスコアを正解率と誤認して、学習重みへ渡さない。
+
 ## 実装者への固定ルール
 
 1. **1 Issue = 1責務と小さな検証可能な差分**。新しい無関係な機能・リファクタリングを混ぜない。
