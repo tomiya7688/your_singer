@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Your Singer v1 design contract. 本体に実装済みであることを示すものではありません。",
+  "title": "Your Singer TrainingStrategy Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "strategy_id",
+    "version",
+    "display_name_ja",
+    "description_ja",
+    "supported_targets",
+    "supported_preset_ids",
+    "requirements",
+    "required_capabilities",
+    "stages",
+    "expected_output_types"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "strategy_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_.-]*$",
+      "minLength": 5,
+      "maxLength": 128
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "display_name_ja": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "description_ja": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "supported_targets": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "talk",
+          "singing"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "supported_preset_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_.-]*$",
+        "minLength": 5,
+        "maxLength": 128
+      },
+      "uniqueItems": true
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role",
+          "metric",
+          "op",
+          "value"
+        ],
+        "properties": {
+          "role": {
+            "enum": [
+              "speech_teacher",
+              "singing_teacher",
+              "identity_reference",
+              "texture_reference",
+              "feature_only"
+            ]
+          },
+          "metric": {
+            "enum": [
+              "eligible_seconds",
+              "independent_utterances",
+              "independent_phrases",
+              "distinct_sources",
+              "phoneme_coverage_count",
+              "pitch_bins_observed"
+            ]
+          },
+          "op": {
+            "enum": [
+              "gte",
+              "lte",
+              "eq",
+              "gt",
+              "lt"
+            ]
+          },
+          "value": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "required_capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$"
+      }
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "operation_id",
+          "depends_on",
+          "input_roles",
+          "output_types"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "operation_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_.-]*$",
+            "minLength": 5,
+            "maxLength": 128
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*$"
+            },
+            "uniqueItems": true
+          },
+          "input_roles": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "speech_teacher",
+                "singing_teacher",
+                "identity_reference",
+                "texture_reference",
+                "feature_only"
+              ]
+            }
+          },
+          "output_types": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "tts_base",
+                "singing_base",
+                "speaker_identity",
+                "speaker_features",
+                "talk_model",
+                "singing_model",
+                "model_artifact",
+                "verification_report",
+                "audio_preview"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "expected_output_types": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "talk_model",
+          "singing_model"
+        ]
+      }
+    },
+    "resource_manifest": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
