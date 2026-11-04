@@ -1,5 +1,7 @@
 # モデル学習・データ活用設計（v1）
 
+**全体設計の正本:** [学習システム基本・詳細設計](design/v1-training/learning-system-design.md)。Mod・戦略のManifest/IPCは [詳細契約](design/v1-training/learning-strategy-protocol.md)、実装可能な契約例は [JSON Schema](design/v1-training/schema/training-strategy.schema.json) を参照する。本書は製品要求と実用上の原則を説明する。
+
 ## 目的と完成基準
 
 Your Singer は研究用の実験フレームワークではなく、さまざまな動画・音声素材を投入して実際に使用可能な歌唱モデル・トークモデルを生成するデスクトップアプリケーションである。
