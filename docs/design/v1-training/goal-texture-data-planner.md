@@ -2,9 +2,9 @@
 
 ## 位置づけ
 
-この文書は [学習方式とBackend設計](training-modes-and-backends.md)、[自動振り分けと相互利用](routing-and-cross-domain.md) を具体化する設計正本である。
+この文書は [学習方式とBackend設計](training-modes-and-backends.md)、[自動振り分けと相互利用](routing-and-cross-domain.md) の**事例と設計背景**を説明する。システム全体の入力契約・決定順序・保存・検証は [学習システム基本・詳細設計（正本）](learning-system-design.md) を正とし、Modの具体manifestは [登録プロトコル（正本）](learning-strategy-protocol.md) と [JSON Schema](schema/texture-preset.schema.json) を正とする。本書内のJSON例は参考であり、現行mainの実APIやschema確定版を意味しない。
 
-関連する正本:
+関連する補足資料:
 - [質感プリセット分類・音声モデル系統調査](texture-preset-taxonomy.md)
 - [素材の方向性から学習戦略を自動選択](data-profile-strategy-selection.md)
 - [第三者・Modの学習戦略登録API](strategy-plugin-api.md)
