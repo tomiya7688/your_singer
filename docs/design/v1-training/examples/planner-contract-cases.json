@@ -1,0 +1,191 @@
+{
+  "schema_version": "1",
+  "description_ja": "設計テストの例示入力。秒数は実モデルの品質・成立閾値を保証せず、選択される具体strategyは登録済みBackend能力で決まる。",
+  "cases": [
+    {
+      "case_id": "singing_only_target_talk",
+      "goal": {
+        "target": "talk",
+        "preset_id": "community.classic_clean"
+      },
+      "inventory": {
+        "speech_teacher_seconds": 0,
+        "singing_teacher_seconds": 2400,
+        "identity_reference_seconds": 1800,
+        "identity_status": "measured"
+      },
+      "backend_capabilities": [
+        "talk_synthesis",
+        "voice_adaptation",
+        "reusable_talk_model",
+        "style_control"
+      ],
+      "expect": {
+        "target_preserved": "talk",
+        "identity_from_singing_allowed": true,
+        "forbid": [
+          "change_target_to_singing",
+          "count_singing_as_speech_teacher",
+          "succeed_with_audio_preview_only"
+        ]
+      }
+    },
+    {
+      "case_id": "singing_only_no_tts_provider",
+      "goal": {
+        "target": "talk",
+        "preset_id": "community.classic_clean"
+      },
+      "inventory": {
+        "speech_teacher_seconds": 0,
+        "singing_teacher_seconds": 2400,
+        "identity_reference_seconds": 1800,
+        "identity_status": "measured"
+      },
+      "backend_capabilities": [
+        "singing_synthesis"
+      ],
+      "expect": {
+        "target_preserved": "talk",
+        "plan_status": "unsupported_capability",
+        "forbid": [
+          "change_target_to_singing",
+          "invent_tts_checkpoint"
+        ]
+      }
+    },
+    {
+      "case_id": "speech_only_target_singing",
+      "goal": {
+        "target": "singing",
+        "preset_id": "builtin.natural"
+      },
+      "inventory": {
+        "speech_teacher_seconds": 1800,
+        "singing_teacher_seconds": 0,
+        "identity_reference_seconds": 1200,
+        "identity_status": "measured"
+      },
+      "backend_capabilities": [
+        "singing_synthesis",
+        "voice_adaptation",
+        "reusable_singing_model"
+      ],
+      "expect": {
+        "target_preserved": "singing",
+        "identity_from_speech_allowed": true,
+        "forbid": [
+          "invent_singing_training_notes",
+          "succeed_with_audio_preview_only"
+        ]
+      }
+    },
+    {
+      "case_id": "both_targets_different_texture",
+      "goal": {
+        "targets": [
+          {
+            "target": "talk",
+            "preset_id": "builtin.natural"
+          },
+          {
+            "target": "singing",
+            "preset_id": "builtin.classic_synthetic"
+          }
+        ]
+      },
+      "inventory": {
+        "speech_teacher_seconds": 2200,
+        "singing_teacher_seconds": 2600,
+        "identity_reference_seconds": 4000,
+        "identity_status": "measured"
+      },
+      "backend_capabilities": [
+        "talk_synthesis",
+        "singing_synthesis",
+        "reusable_talk_model",
+        "reusable_singing_model"
+      ],
+      "expect": {
+        "independent_plans": 2,
+        "shared_identity_possible": true,
+        "forbid": [
+          "override_both_presets_with_one"
+        ]
+      }
+    },
+    {
+      "case_id": "same_data_different_texture",
+      "goal": {
+        "target": "singing",
+        "preset_id": "builtin.expressive_complex"
+      },
+      "inventory": {
+        "speech_teacher_seconds": 1200,
+        "singing_teacher_seconds": 800,
+        "identity_reference_seconds": 1200,
+        "identity_status": "measured"
+      },
+      "backend_capabilities": [
+        "singing_synthesis",
+        "reusable_singing_model"
+      ],
+      "expect": {
+        "target_preserved": "singing",
+        "missing_texture_capabilities_must_be_reported": true,
+        "forbid": [
+          "pretend_expressive_control_supported"
+        ]
+      }
+    },
+    {
+      "case_id": "unknown_metric_is_not_zero",
+      "goal": {
+        "target": "talk",
+        "preset_id": "builtin.natural"
+      },
+      "inventory": {
+        "speech_teacher_seconds": null,
+        "singing_teacher_seconds": 300,
+        "identity_reference_seconds": 200,
+        "identity_status": "estimated"
+      },
+      "backend_capabilities": [
+        "talk_synthesis",
+        "voice_adaptation",
+        "reusable_talk_model"
+      ],
+      "expect": {
+        "speech_metric_status": "unknown",
+        "forbid": [
+          "treat_unknown_as_confirmed_zero",
+          "infer_wrong_speaker_from_missing_value"
+        ]
+      }
+    },
+    {
+      "case_id": "strict_runtime_not_available",
+      "goal": {
+        "target": "talk",
+        "preset_id": "builtin.natural",
+        "preferred_runtime": "style-bert-vits2",
+        "require_preferred_runtime": true
+      },
+      "inventory": {
+        "speech_teacher_seconds": 600,
+        "singing_teacher_seconds": 0,
+        "identity_reference_seconds": 400,
+        "identity_status": "measured"
+      },
+      "backend_capabilities": [
+        "voice_clone_runtime_qwen"
+      ],
+      "expect": {
+        "plan_status": "unsupported_capability",
+        "forbid": [
+          "claim_style_bert_vits2_export_from_unrelated_runtime"
+        ]
+      }
+    }
+  ]
+}
