@@ -253,7 +253,7 @@ IPitchExtractor
 - 外部コードを含むModは明示有効化を必要とし、権限・hash・互換性・異常終了を検証する。別プロセスだからといって自動的にOS sandboxされるとは主張しない。
 - 目的・質感・基本Source Profileから戦略を選ぶv1要件と、将来の詳細Adaptive Trainingを区別する。
 
-詳細は `docs/design/v1-training/strategy-plugin-api.md` と `data-profile-strategy-selection.md` を参照する。
+具体的な責務と処理順は `docs/design/v1-training/learning-system-design.md`、Manifest/APIの厳密契約は `learning-strategy-protocol.md` を正とする。概念とユーザー操作は `strategy-plugin-api.md` を参照する。
 
 ## OOP Checker の位置づけ
 
