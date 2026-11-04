@@ -350,4 +350,4 @@ C# 側は UI / Project / Job / Data / ML Worker Control を担当し、Python �
 - `TrainingStrategyRegistry` をExporter Registryとは別に用意し、第三者開発者やModユーザーが宣言ファイル、または対応worker経由で学習方法を登録できるようにする。
 - 元音声、目標質感、選択strategy、使用stage、Providerのversion、実生成品質の検証結果を追跡する。
 
-詳細: `docs/design/v1-training/texture-preset-taxonomy.md`、`data-profile-strategy-selection.md`、`strategy-plugin-api.md`。
+詳細設計の正本: `docs/design/v1-training/learning-system-design.md` と `learning-strategy-protocol.md`。方式比較・プリセットの補足: `texture-preset-taxonomy.md`、`data-profile-strategy-selection.md`。
