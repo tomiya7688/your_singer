@@ -37,14 +37,14 @@ Your Singerのユーザーは **生成目的（トーク／歌唱／両方）** 
 
 | preset_id（案） | 日本語表示 | 主な目標特徴 | 主用途 |
 |---|---|---|---|
-| `classic_synthetic` | クラシックな電子的音声 | 制御されたF0輪郭、比較的規則的なタイミング、意図的に合成感を残した音色 | 歌唱/トーク |
-| `clean_controlled` | 明瞭・制御重視 | 明瞭な発音、安定した音程/抑揚、ノイズの少なさ | 歌唱/トーク |
-| `natural` | 自然な声 | 声色の忠実性、自然な微細変動、違和感の少ない遷移 | 歌唱/トーク |
-| `expressive_complex` | 高表現・複雑な声 | 高い表現幅、細かな強弱/音色変化、発声の多様性 | 歌唱/トーク |
-| `soft_breathy` | 柔らかい・息混じり | 小さい緊張感、息成分、優しい発声 | 歌唱/トーク |
-| `powerful` | 張りのある力強い声 | 張り、声の芯、強弱変化、高音域の表現 | 歌唱/トーク |
-| `characterized` | 個性的・キャラクター寄り | 収録声質の特徴を優先し、独特な話し方/歌い方を残す | 歌唱/トーク |
-| `reference_match` | 参考音声に近づける | ユーザーが選んだ同一話者の参考区間と質感を優先 | 歌唱/トーク |
+| `builtin.classic_synthetic` | クラシックな電子的音声 | 制御されたF0輪郭、比較的規則的なタイミング、意図的に合成感を残した音色 | 歌唱/トーク |
+| `builtin.clean_controlled` | 明瞭・制御重視 | 明瞭な発音、安定した音程/抑揚、ノイズの少なさ | 歌唱/トーク |
+| `builtin.natural` | 自然な声 | 声色の忠実性、自然な微細変動、違和感の少ない遷移 | 歌唱/トーク |
+| `builtin.expressive_complex` | 高表現・複雑な声 | 高い表現幅、細かな強弱/音色変化、発声の多様性 | 歌唱/トーク |
+| `builtin.soft_breathy` | 柔らかい・息混じり | 小さい緊張感、息成分、優しい発声 | 歌唱/トーク |
+| `builtin.powerful` | 張りのある力強い声 | 張り、声の芯、強弱変化、高音域の表現 | 歌唱/トーク |
+| `builtin.characterized` | 個性的・キャラクター寄り | 収録声質の特徴を優先し、独特な話し方/歌い方を残す | 歌唱/トーク |
+| `builtin.reference_match` | 参考音声に近づける | ユーザーが選んだ同一話者の参考区間と質感を優先 | 歌唱/トーク |
 
 v1での**初期候補**であり、すべてを同時に「実装済み」と表示してはならない。Backend/Exporterで実現・検証できないものは `unsupported` または `preview`。プリセットは今後追加・変更できる。
 
@@ -73,25 +73,12 @@ v1での**初期候補**であり、すべてを同時に「実装済み」と�
 
 ## 4. プリセットの宣言形式（Modユーザーでも追加可）
 
-```json
-{
-  "schema_version": "1",
-  "id": "example.voice.classic",
-  "version": "1.0.0",
-  "display_name_ja": "クラシックな電子的音声",
-  "targets": ["singing", "talk"],
-  "desired_traits": {
-    "syntheticness": 0.85,
-    "expressiveness": 0.25,
-    "articulation": 0.85
-  },
-  "preferred_strategy_tags": ["controlled_pitch", "structured_timing"],
-  "fallback_strategy_tags": ["timbre_preservation"],
-  "description_ja": "規則的な発声と電子的な質感を目標にするプリセット"
-}
-```
+正式な保存契約は [学習戦略・プリセット/Provider詳細契約](learning-strategy-protocol.md) と [Preset JSON Schema](schema/texture-preset.schema.json) を正とする。
 
-**ModユーザーはJSONでプリセットを作れる**。必要な制御軸やタグに対応した学習戦略が登録されていない場合は、希望の表示だけして「実現済み」と誤認させない。パラメータ名・意味・推奨範囲はversion付き辞書で検証する。
+- 実際に記述するサンプル: [mod-classic/preset.json](examples/mod-classic/preset.json)
+- 「必要な音響軸の宣言」と「その効果を実現できる登録済みStage」は別。Stage不足なら未対応状態として示す。
+- `preset_id` は `publisher.preset_name` 形式で安定化し、既存の内蔵プリセットをModが上書きできない。
+- `traits` は0〜1の目標軸であり、全音声モデルにそのまま渡せる標準パラメータではない。
 
 ## 5. 品質評価の原則
 
