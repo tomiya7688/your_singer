@@ -242,6 +242,19 @@ IPitchExtractor
 
 実装モデルの変更・比較・軽量化を行っても、UI / Project / Dataset / Exporter を大きく変更しない構造を目指す。
 
+## 学習戦略の第三者/Mod拡張
+
+`ExporterRegistry` は出力形式の登録、`TrainingStrategyRegistry` は声質・学習方法の登録として責務を分離する。
+
+- 学習戦略RegistryとTalk/Singingの各StrategyPlannerは `src/process/YourSinger.Process/processing/training/` 内のProcess責務とする。
+- ML学習stageの実行は既存 `src/process/YourSinger.Process/processing/ml/bridge/` とworker境界を利用する。新しいトップレベル層を作らない。
+- ModユーザーはJSONで質感プリセットと内蔵stageの学習レシピを登録できるようにする。
+- 第三者開発者はmanifestと独立Worker（必要なruntime/モデル資源を同梱）を登録できるようにする。UIから外部Pythonを直接呼ばない。
+- 外部コードを含むModは明示有効化を必要とし、権限・hash・互換性・異常終了を検証する。別プロセスだからといって自動的にOS sandboxされるとは主張しない。
+- 目的・質感・基本Source Profileから戦略を選ぶv1要件と、将来の詳細Adaptive Trainingを区別する。
+
+具体的な責務と処理順は `docs/design/v1-training/learning-system-design.md`、Manifest/APIの厳密契約は `learning-strategy-protocol.md` を正とする。概念とユーザー操作は `strategy-plugin-api.md` を参照する。
+
 ## OOP Checker の位置づけ
 
 `oop-design-checker` の利用は **必須条件ではない**。
@@ -281,7 +294,6 @@ Checker を通すために不自然な設計へ変更してはならない。
 - realtime inference
 - 独自モデル形式
 - automation script runtime
-
 
 ## ソース配置方針
 

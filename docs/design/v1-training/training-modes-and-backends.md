@@ -1,5 +1,7 @@
 # 学習方式とバックエンド統合 — v1詳細設計
 
+本書は固定Backendの学習入口と初期化の詳細を扱う。**生成目的・質感・素材方向性からの学習計画の決定順序と保存契約は [学習システム基本・詳細設計](learning-system-design.md) を正とする。** Fine-tune/Scratchは学習Stageの初期化選択であり、学習戦略全体の二者択一ではない。
+
 ## この設計の前提
 
 - トーク互換: Style-Bert-VITS2 **2.7.0**, commit `d8148f3090ee5038ca7b4e4b327116c64467f952`（既存 `docs/implementation-v1-11.md`）。
@@ -7,15 +9,31 @@
 - `YourSinger.exe` 一箇所起動、別途Python/.NET導入不要、ローカルGPU基本、workerが外部Trainerを起動する現在の配置を維持。
 - **Fine-tuning専用アプリにはしない**。トーク・歌唱それぞれに新規学習を提供するが、少量データでの品質を保証しない。
 
+## 最上位の入力は生成目的と目標声質
+
+- 質感プリセットは [音声方式・質感分類](texture-preset-taxonomy.md) とRegistryの定義を参照する。
+- データの方向性（会話/歌唱の多さ、総量、希少音素・音域、品質）に応じた学習戦略選択は [データProfile設計](data-profile-strategy-selection.md) を参照する。
+- 第三者が戦略を登録できるよう、[Strategy Plugin API](strategy-plugin-api.md) を用いて内蔵とModの学習方法を同じ候補選定へ渡す。Exporter Registryとは別にする。
+
+詳細な設計正本は [生成目的・質感・素材量からの学習計画](goal-texture-data-planner.md)。
+
+**ユーザーは最初に生成目的（talk/singing/both）と目標声質・質感を選ぶ。** その後、同じ話者の発話・歌唱・声質参照に使える素材の「実効量」を用途別に棚卸しして、学習計画を構成する。
+
+- TalkとSingingでは学習戦略が異なるため、`TalkTrainingStrategyPlanner` と `SingingTrainingStrategyPlanner` を分ける。
+- データに歌唱が多いことは「歌唱モデルを作る」という指定ではない。歌唱素材だけからトークモデルを目指す計画も正式に扱う。
+- トークの発話能力と声質適応、歌唱の音符制御能力と声質適応を別の工程として扱い、必要に応じて組み合わせる。
+- 自動化するのは目的選択ではなく**目的を実現する学習工程の構成**。データ量（有効秒数・多様性・希少音素・音域・重複）とBackend能力・GPU条件から選定する。
+- Fine-tuningか新規学習かは、各モデル／学習工程の初期化方式。これだけで戦略全体を決定しない。
+
 ## 1. 学習モード契約
 
 ユーザー指定（`TrainingMode` 提案enum）:
 
-| 値 | 表示（日本語） | 正確な意味 |
-|---|---|---|
-| `auto` | 自動（推奨） | 必要資源と素材条件を事前検証したうえで `fine_tune` または `from_scratch` のどちらかを**実行前に確定** |
-| `fine_tune` | 既存モデルから追加学習 | 対応した音響／歌唱checkpointの重みを明示的に読み込む |
-| `from_scratch` | 最初から新規学習 | 対象音声合成モデルのtrainable weightsを初期化する。ベース話者モデルのcheckpointは一切読み込まない |
+| 値             | 表示（日本語）         | 正確な意味                                                                                                                        |
+| -------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `auto`         | 自動（推奨）           | **ユーザーが指定した目的・質感**と実効素材量・Backend能力から、必要な工程を組み合わせた計画を確定する。各工程の初期化方式も決める |
+| `fine_tune`    | 既存モデルから追加学習 | 対応した音響／歌唱checkpointの重みを明示的に読み込む                                                                              |
+| `from_scratch` | 最初から新規学習       | 対象音声合成モデルのtrainable weightsを初期化する。ベース話者モデルのcheckpointは一切読み込まない                                 |
 
 `from_scratch` でも文字言語エンコーダ・音声前処理・音素辞書・一般的なVocoder等、**モデルと異なる共有基盤を利用する場合はある**。これらはpretrainedであることと、話者モデルをFine-tuningすることを区別してUI・記録に示す。完全に全コンポーネントを乱数初期化するという誤表示は禁止。
 
@@ -23,12 +41,16 @@
 
 ## 2. ジョブ保存契約
 
-既存 `SpeakerTrainingSelection` / `TrainingJobRecord` に以下を拡張する（既存のpublic API互換性をテストする）。選択した方式と、実際に使う方式を区別する。
+既存 `SpeakerTrainingSelection` / `TrainingJobRecord` に**ユーザー指定の目的・texture・参照区間、棚卸しhash、解決された段階的計画**を含めて以下を拡張する（既存のpublic API互換性をテストする）。選択した方式と、実際に使う方式を区別する。
 
 ```json
 {
   "job_id": "job-a1",
   "target": "singing",
+  "requested_texture": {"preset": "natural", "reference_segment_ids": []},
+  "inventory_hash": "...",
+  "resolved_plan_id": "singing-adaptation-v1",
+  "resolved_plan_version": "goal-texture-quantity-v1",
   "requested_training_mode": "auto",
   "resolved_training_mode": "fine_tune",
   "backend": "diffsinger",
@@ -44,7 +66,7 @@
 }
 ```
 
-- `requested_training_mode` はユーザー設定、`resolved_training_mode` は事前チェック確定後の実行契約。Autoを毎回Worker側で勝手に解決し直さない。
+- `requested_training_mode` はユーザーの高度な初期化希望、`resolved_training_mode` は**単一Trainer工程に対する互換記録**である。複数工程の計画では各stageに `resolved_training_mode` を保持し、計画全体がfine-tuneかscratchの二者択一であるように扱わない。Autoを毎回Worker側で勝手に解決し直さない。
 - `initialization.type` は `pretrained_checkpoint` または `random_initialization`。scratch時の `components` は空であること。
 - 内容が結果に影響するConfig、weight manifest、seed、version、resource SHA、user overrideはfingerprintへ含める。
 - 相対パスはProjectWorkspace範囲内だけ。外部固定bundleは既存のresource lockで照合する。
@@ -52,20 +74,24 @@
 
 ## 3. プレフライト（Trainer起動前）
 
-提案API: `TrainingModeResolver.Resolve(job, datasetStats, hardwareInfo, backendCapabilities, resourceLock)`。
+提案API: `TrainingPlanResolver.Resolve(goal, texture, speakerDataInventory, hardwareInfo, backendCapabilities, resourceLock)`。旧`TrainingModeResolver`は**計画内の各工程の初期化モード**の解決へ役割を限定する。
 
 順序:
 
-1. `target` とbackendの対応・互換版を確認。
-2. backendの `supported_modes`、初期重み要件、モデル構成（音響/時間長/ピッチ等）を確認。
-3. データ量・音素／音域カバレッジ・評価用素材・GPU/VRAMを診断する。基準値未満なら根拠つき警告。成立不可能な条件（空dataset等）は明示的にエラー。
-4. `auto` は適合する同梱checkpointを利用できれば原則 `fine_tune`、なければ `from_scratch` の成立可否を調べる。**どちらも成立しなければジョブ作成を失敗**。非対応モードへ無言で切替えない。
-5. `fine_tune` は対象話者用の初期重みの存在・形式・hash・版互換を検証し、欠損時はエラー。
-6. `from_scratch` は対象モデルを初期化できることと、不要な音声合成pretrained checkpointが参照されないことを確認する。
-7. 結果（resolved mode, config, seed, resource IDs）を不変manifestへ保存してから実行する。
-8. workerの起動結果では**実際に読込／初期化した重みの一覧**を返し、指定と突き合わせる。一致しなければ失敗。
+1. **ユーザーのtargetとtextureを確定**し、参照話者とreference区間を検証する。歌唱・発話データの実効量・多様性・信頼性・スタイル分布を棚卸しする。
+2. Talk/Singingそれぞれについて発話/歌唱能力と話者声質の必要条件を分け、利用可能な事前学習能力と声質適応を検証する。
+3. `target` とbackendの対応・互換版を確認。
+4. backendの `supported_modes`、声質参照／教師データの受入能力、初期重み要件、モデル構成（音響/時間長/ピッチ等）を確認。
+5. 素材の**目的別教師量と声質参照量を別々に**確認し、音素／音域カバレッジ・評価用素材・GPU/VRAMを診断する。基準値未満なら根拠つき警告。成立不可能な条件（選択話者の音声が全くなく声質参照もない等）は明示的にエラー。ただし**talk教師0件でもsinging声質参照と対応TTS能力があれば候補計画を作る**。
+6. `auto` は適合checkpointの有無だけでは決めず、**目標を満たす段階的な候補計画**（例: 事前学習TTS＋歌唱由来声質適応＋発話評価）を比較する。各工程でfine_tune/from_scratch等の成立可否を調べる。**目標を実現する候補計画が一つも成立しなければ、理由を示して学習開始を止める**。非対応モードへ無言で切替えない。
+7. `fine_tune` 指定の工程は初期重みの存在・形式・hash・版互換を検証し、欠損時はエラー。
+8. `from_scratch` 指定の工程はモデル初期化と音声合成pretrained checkpointを使用しないことを確認する。
+9. 結果（requested goal/texture、inventory hash、plan stages、各stageのresolved mode、config、seed、resource IDs）を不変manifestへ保存してから実行する。
+10. workerの起動結果では**実際に読込／初期化した重みと使用した声質参照の一覧**を返し、指定計画と突き合わせる。一致しなければ失敗。
 
 UIの「高品質 / 標準 / 軽量」は速度・VRAM等のモデルプロファイルであり、学習モードと直交させる。CPU-onlyやVRAM不足を黙って成功扱いせず診断する。
+
+**トーク教師音声が0件**でも同一話者の歌唱声質参照と事前学習TTSの能力を組み合わせられるBackendがあれば、計画を構成できる。教師音声不足だけで歌唱モデルに目的変更したり、黙って拒否したりしない。実際のBackendが非対応なら、足りない能力を表示して未対応とし、架空のfine-tuneを実行しない。
 
 ## 4. トーク: Style-Bert-VITS2 2.7.0
 

@@ -181,7 +181,7 @@ project/
 
 これにより同じ解析結果から、補完ON/OFFや出力形式を変えて再学習できます。
 
-学習ジョブには `training_mode`（`auto` / `fine_tune` / `from_scratch`）、利用checkpointとそのversion、実際に選択された学習方式、weighting policy/version、データ分割条件、評価結果を別途保存します。
+学習ジョブにはユーザー指定の `target` と `texture_preset_id/version`、`SpeakerDataInventory` fingerprint、選択した `strategy_id/version/provider`、複数stageの学習計画、stageごとの `training_mode`（auto / fine_tune / from_scratch）、利用checkpointとそのversion、weighting policy/version、データ分割条件、評価結果を保存します。保存契約と原本・派生データの境界は `docs/design/v1-training/learning-system-design.md` を正とします。学習戦略の追加/削除で旧ジョブを黙って違う方法に変更しません。
 
 ## キャッシュ
 
@@ -209,12 +209,13 @@ cache key = hash(source_hash + stage + stage_version + settings_hash)
 - 後から別モデル形式を追加できる
 - どの処理で値が変わったか追跡できる
 
-## 将来拡張: Source Profile
+## 基本Source Profile（v1）と高度な拡張（v1.x/v2）
 
-v1.0.0ではSource Profileを利用した**高度な**Adaptive Trainingを必須にしません。
+**v1.0.0から**話者の発話教師量・歌唱教師量・声質参照量・品質・独立フレーズ数・音素/音域カバレッジを集計し、会話主体/歌唱主体/混在/多量/少量等の重複可能な方向性を持つ基本Source Profileを学習戦略選択へ渡します。これを将来機能へ延期しません。
 
-一方、**区間別の使用適格性・品質・学習価値に基づく基本的な学習weightingはv1.0.0必須**です。Source Profileを用いた全体的な学習戦略の最適化と区別します。
-ただし、将来追加できるようにSource / Segment metadataは拡張可能な構造にします。
+さらに区間別の使用適格性・品質・学習価値に基づく基本的な重み付き学習をv1必須とします。
+
+v1.x/v2では詳細な収録条件・スタイル・Augmentation強度・動的学習配分を高度化します。Source / Segment metadataはその追加に耐える拡張可能な構造とします。
 
 Source Profileは「元データがどのような素材か」を表す解析結果です。
 
@@ -253,7 +254,7 @@ Source Profileは「元データがどのような素材か」を表す解析結
 }
 ```
 
-Source Profileは将来的に次の用途で利用します。
+v1ではSource Profileの**基本的な方向性（会話/歌唱の実効量、カバレッジ、品質、声質参照）**をStrategy Registryの候補選択に利用します。以下は詳細プロフィールを使う将来の高度化候補です。
 
 - Dataset Builderのsampling調整
 - セグメントweight調整
@@ -266,7 +267,7 @@ Source Profileは将来的に次の用途で利用します。
 
 Adaptive TrainingはSource Profileごとに完全に別パイプラインを作るのではなく、Universal Voice Datasetを共通基盤とし、その後段の入力方法・重み・学習戦略を変更する形を基本とします。
 
-Source Profileの収集・可視化はv1.x、学習戦略への本格反映はv2.x以降を想定します。詳細は `roadmap.md` を参照してください。
+基本プロフィールからの学習戦略自動選択はv1必須。収録条件まで考慮した高度なSource Profileと学習レシピ動的最適化はv1.x/v2で拡張します。詳細は `design/v1-training/data-profile-strategy-selection.md` と `roadmap.md` を参照してください。
 
 ## v1: 区間ごとの学習適格性・重み情報
 

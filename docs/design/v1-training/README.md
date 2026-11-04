@@ -2,22 +2,24 @@
 
 ## この文書の位置づけ
 
-本ディレクトリは `docs/training-strategy.md` のv1必須要件を、個別Issueで実装できる入出力契約・責務・検証に落とした設計正本です。将来の `docs/roadmap.md` の Source Profile駆動Adaptive Training（v2.x）とは区別します。
+今回の学習戦略は **生成目的 → 質感プリセット → 素材の方向性（会話/歌唱/量/品質） → 登録済み学習方法の選択・組み合わせ** で構成する。自動判断するのは学習工程であり、ユーザー指定の目標ではない。
+
+本ディレクトリは `docs/training-strategy.md` のv1必須要件を、実装可能な入出力契約・責務・検証へ落とした設計群です。**学習システムの決定順序・状態・成功条件は `learning-system-design.md` を正本とし、登録形式は `learning-strategy-protocol.md` と `schema/` を正とします。**将来の `docs/roadmap.md` の Source Profile駆動Adaptive Training（v2.x）とは区別します。
 
 **製品のゴール**: ユーザーが雑多な動画・音声フォルダを投入するだけで、話者を選び、歌唱／トーク／両方のモデルを現実に生成・試聴・出力できること。品質の低い素材を機械的に捨てず、有用性に応じて扱う。
 
 ## mainの実装確認に基づく現状（2026-11-02）
 
-| 境界 | 既存実装 | 追加／確認すべき内容 |
-|---|---|---|
-| 共通データ | `UniversalVoiceDatasetRecord`、`TrainingDatasetSnapshotService` | 計測状態と用途別適格性・重み。元観測値は変更しない |
-| 話者・内容分類 | `ContentClassificationService`、`UsageDatasetRouter`、`UniversalDatasetViewBuilder` | 曖昧区間の扱い、手動事前仕分け不要、用途別routing |
-| 自動補正 | `AutoCorrectionService` | 未計測confidenceの誤除外（既存 #63）、適格性と重みを分離 |
-| ジョブ | `TrainingJobPlanningService`、`TrainingJobRecord`、`TrainingDatasetSnapshotService` | 学習方式、input snapshot、weight policy version、再作成 |
-| 歌唱学習 | `DiffSingerDatasetBuilder`、`DiffSingerTrainerService`、Python `diffsinger_training.py` | weightの実学習反映、明示的な初期重み選択、歌唱推論検証 |
-| トーク学習 | `StyleBertVits2DatasetBuilder`、`StyleBertVits2TrainerService`、Python `style_bert_vits2_session.py` | weightの実学習反映、明示的な初期重み選択、読み上げ検証 |
-| UI | `src/ui/YourSinger.App/MainWindow.*` | 日本語の方法選択・利用素材の根拠・検証状態 |
-| テスト | `tests/YourSinger.Process.Tests/`、`tests/worker/` | 契約、低品質活用、偽成功排除、実素材GPU検証 |
+| 境界           | 既存実装                                                                                             | 追加／確認すべき内容                                     |
+| -------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 共通データ     | `UniversalVoiceDatasetRecord`、`TrainingDatasetSnapshotService`                                      | 計測状態と用途別適格性・重み。元観測値は変更しない       |
+| 話者・内容分類 | `ContentClassificationService`、`UsageDatasetRouter`、`UniversalDatasetViewBuilder`                  | 曖昧区間の扱い、手動事前仕分け不要、用途別routing        |
+| 自動補正       | `AutoCorrectionService`                                                                              | 未計測confidenceの誤除外（既存 #63）、適格性と重みを分離 |
+| ジョブ         | `TrainingJobPlanningService`、`TrainingJobRecord`、`TrainingDatasetSnapshotService`                  | 学習方式、input snapshot、weight policy version、再作成  |
+| 歌唱学習       | `DiffSingerDatasetBuilder`、`DiffSingerTrainerService`、Python `diffsinger_training.py`              | weightの実学習反映、明示的な初期重み選択、歌唱推論検証   |
+| トーク学習     | `StyleBertVits2DatasetBuilder`、`StyleBertVits2TrainerService`、Python `style_bert_vits2_session.py` | weightの実学習反映、明示的な初期重み選択、読み上げ検証   |
+| UI             | `src/ui/YourSinger.App/MainWindow.*`                                                                 | 日本語の方法選択・利用素材の根拠・検証状態               |
+| テスト         | `tests/YourSinger.Process.Tests/`、`tests/worker/`                                                   | 契約、低品質活用、偽成功排除、実素材GPU検証              |
 
 既存の `docs/implementation-v1-04.md`、`-09.md`、`-10.md`、`-11.md`、`-14.md` は保持し、ここに記載した新しい要求と競合する箇所は、対象IssueのPRで修正する。過去の実装済み機能やテスト成功を、未検証の機能の完成根拠に転用しない。
 
@@ -56,10 +58,18 @@ Data Layer（project workspace内への永続化）
 
 ## 読む順番
 
-1. [データ契約・重み付け](contracts-and-weighting.md)
-2. [自動仕分けと声質特徴の共有](routing-and-cross-domain.md)
-3. [学習モード・Trainer統合](training-modes-and-backends.md)
-4. [検証・完成判定](verification-and-release.md)
-5. [実装Issueの依存順](implementation-plan.md)
+1. **[学習システム基本・詳細設計（正本）](learning-system-design.md)**
+2. **[学習戦略/Mod Providerの詳細契約（正本）](learning-strategy-protocol.md)**
+3. [機械検証用JSON Schema](schema/texture-preset.schema.json) / [Strategy Schema](schema/training-strategy.schema.json) / [Provider Schema](schema/training-provider.schema.json)
+4. [Mod/学習計画の具体例](examples/README.md)
+5. [目的・質感・素材量からの学習計画（事例）](goal-texture-data-planner.md)
+6. [音声方式・質感プリセットの分類](texture-preset-taxonomy.md)
+7. [素材傾向からの学習方法選択](data-profile-strategy-selection.md)
+8. [Modユーザー/開発者向け導入ガイド](strategy-plugin-api.md)
+9. [データ契約・重み付け](contracts-and-weighting.md)
+10. [自動仕分けと声質特徴の共有](routing-and-cross-domain.md)
+11. [学習モード・Trainer統合](training-modes-and-backends.md)
+12. [検証・完成判定](verification-and-release.md)
+13. [実装Issueの依存順（PR #115・マージ待ち）](https://github.com/tomiya7688/your_singer/blob/issue-79-v1-training-issue-plan/docs/design/v1-training/implementation-plan.md)
 
 実行・レビュー手順は `AGENTS.md`、`dev-guidelines/workflow.md`、`tools/dev/check.ps1` を正とする。

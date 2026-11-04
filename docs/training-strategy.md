@@ -1,5 +1,7 @@
 # モデル学習・データ活用設計（v1）
 
+**全体設計の正本:** [学習システム基本・詳細設計](design/v1-training/learning-system-design.md)。Mod・戦略のManifest/IPCは [詳細契約](design/v1-training/learning-strategy-protocol.md)、実装可能な契約例は [JSON Schema](design/v1-training/schema/training-strategy.schema.json) を参照する。本書は製品要求と実用上の原則を説明する。
+
 ## 目的と完成基準
 
 Your Singer は研究用の実験フレームワークではなく、さまざまな動画・音声素材を投入して実際に使用可能な歌唱モデル・トークモデルを生成するデスクトップアプリケーションである。
@@ -12,6 +14,18 @@ v1.0.0 の必須方針:
 4. 学習ジョブの完了と生成モデルの実用検証を区別する。実際の音声生成・出力形式の読み込み・音声品質を検査して完成判定する。
 
 細かな閾値・モデル名・ハイパーパラメータは実装時に検証して固定する。
+
+## v1学習方法の選び方（生成目的・質感プリセット・素材方向性）
+
+ユーザーが生成目的（トーク／歌唱／両方）と目標質感プリセットを指定し、その後に話者別の会話/歌唱/声質参照の実効量・多様性・品質を解析する。内蔵・Modの登録済み学習戦略から適合するものを選び、必要なら複数stageを組み合わせる。
+
+「会話が多い」「歌唱が多い」「素材が大量」「片方の教師が足りない」等の方向性は**同時に成立するProfile**であり、ユーザーの生成目的を変更するものではない。
+
+- 質感の分類と現行合成方式: [音声質感プリセット](design/v1-training/texture-preset-taxonomy.md)
+- 素材方向性からの学習方法の選択: [データプロフィールと自動戦略](design/v1-training/data-profile-strategy-selection.md)
+- 第三者・Modで学習方法を追加: [Strategy RegistryとMod API](design/v1-training/strategy-plugin-api.md)
+
+**基本プロフィールとStrategy登録はv1の設計要件**。Source Profileをさらに細かく使って訓練レシピを調整する高度化のみをv2以降へ残す。
 
 ## 1. 有効性と品質を分けて判定する
 
@@ -109,4 +123,4 @@ Universal Voice Dataset
 
 v1 は **基本の区間別重み付け、自動素材分類、複数学習経路、実用的な品質検証** を必須とする。
 
-v2.x の Adaptive Training は、Source Profileに応じてsampling ratio、augmentation、loss weighting、補完強度、学習方針等をさらに自動調整する高度化であり、v1の基本weightingを先送りする理由にはしない。
+v2.x の高度なAdaptive Training は、詳細Source Profileや運用結果に応じてsampling ratio、augmentation、loss weighting、補完強度等を連続的に最適化する高度化である。**v1の基本Source Profile→学習戦略選択、質感プリセット・Mod登録、基本weightingを先送りしない。**

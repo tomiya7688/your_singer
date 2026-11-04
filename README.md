@@ -49,6 +49,9 @@ v1 では、次の一連の処理を一つのソフトで完結させること�
 - トーク／歌唱の素材をユーザーが事前に仕分ける必要はない
 - Fine-tuningだけでなく、歌唱／トーク双方で新規学習にも対応する
 - 学習後の実音声生成・互換性・品質検証を重視する
+- **出力目的と声の質感プリセットを選び**、会話/歌唱の量・多様性・品質から適切な学習方法を自動選択・組み合わせる
+- クラシックな電子的音声から自然で高表現な声まで、プリセットは実現可能なBackend能力と対応づける
+- 第三者開発者・Modユーザーが質感プリセットと学習戦略を追加できる拡張基盤を用意する
 - ON時は欠損補完だけでなく、外れ値抑制、誤認識補正、特徴推定、条件間整合なども行う想定
 - OFF時は、可能な限り観測された学習データを優先する
 - 初期出力は独自形式よりも、**既存ソフトで読める一般的な形式への対応を優先**する
@@ -213,7 +216,12 @@ exporters/
 - [DiffSingerの音響学習入力](docs/diffsinger-acoustic-input.md)
 - [トーク学習用Trainerの同梱・構築](docs/talk-trainer-bundle.md)
 - [モデル出力・互換形式](docs/model-outputs.md)
+- **[学習システムの基本・詳細設計（正本）](docs/design/v1-training/learning-system-design.md)**
+- [学習戦略・Mod Provider詳細契約](docs/design/v1-training/learning-strategy-protocol.md)
 - [学習方式・重み付きデータ活用・品質検証](docs/training-strategy.md)
+- [質感プリセットの分類と音声合成方式](docs/design/v1-training/texture-preset-taxonomy.md)
+- [素材傾向から学習方法を選ぶ設計](docs/design/v1-training/data-profile-strategy-selection.md)
+- [学習戦略の第三者/Mod登録](docs/design/v1-training/strategy-plugin-api.md)
 - [技術アーキテクチャ / 配布設計](docs/architecture.md)
 - [バージョンロードマップ](docs/roadmap.md)
 - [ライセンス方針](docs/license-policy.md)
