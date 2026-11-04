@@ -19,76 +19,76 @@
 
 ### Phase 1: 学習用データの契約・基本weighting
 
-| 順序 | Issue | 単独で作る成果物 | 先行 |
-|---|---|---|---|
-| A01 | [#80](https://github.com/tomiya7688/your_singer/issues/80) | Assessment schema / repository / 旧形式区別 | #63 |
-| A02 | [#81](https://github.com/tomiya7688/your_singer/issues/81) | 目的別eligibility・除外理由 | A01 |
-| A03 | [#82](https://github.com/tomiya7688/your_singer/issues/82) | 音素・音域のUtility | A02 |
-| A04 | [#83](https://github.com/tomiya7688/your_singer/issues/83) | Quality×Utility→weight policyと純粋関数テスト | A03、#63 |
-| A05 | [#84](https://github.com/tomiya7688/your_singer/issues/84) | 学習modeの型・Job保存互換 | なし（並行可） |
-| A06 | [#85](https://github.com/tomiya7688/your_singer/issues/85) | Job snapshot/fingerprintと再作成 | A01,A04,A05 |
-| A07 | [#86](https://github.com/tomiya7688/your_singer/issues/86) | Speech/Singing/Ambiguousの用途別routing | A02 |
-| A08 | [#87](https://github.com/tomiya7688/your_singer/issues/87) | 両用途の共有話者特徴・来歴 | A07 |
-| A09 | [#88](https://github.com/tomiya7688/your_singer/issues/88) | Mode Resolver / GPU・資源preflight | A05 |
+| 順序 | Issue                                                      | 単独で作る成果物                              | 先行           |
+| ---- | ---------------------------------------------------------- | --------------------------------------------- | -------------- |
+| A01  | [#80](https://github.com/tomiya7688/your_singer/issues/80) | Assessment schema / repository / 旧形式区別   | #63            |
+| A02  | [#81](https://github.com/tomiya7688/your_singer/issues/81) | 目的別eligibility・除外理由                   | A01            |
+| A03  | [#82](https://github.com/tomiya7688/your_singer/issues/82) | 音素・音域のUtility                           | A02            |
+| A04  | [#83](https://github.com/tomiya7688/your_singer/issues/83) | Quality×Utility→weight policyと純粋関数テスト | A03、#63       |
+| A05  | [#84](https://github.com/tomiya7688/your_singer/issues/84) | 学習modeの型・Job保存互換                     | なし（並行可） |
+| A06  | [#85](https://github.com/tomiya7688/your_singer/issues/85) | Job snapshot/fingerprintと再作成              | A01,A04,A05    |
+| A07  | [#86](https://github.com/tomiya7688/your_singer/issues/86) | Speech/Singing/Ambiguousの用途別routing       | A02            |
+| A08  | [#87](https://github.com/tomiya7688/your_singer/issues/87) | 両用途の共有話者特徴・来歴                    | A07            |
+| A09  | [#88](https://github.com/tomiya7688/your_singer/issues/88) | Mode Resolver / GPU・資源preflight            | A05            |
 
 **Phase 1 Gate:** 低品質でも有用な区間は正のweight、誤話者等は理由付き除外。unknownと実測0が異なり、修正するとfingerprintが変わる。すべてC# unit testで確認できる。
 
 ### Phase 2: Trainerへweightを実際に渡す
 
-| 順序 | Issue | 成果物 | 先行 |
-|---|---|---|---|
-| A10 | [#89](https://github.com/tomiya7688/your_singer/issues/89) | SBV2用 `esd.list` と別weight manifest | A04,A06 |
-| A11 | [#90](https://github.com/tomiya7688/your_singer/issues/90) | DiffSinger学習入力とweight manifest | A04,A06、#61/PR #68 |
-| A12 | [#91](https://github.com/tomiya7688/your_singer/issues/91) | SBV2実samplerでweightを消費 | A10,A09 |
-| A13 | [#92](https://github.com/tomiya7688/your_singer/issues/92) | DiffSinger実samplerでweightを消費 | A11,A09 |
+| 順序 | Issue                                                      | 成果物                                | 先行                |
+| ---- | ---------------------------------------------------------- | ------------------------------------- | ------------------- |
+| A10  | [#89](https://github.com/tomiya7688/your_singer/issues/89) | SBV2用 `esd.list` と別weight manifest | A04,A06             |
+| A11  | [#90](https://github.com/tomiya7688/your_singer/issues/90) | DiffSinger学習入力とweight manifest   | A04,A06、#61/PR #68 |
+| A12  | [#91](https://github.com/tomiya7688/your_singer/issues/91) | SBV2実samplerでweightを消費           | A10,A09             |
+| A13  | [#92](https://github.com/tomiya7688/your_singer/issues/92) | DiffSinger実samplerでweightを消費     | A11,A09             |
 
 **Phase 2 Gate:** manifestを出力しただけで完了にしない。weightの変更が実Trainerのsamplingに反映されることを、seed固定の統合テストで確認する。
 
 ### Phase 3: 複数学習方式と歌唱サブモデル
 
-| 順序 | Issue | 成果物 | 先行 |
-|---|---|---|---|
-| A14 | [#93](https://github.com/tomiya7688/your_singer/issues/93) | SBV2の明示的fine-tune/scratch | A09 |
-| A15 | [#94](https://github.com/tomiya7688/your_singer/issues/94) | DiffSinger acousticの明示的fine-tune/scratch | A09 |
-| A16 | [#95](https://github.com/tomiya7688/your_singer/issues/95) | 歌唱Durationの実測学習入力 | A11、#61/PR #68 |
-| A17 | [#96](https://github.com/tomiya7688/your_singer/issues/96) | Durationモデル学習・Exporterへ接続 | A15,A16 |
-| A18 | [#97](https://github.com/tomiya7688/your_singer/issues/97) | OpenUtauに対する任意Pitch/Varianceモデルの対応と実装 | A15,A17 |
+| 順序 | Issue                                                      | 成果物                                               | 先行            |
+| ---- | ---------------------------------------------------------- | ---------------------------------------------------- | --------------- |
+| A14  | [#93](https://github.com/tomiya7688/your_singer/issues/93) | SBV2の明示的fine-tune/scratch                        | A09             |
+| A15  | [#94](https://github.com/tomiya7688/your_singer/issues/94) | DiffSinger acousticの明示的fine-tune/scratch         | A09             |
+| A16  | [#95](https://github.com/tomiya7688/your_singer/issues/95) | 歌唱Durationの実測学習入力                           | A11、#61/PR #68 |
+| A17  | [#96](https://github.com/tomiya7688/your_singer/issues/96) | Durationモデル学習・Exporterへ接続                   | A15,A16         |
+| A18  | [#97](https://github.com/tomiya7688/your_singer/issues/97) | OpenUtauに対する任意Pitch/Varianceモデルの対応と実装 | A15,A17         |
 
 **Phase 3 Gate:** Modeは必ずrequested / resolved / actually loadedが一致する。新規学習はベース話者checkpointを使わず、追加学習では明示checkpointを検証。**音響学習だけで完全なOpenUtau声庫と判定しない**。既存 `docs/implementation-v1-10.md` のOpenUtau 0.1.565では `dspitch`、`dsvariance` は任意であり、A18を必須の音響/duration/vocoderの検証と混同しない。
 
 ### Phase 4: 相互利用、実行証跡・失敗処理
 
-| 順序 | Issue | 成果物 | 先行 |
-|---|---|---|---|
-| A19 | [#98](https://github.com/tomiya7688/your_singer/issues/98) | 固定Backendの声質条件入力capability表 | A08 |
-| A20 | [#99](https://github.com/tomiya7688/your_singer/issues/99) | 会話声質→歌唱学習への実接続 | A08,A15,A19 |
-| A21 | [#100](https://github.com/tomiya7688/your_singer/issues/100) | 歌唱声質→トーク学習への実接続 | A08,A14,A19 |
-| A22 | [#101](https://github.com/tomiya7688/your_singer/issues/101) | 使用weight/初期重み/checkpointの実行報告 | A12,A13,A14,A15 |
-| A23 | [#102](https://github.com/tomiya7688/your_singer/issues/102) | 子プロセス含む取消・異常終了回収 | A22 |
+| 順序 | Issue                                                        | 成果物                                   | 先行            |
+| ---- | ------------------------------------------------------------ | ---------------------------------------- | --------------- |
+| A19  | [#98](https://github.com/tomiya7688/your_singer/issues/98)   | 固定Backendの声質条件入力capability表    | A08             |
+| A20  | [#99](https://github.com/tomiya7688/your_singer/issues/99)   | 会話声質→歌唱学習への実接続              | A08,A15,A19     |
+| A21  | [#100](https://github.com/tomiya7688/your_singer/issues/100) | 歌唱声質→トーク学習への実接続            | A08,A14,A19     |
+| A22  | [#101](https://github.com/tomiya7688/your_singer/issues/101) | 使用weight/初期重み/checkpointの実行報告 | A12,A13,A14,A15 |
+| A23  | [#102](https://github.com/tomiya7688/your_singer/issues/102) | 子プロセス含む取消・異常終了回収         | A22             |
 
 **Phase 4 Gate:** backend非対応の特徴を「利用した」と表示しない。トーク/歌唱の音声を別の用途の教師ラベルへ偽装しない。run reportが指定modeと異なる場合は失敗。
 
 ### Phase 5: 実モデル品質検証・利用者UI
 
-| 順序 | Issue | 成果物 | 先行 |
-|---|---|---|---|
-| A24 | [#103](https://github.com/tomiya7688/your_singer/issues/103) | SBV2未学習文章の実読み上げと状態記録 | A14,A22 |
-| A25 | [#104](https://github.com/tomiya7688/your_singer/issues/104) | 歌詞＋音符の実歌唱とOpenUtau互換検証 | A17,A22（A18は任意） |
-| A26 | [#105](https://github.com/tomiya7688/your_singer/issues/105) | checkpoint評価・比較・選定理由 | A24,A25 |
-| A27 | [#106](https://github.com/tomiya7688/your_singer/issues/106) | 3つのUI Issueの統合操作確認 | A33,A34,A35 |
-| A28 | [#107](https://github.com/tomiya7688/your_singer/issues/107) | CI回帰/fixture E2Eと偽成功排除 | A06,A07,A12,A13,A14,A15,A22 |
-| A29 | [#108](https://github.com/tomiya7688/your_singer/issues/108) | 実GPU・配布・UIの総合受入ゲート（機能開発を含まない） | A20,A21,A27,A28,A30,A31,A32 |
+| 順序 | Issue                                                        | 成果物                                                | 先行                        |
+| ---- | ------------------------------------------------------------ | ----------------------------------------------------- | --------------------------- |
+| A24  | [#103](https://github.com/tomiya7688/your_singer/issues/103) | SBV2未学習文章の実読み上げと状態記録                  | A14,A22                     |
+| A25  | [#104](https://github.com/tomiya7688/your_singer/issues/104) | 歌詞＋音符の実歌唱とOpenUtau互換検証                  | A17,A22（A18は任意）        |
+| A26  | [#105](https://github.com/tomiya7688/your_singer/issues/105) | checkpoint評価・比較・選定理由                        | A24,A25                     |
+| A27  | [#106](https://github.com/tomiya7688/your_singer/issues/106) | 3つのUI Issueの統合操作確認                           | A33,A34,A35                 |
+| A28  | [#107](https://github.com/tomiya7688/your_singer/issues/107) | CI回帰/fixture E2Eと偽成功排除                        | A06,A07,A12,A13,A14,A15,A22 |
+| A29  | [#108](https://github.com/tomiya7688/your_singer/issues/108) | 実GPU・配布・UIの総合受入ゲート（機能開発を含まない） | A20,A21,A27,A28,A30,A31,A32 |
 
 ### Phase 5a: UI・実GPU・配布をさらに小分け
 
-| Issue | 単独の成果物 | 先行 |
-|---|---|---|
-| A30 [#109](https://github.com/tomiya7688/your_singer/issues/109) | 実GPUのSBV2 fine-tune / scratch、読み上げ試験 | A12,A14,A23,A24 |
+| Issue                                                            | 単独の成果物                                    | 先行                |
+| ---------------------------------------------------------------- | ----------------------------------------------- | ------------------- |
+| A30 [#109](https://github.com/tomiya7688/your_singer/issues/109) | 実GPUのSBV2 fine-tune / scratch、読み上げ試験   | A12,A14,A23,A24     |
 | A31 [#110](https://github.com/tomiya7688/your_singer/issues/110) | 実GPUのDiffSinger fine-tune / scratch、歌唱試験 | A13,A15,A17,A23,A25 |
-| A32 [#111](https://github.com/tomiya7688/your_singer/issues/111) | クリーンWindows配布物の単一起動とruntime検証 | A30,A31,A35、PR #74 |
-| A33 [#112](https://github.com/tomiya7688/your_singer/issues/112) | 学習mode・Preflightの日本語UIだけ | A05,A09 |
-| A34 [#113](https://github.com/tomiya7688/your_singer/issues/113) | 学習採用/除外/重みの日本語UIだけ | A04,A06 |
-| A35 [#114](https://github.com/tomiya7688/your_singer/issues/114) | 検証ステータス/生成音声試聴の日本語UIだけ | A24,A25,A26 |
+| A32 [#111](https://github.com/tomiya7688/your_singer/issues/111) | クリーンWindows配布物の単一起動とruntime検証    | A30,A31,A35、PR #74 |
+| A33 [#112](https://github.com/tomiya7688/your_singer/issues/112) | 学習mode・Preflightの日本語UIだけ               | A05,A09             |
+| A34 [#113](https://github.com/tomiya7688/your_singer/issues/113) | 学習採用/除外/重みの日本語UIだけ                | A04,A06             |
+| A35 [#114](https://github.com/tomiya7688/your_singer/issues/114) | 検証ステータス/生成音声試聴の日本語UIだけ       | A24,A25,A26         |
 
 A27 (#106) は A33〜A35 の操作統合だけ、A29 (#108) は A30〜A32 までの実機・配布記録を照合するリリース判定だけを扱う。大きな実装を1Issueで行わない。
 
