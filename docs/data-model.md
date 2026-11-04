@@ -181,7 +181,7 @@ project/
 
 これにより同じ解析結果から、補完ON/OFFや出力形式を変えて再学習できます。
 
-学習ジョブにはユーザー指定の `target` と `texture_preset_id/version`、`SpeakerDataInventory` fingerprint、選択した `strategy_id/version/provider`、複数stageの学習計画、stageごとの `training_mode`（auto / fine_tune / from_scratch）、利用checkpointとそのversion、weighting policy/version、データ分割条件、評価結果を保存します。学習戦略の追加/削除で旧ジョブを黙って違う方法に変更しません。
+学習ジョブにはユーザー指定の `target` と `texture_preset_id/version`、`SpeakerDataInventory` fingerprint、選択した `strategy_id/version/provider`、複数stageの学習計画、stageごとの `training_mode`（auto / fine_tune / from_scratch）、利用checkpointとそのversion、weighting policy/version、データ分割条件、評価結果を保存します。保存契約と原本・派生データの境界は `docs/design/v1-training/learning-system-design.md` を正とします。学習戦略の追加/削除で旧ジョブを黙って違う方法に変更しません。
 
 ## キャッシュ
 
