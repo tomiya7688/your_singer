@@ -216,6 +216,8 @@ exporters/
 - [DiffSingerの音響学習入力](docs/diffsinger-acoustic-input.md)
 - [トーク学習用Trainerの同梱・構築](docs/talk-trainer-bundle.md)
 - [モデル出力・互換形式](docs/model-outputs.md)
+- **[学習システムの基本・詳細設計（正本）](docs/design/v1-training/learning-system-design.md)**
+- [学習戦略・Mod Provider詳細契約](docs/design/v1-training/learning-strategy-protocol.md)
 - [学習方式・重み付きデータ活用・品質検証](docs/training-strategy.md)
 - [質感プリセットの分類と音声合成方式](docs/design/v1-training/texture-preset-taxonomy.md)
 - [素材傾向から学習方法を選ぶ設計](docs/design/v1-training/data-profile-strategy-selection.md)
