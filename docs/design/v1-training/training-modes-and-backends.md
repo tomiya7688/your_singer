@@ -1,5 +1,7 @@
 # 学習方式とバックエンド統合 — v1詳細設計
 
+本書は固定Backendの学習入口と初期化の詳細を扱う。**生成目的・質感・素材方向性からの学習計画の決定順序と保存契約は [学習システム基本・詳細設計](learning-system-design.md) を正とする。** Fine-tune/Scratchは学習Stageの初期化選択であり、学習戦略全体の二者択一ではない。
+
 ## この設計の前提
 
 - トーク互換: Style-Bert-VITS2 **2.7.0**, commit `d8148f3090ee5038ca7b4e4b327116c64467f952`（既存 `docs/implementation-v1-11.md`）。
