@@ -8,7 +8,7 @@
 
 ## 前提と注記
 
-- README.md が参照する `implementation-plan.md` は、この worktree に存在しません(不明)。
+- README.md が参照する `implementation-plan.md` は PR #115 で追加される予定で、マージされるまで `main` にはありません。
 - ブランチ `issue-79-goal-texture-planning` の追補(goal-texture-data-planner.md、data-profile-strategy-selection.md、texture-preset-taxonomy.md、strategy-plugin-api.md)は、この worktree に無く読めていません。A36〜A42 の契約は Issue 本文だけから起こしています。
 - 設計正本の 4 文書は、質感プリセット(A39)、学習戦略 Registry(A40)、第三者 Worker Provider(A41)、Mod 管理(A42)、素材量の棚卸し(A36)、Talk/Singing の工程案(A37/A38)を扱っていません。設計正本の不足として、各節の冒頭に注記します。
 - training-modes-and-backends.md は、Auto を「`fine_tune` または `from_scratch` を実行前に確定する」と定義しています。Issue #112・#133・#134 は、Auto を複数工程の計画として扱う前提で書かれています。この食い違いは各節の要決定に載せました。

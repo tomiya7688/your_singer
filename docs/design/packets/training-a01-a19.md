@@ -61,13 +61,13 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - 目的: 子Issue（#80〜#98 ほか）の進行管理。コードは持たない。
 - 先行（着手できる条件）: #63 と #61 / PR #68（既存前提）。
 - 触るもの:
-  - docs/design/v1-training/implementation-plan.md（新規。PR #115 側にあり、この worktree には存在しない。README が参照している）
+  - docs/design/v1-training/implementation-plan.md（新規。PR #115 で追加される予定で、マージされるまで `main` には無い。README が参照している）
 - 契約: なし（契約は4文書と各子Issueが持つ）。
 - 完了条件: 各子Issueに目的・対象・入出力・手順・異常系・テスト・非目標が記載される。単体検証と実GPU生成を区別する。生成モデルが対象ソフトで読み込まれ音声を生成する。成功・未検証・失敗を偽らない。
 - テスト（自動）: なし（管理Issue）。
 - テスト（自動化できない確認）: 親の完了条件にある実GPU生成と対象ソフトでの読込・音声生成は #109〜#111（本書の範囲外）。
 - 非目標: OpenUtau 0.1.565 での Pitch/Variance は必須検証に含めない（親本文）。
-- 要決定: implementation-plan.md（PR #115）を依存の正本にするか、本書の依存一覧を正にするか。選択肢: PR #115 に統一 / 本書に統一
+- 決定済み: 依存順の正本は PR #115 の implementation-plan.md（[決定記録](../decisions.md) D-26）。
 
 ### #80 A01 学習用Assessmentの型・保存・旧データ読込を実装する
 
@@ -401,7 +401,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 
 ## 要決定一覧
 
-- #79 親: implementation-plan.md（PR #115）を依存の正本にするか、本書の依存一覧を正にするか。選択肢: PR #115 に統一 / 本書に統一
+- #79 親: （決定済み D-26: 依存順の正本は PR #115 の implementation-plan.md）
 - #80 A01: 旧UVDで measured にしてよい「測定元が明示的に特定できる」条件の具体（設計は条件の存在のみ記載）
 - #80 A01: reason_codes の語彙一覧（設計の例: user_excluded / wrong_speaker / unreadable_audio / no_usable_voice / wrong_content_type / alignment_required / rare_phoneme。これを閉じた列挙にするか自由文字列にするか）
 - #80 A01: Assessment repository のクラス名と ProjectWorkspace への安全パスAPI追加の要否（追加するか、TrainingInputDirectory の方式を流用するか）

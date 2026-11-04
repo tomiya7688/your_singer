@@ -32,7 +32,7 @@ Claude Code、Codex、ChatGPT、Copilotと人が共有する正本です。製�
 ## 常に守ること
 
 - 実装時は[コーディング規約](コーディング規約.md)、レビュー時は[レビュー基準](dev-guidelines/レビュー基準.md)に従います。例外の理由はPRに記載します。
-- Issueの実装は、[着手前チェック](dev-guidelines/implementation-ready.md)（重複PR・先行Issue・契約・要決定・触るファイル）を満たしてから始めます。揃わないときは推測で進めず、Issueに書いて返します。
+- Issueの実装は、[着手前チェック](dev-guidelines/implementation-ready.md)（7項目: 重複・先行Issue・契約・要決定・触るファイル・テスト・非目標）を満たしてから始めます。揃わないときは推測で進めず、Issueに書いて返します。
 - 開始時に`git pull --ff-only`を実行し、対象IssueのコメントとオープンPRを確認します。失敗した場合は最新性を未確認と記録します。
 - 1ブランチは1Issueです。他者の変更を保持し、今回のファイルだけをstageします。
 - 作業終了時はPRを作成し、最新headのCI成功・自己レビュー解決・競合なしを確認してsquashマージします。手順は[作業フロー](dev-guidelines/workflow.md)に従います。
