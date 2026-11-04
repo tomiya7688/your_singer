@@ -17,36 +17,36 @@
 
 **第1着手は #129（正解付きデータの仕様・分割）。** 次に #117 のBaseline測定へ進み、測定がないままアルゴリズムだけ増やさない。
 
-| 順 | Issue | 1件の成果物 | 依存 |
-|---|---|---|---|
+| 順   | Issue                                                        | 1件の成果物                                         | 依存 |
+| ---- | ------------------------------------------------------------ | --------------------------------------------------- | ---- |
 | Q00a | [#129](https://github.com/tomiya7688/your_singer/issues/129) | 正解付き素材のannotation schemaとsource/session分割 | なし |
-| Q00 | [#117](https://github.com/tomiya7688/your_singer/issues/117) | 固定素材を入力にする現行single-path Baseline runner | Q00a |
-| Q01 | [#118](https://github.com/tomiya7688/your_singer/issues/118) | raw/sep/cleanedの候補manifest・元時刻への変換 | Q00 |
-| Q02 | [#119](https://github.com/tomiya7688/your_singer/issues/119) | rawを残し素材条件で候補生成 | Q01 |
+| Q00  | [#117](https://github.com/tomiya7688/your_singer/issues/117) | 固定素材を入力にする現行single-path Baseline runner | Q00a |
+| Q01  | [#118](https://github.com/tomiya7688/your_singer/issues/118) | raw/sep/cleanedの候補manifest・元時刻への変換       | Q00  |
+| Q02  | [#119](https://github.com/tomiya7688/your_singer/issues/119) | rawを残し素材条件で候補生成                         | Q01  |
 
 **Gate A:** 元の音声が消えず、音声候補の時間ずれ・派生の来歴・キャッシュが一意。合成混合の正解付き評価が再実行できる。
 
 ## P1（異種モデルでの精度改善）
 
-| Issue | 単独の成果物 | 依存 |
-|---|---|---|
-| Q03a [#130](https://github.com/tomiya7688/your_singer/issues/130) | 第2分離モデルとcheckpointのライセンス・資源・実行条件固定 | Q00 |
-| Q03 [#120](https://github.com/tomiya7688/your_singer/issues/120) | 選定済み第2系統の分離モデルAdapter＋資源ロック | Q02,Q00,Q03a |
-| Q04 [#121](https://github.com/tomiya7688/your_singer/issues/121) | 目的別候補品質判定・選択・rawへの戻り道 | Q03,Q00 |
-| Q05 [#122](https://github.com/tomiya7688/your_singer/issues/122) | 話者複数窓/重複話者/未校正スコア | Q01,Q00 |
-| Q06 [#123](https://github.com/tomiya7688/your_singer/issues/123) | 会話/歌唱のwindowと曖昧区間・混在分割 | Q00,Q01 |
-| Q07 [#124](https://github.com/tomiya7688/your_singer/issues/124) | 複数ASR候補と日本語歌詞/音素整合 | Q02,Q00 |
-| Q08 [#125](https://github.com/tomiya7688/your_singer/issues/125) | 複数F0系列・オクターブ誤差検出 | Q01,Q00 |
-| Q09 [#126](https://github.com/tomiya7688/your_singer/issues/126) | 歌詞候補とMFA音素境界の整合/未校正 | Q07、既存#61/PR #68、#63 |
+| Issue                                                             | 単独の成果物                                              | 依存                     |
+| ----------------------------------------------------------------- | --------------------------------------------------------- | ------------------------ |
+| Q03a [#130](https://github.com/tomiya7688/your_singer/issues/130) | 第2分離モデルとcheckpointのライセンス・資源・実行条件固定 | Q00                      |
+| Q03 [#120](https://github.com/tomiya7688/your_singer/issues/120)  | 選定済み第2系統の分離モデルAdapter＋資源ロック            | Q02,Q00,Q03a             |
+| Q04 [#121](https://github.com/tomiya7688/your_singer/issues/121)  | 目的別候補品質判定・選択・rawへの戻り道                   | Q03,Q00                  |
+| Q05 [#122](https://github.com/tomiya7688/your_singer/issues/122)  | 話者複数窓/重複話者/未校正スコア                          | Q01,Q00                  |
+| Q06 [#123](https://github.com/tomiya7688/your_singer/issues/123)  | 会話/歌唱のwindowと曖昧区間・混在分割                     | Q00,Q01                  |
+| Q07 [#124](https://github.com/tomiya7688/your_singer/issues/124)  | 複数ASR候補と日本語歌詞/音素整合                          | Q02,Q00                  |
+| Q08 [#125](https://github.com/tomiya7688/your_singer/issues/125)  | 複数F0系列・オクターブ誤差検出                            | Q01,Q00                  |
+| Q09 [#126](https://github.com/tomiya7688/your_singer/issues/126)  | 歌詞候補とMFA音素境界の整合/未校正                        | Q07、既存#61/PR #68、#63 |
 
 **Gate B:** 少なくとも異なる分離方式2系統、F0の独立2方式、複数認識候補を比較可能。違いがあれば解決根拠を保存し、根拠不足なら `unresolved`。異常や声の消失を黙認しない。
 
 ## P1（信頼性と実利用）
 
-| Issue | 成果物 | 依存 |
-|---|---|---|
-| Q10 [#127](https://github.com/tomiya7688/your_singer/issues/127) | score_kind、校正状態、用途別評価・weightへの接続 | Q00,Q05,Q06,Q07,Q08 |
-| Q11 [#128](https://github.com/tomiya7688/your_singer/issues/128) | Baselineとの比較＋実モデル音声品質ゲート | Q04〜Q10、実GPU試験 (#109/#110) |
+| Issue                                                            | 成果物                                           | 依存                            |
+| ---------------------------------------------------------------- | ------------------------------------------------ | ------------------------------- |
+| Q10 [#127](https://github.com/tomiya7688/your_singer/issues/127) | score_kind、校正状態、用途別評価・weightへの接続 | Q00,Q05,Q06,Q07,Q08             |
+| Q11 [#128](https://github.com/tomiya7688/your_singer/issues/128) | Baselineとの比較＋実モデル音声品質ゲート         | Q04〜Q10、実GPU試験 (#109/#110) |
 
 **Gate C:** speaker DER/JER、speech/singing macro-F1/abstain、歌詞CER、F0/voicing、残BGM・加工劣化、最終声質を層別評価している。**すべてのモデル/候補を増やしたこと自体を改善の証拠としない**。
 

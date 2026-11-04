@@ -15,15 +15,15 @@
 
 ## 現行mainから見える改善箇所（2026-11-03時点）
 
-| 箇所 | 現行処理 | 主なリスク | 精度向上の設計 |
-|---|---|---|---|
-| `preprocessing.py` | Demucs `htdemucs` を通し、整音済音声で後段を処理 | もともと明瞭な話し声まで音色を加工 | raw/separated/cleaned等の複数候補と用途別選択 |
-| `audio_quality.py` | 分離後RMS÷元RMSを `music_leak` へ利用 | 音声の大きさとBGM残存率を混同 | 音楽残存と声質劣化を別指標で評価 |
-| `speaker_analysis.py` | embeddingのcos類似度をclampしてconfidenceとする | 確率ではない値を信頼度と誤用 | 複数窓・複数表現と話者整合、未校正状態 |
-| `content_classification.py` | pitch/有声率等のヒューリスティック | 語り調、ラップ、短歌唱を誤分類 | 複数特徴・短時間窓・区間内mixed検出 |
-| `transcription_alignment.py` | Faster-Whisper単一路線 | 歌唱、BGM、低音量の誤歌詞を伝播 | 複数候補・音素検証・歌詞が不確かな場合の保留 |
-| `audio_features.py` | 自己相関でF0生成 | オクターブミス/混合音/高音歌唱への弱さ | 歌唱向け頑健F0と独立な照合器を組み合わせる |
-| `AutoCorrectionService` | 低confidenceで区間除外 | 未校正MFAを0として誤除外 | 既存 #63を先行修正、異常値と未計測を分離 |
+| 箇所                         | 現行処理                                         | 主なリスク                             | 精度向上の設計                                |
+| ---------------------------- | ------------------------------------------------ | -------------------------------------- | --------------------------------------------- |
+| `preprocessing.py`           | Demucs `htdemucs` を通し、整音済音声で後段を処理 | もともと明瞭な話し声まで音色を加工     | raw/separated/cleaned等の複数候補と用途別選択 |
+| `audio_quality.py`           | 分離後RMS÷元RMSを `music_leak` へ利用            | 音声の大きさとBGM残存率を混同          | 音楽残存と声質劣化を別指標で評価              |
+| `speaker_analysis.py`        | embeddingのcos類似度をclampしてconfidenceとする  | 確率ではない値を信頼度と誤用           | 複数窓・複数表現と話者整合、未校正状態        |
+| `content_classification.py`  | pitch/有声率等のヒューリスティック               | 語り調、ラップ、短歌唱を誤分類         | 複数特徴・短時間窓・区間内mixed検出           |
+| `transcription_alignment.py` | Faster-Whisper単一路線                           | 歌唱、BGM、低音量の誤歌詞を伝播        | 複数候補・音素検証・歌詞が不確かな場合の保留  |
+| `audio_features.py`          | 自己相関でF0生成                                 | オクターブミス/混合音/高音歌唱への弱さ | 歌唱向け頑健F0と独立な照合器を組み合わせる    |
+| `AutoCorrectionService`      | 低confidenceで区間除外                           | 未校正MFAを0として誤除外               | 既存 #63を先行修正、異常値と未計測を分離      |
 
 ## 正確さの意味
 

@@ -8,16 +8,16 @@
 
 ## mainの実装確認に基づく現状（2026-11-02）
 
-| 境界 | 既存実装 | 追加／確認すべき内容 |
-|---|---|---|
-| 共通データ | `UniversalVoiceDatasetRecord`、`TrainingDatasetSnapshotService` | 計測状態と用途別適格性・重み。元観測値は変更しない |
-| 話者・内容分類 | `ContentClassificationService`、`UsageDatasetRouter`、`UniversalDatasetViewBuilder` | 曖昧区間の扱い、手動事前仕分け不要、用途別routing |
-| 自動補正 | `AutoCorrectionService` | 未計測confidenceの誤除外（既存 #63）、適格性と重みを分離 |
-| ジョブ | `TrainingJobPlanningService`、`TrainingJobRecord`、`TrainingDatasetSnapshotService` | 学習方式、input snapshot、weight policy version、再作成 |
-| 歌唱学習 | `DiffSingerDatasetBuilder`、`DiffSingerTrainerService`、Python `diffsinger_training.py` | weightの実学習反映、明示的な初期重み選択、歌唱推論検証 |
-| トーク学習 | `StyleBertVits2DatasetBuilder`、`StyleBertVits2TrainerService`、Python `style_bert_vits2_session.py` | weightの実学習反映、明示的な初期重み選択、読み上げ検証 |
-| UI | `src/ui/YourSinger.App/MainWindow.*` | 日本語の方法選択・利用素材の根拠・検証状態 |
-| テスト | `tests/YourSinger.Process.Tests/`、`tests/worker/` | 契約、低品質活用、偽成功排除、実素材GPU検証 |
+| 境界           | 既存実装                                                                                             | 追加／確認すべき内容                                     |
+| -------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 共通データ     | `UniversalVoiceDatasetRecord`、`TrainingDatasetSnapshotService`                                      | 計測状態と用途別適格性・重み。元観測値は変更しない       |
+| 話者・内容分類 | `ContentClassificationService`、`UsageDatasetRouter`、`UniversalDatasetViewBuilder`                  | 曖昧区間の扱い、手動事前仕分け不要、用途別routing        |
+| 自動補正       | `AutoCorrectionService`                                                                              | 未計測confidenceの誤除外（既存 #63）、適格性と重みを分離 |
+| ジョブ         | `TrainingJobPlanningService`、`TrainingJobRecord`、`TrainingDatasetSnapshotService`                  | 学習方式、input snapshot、weight policy version、再作成  |
+| 歌唱学習       | `DiffSingerDatasetBuilder`、`DiffSingerTrainerService`、Python `diffsinger_training.py`              | weightの実学習反映、明示的な初期重み選択、歌唱推論検証   |
+| トーク学習     | `StyleBertVits2DatasetBuilder`、`StyleBertVits2TrainerService`、Python `style_bert_vits2_session.py` | weightの実学習反映、明示的な初期重み選択、読み上げ検証   |
+| UI             | `src/ui/YourSinger.App/MainWindow.*`                                                                 | 日本語の方法選択・利用素材の根拠・検証状態               |
+| テスト         | `tests/YourSinger.Process.Tests/`、`tests/worker/`                                                   | 契約、低品質活用、偽成功排除、実素材GPU検証              |
 
 既存の `docs/implementation-v1-04.md`、`-09.md`、`-10.md`、`-11.md`、`-14.md` は保持し、ここに記載した新しい要求と競合する箇所は、対象IssueのPRで修正する。過去の実装済み機能やテスト成功を、未検証の機能の完成根拠に転用しない。
 
