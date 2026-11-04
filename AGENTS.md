@@ -43,14 +43,15 @@ Claude Code、Codex、ChatGPT、Copilotと人が共有する正本です。製�
 
 ## 必要なときだけ読む
 
-| 作業                                          | 最初の参照先                                                                                              |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| 担当Issueの設計を読む（実装前）               | [設計書の索引](docs/design/README.md)で担当Issueの実装パケットだけを開く                                  |
-| 設計が食い違う・決められない                  | [決定記録](docs/design/decisions.md)と[着手前チェック](dev-guidelines/implementation-ready.md)の該当節    |
-| 対象の実装・テストを探す                      | [ys-context](.agents/skills/ys-context/SKILL.md)と[作業別の確認先](dev-guidelines/context-map.md)の該当行 |
-| 作業開始・検証・レビュー・コミット・PR/マージ | [作業フロー](dev-guidelines/workflow.md)の該当工程                                                        |
-| Python・.NET・ML・配布ビルドを実行する        | [実行環境](dev-guidelines/execution.md)                                                                   |
-| 「次」「続けて」・担当交代・中断              | [引き継ぎ](dev-guidelines/handoff.md)と対象Issue/PRの最新記録                                             |
-| 指示やskillを追加・整理する                   | [保守方針と参照元](dev-guidelines/context-maintenance.md)                                                 |
+| 作業                                           | 最初の参照先                                                                                              |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 担当Issueの設計を読む（実装前）                | [設計書の索引](docs/design/README.md)で担当Issueの実装パケットだけを開く                                  |
+| 作業の進め方（質問・待機・確認の無駄を避ける） | [使用量を無駄にしない作業規則](dev-guidelines/usage-discipline.md)                                        |
+| 設計が食い違う・決められない                   | [決定記録](docs/design/decisions.md)と[着手前チェック](dev-guidelines/implementation-ready.md)の該当節    |
+| 対象の実装・テストを探す                       | [ys-context](.agents/skills/ys-context/SKILL.md)と[作業別の確認先](dev-guidelines/context-map.md)の該当行 |
+| 作業開始・検証・レビュー・コミット・PR/マージ  | [作業フロー](dev-guidelines/workflow.md)の該当工程                                                        |
+| Python・.NET・ML・配布ビルドを実行する         | [実行環境](dev-guidelines/execution.md)                                                                   |
+| 「次」「続けて」・担当交代・中断               | [引き継ぎ](dev-guidelines/handoff.md)と対象Issue/PRの最新記録                                             |
+| 指示やskillを追加・整理する                    | [保守方針と参照元](dev-guidelines/context-maintenance.md)                                                 |
 
 skillsを自動発見しない環境では、上のリンク先を直接読んでください。ファイルを読めないChatGPTには、依頼者が入口と該当資料を渡してください。リンク先を全件展開せず、今回必要な節から原典へ進みます。
