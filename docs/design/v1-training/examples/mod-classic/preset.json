@@ -4,10 +4,7 @@
   "version": "1.0.0",
   "display_name_ja": "明瞭な電子的音声",
   "description_ja": "音符・発音の正確さを保ちつつ規則的な合成表現を目標にする",
-  "supported_targets": [
-    "singing",
-    "talk"
-  ],
+  "supported_targets": ["singing", "talk"],
   "traits": {
     "syntheticness": 0.8,
     "expressiveness": 0.25,
@@ -15,10 +12,6 @@
     "tension": 0.5,
     "articulation": 0.9
   },
-  "required_capability_tags": [
-    "style_control"
-  ],
-  "preferred_strategy_tags": [
-    "controlled_prosody"
-  ]
+  "required_capability_tags": ["style_control"],
+  "preferred_strategy_tags": ["controlled_prosody"]
 }

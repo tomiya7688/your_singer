@@ -67,16 +67,16 @@ UI LayerからPythonへ直接アクセスせず、Process Commander/Processing/M
 
 ## 2. 用語とデータ契約
 
-| 概念（論理型） | 意味 | 主な必須値 |
-|---|---|---|
-| `VoiceGoal` | ユーザー希望。素材分析から変更しない | speaker_id, target, preset_id/version, optional reference_ids, output_requirement |
-| `TexturePreset` | 目指す質感。モデルやcheckpoint名ではない | id, version, display_name_ja, traits, required_traits, targets |
-| `SpeakerDataInventory` | 解析結果の量・分布・独立性 | source_fingerprint, speaker_id, role_metrics[], status |
-| `SegmentRole` | その区間の使い道 | segment_id, target, role, eligibility, source_kind, provenance |
-| `TrainingStrategy` | データ条件と目的・質感に合う方法の宣言 | strategy_id/version, supported_targets, required_capabilities, stage_graph |
-| `BackendCapability` | 実在するTrainer/推論/Exporterの能力 | backend_id/version, supported_operations, input_roles, output_types |
-| `TrainingPlan` | 選定された工程の不変DAG | goal_hash, inventory_hash, stages[], resources[], strategy_versions[] |
-| `TrainingRun` | 実行結果と出力証拠 | job_id, plan_hash, stage_status, actual_resources, artifacts, verification |
+| 概念（論理型）         | 意味                                     | 主な必須値                                                                        |
+| ---------------------- | ---------------------------------------- | --------------------------------------------------------------------------------- |
+| `VoiceGoal`            | ユーザー希望。素材分析から変更しない     | speaker_id, target, preset_id/version, optional reference_ids, output_requirement |
+| `TexturePreset`        | 目指す質感。モデルやcheckpoint名ではない | id, version, display_name_ja, traits, required_traits, targets                    |
+| `SpeakerDataInventory` | 解析結果の量・分布・独立性               | source_fingerprint, speaker_id, role_metrics[], status                            |
+| `SegmentRole`          | その区間の使い道                         | segment_id, target, role, eligibility, source_kind, provenance                    |
+| `TrainingStrategy`     | データ条件と目的・質感に合う方法の宣言   | strategy_id/version, supported_targets, required_capabilities, stage_graph        |
+| `BackendCapability`    | 実在するTrainer/推論/Exporterの能力      | backend_id/version, supported_operations, input_roles, output_types               |
+| `TrainingPlan`         | 選定された工程の不変DAG                  | goal_hash, inventory_hash, stages[], resources[], strategy_versions[]             |
+| `TrainingRun`          | 実行結果と出力証拠                       | job_id, plan_hash, stage_status, actual_resources, artifacts, verification        |
 
 JSONへ永続化する際は `schema_version` を必須とし、列挙値を不正文字列で補間しない。未知の将来versionは読み飛ばして成功扱いにせず、互換表示/実行停止を分ける。元のUniversal Voice Datasetは観測原本として維持し、派生計画・区間の役割は別recordへ保存する。
 
@@ -114,15 +114,15 @@ JSONへ永続化する際は `schema_version` を必須とし、列挙値を不�
 
 `SegmentRole` は少なくとも以下の型を持つ。
 
-| role | 扱い |
-|---|---|
-| `speech_teacher` | 会話テキストと対応した正当な発話教師 |
-| `singing_teacher` | 歌詞・音素・歌唱特徴と対応した正当な歌唱教師 |
+| role                 | 扱い                                                                 |
+| -------------------- | -------------------------------------------------------------------- |
+| `speech_teacher`     | 会話テキストと対応した正当な発話教師                                 |
+| `singing_teacher`    | 歌詞・音素・歌唱特徴と対応した正当な歌唱教師                         |
 | `identity_reference` | 本人の音色・話者特徴を抽出するための参照。**教師にならなくてもよい** |
-| `texture_reference` | 指定質感を持つ同一話者区間の参照 |
-| `feature_only` | 特徴だけ利用し、教師ラベルとして使用しない |
-| `review` | 話者・歌詞・用途等が未確定で学習には保留 |
-| `excluded` | 誤話者・破損・明示除外等で不適格。除外根拠を保存 |
+| `texture_reference`  | 指定質感を持つ同一話者区間の参照                                     |
+| `feature_only`       | 特徴だけ利用し、教師ラベルとして使用しない                           |
+| `review`             | 話者・歌詞・用途等が未確定で学習には保留                             |
+| `excluded`           | 誤話者・破損・明示除外等で不適格。除外根拠を保存                     |
 
 複数roleに対応できるが、同じ原音・加工音を独立録音と数えず、`source_id + time_interval + origin_hash` で重複管理する。同一話者に見えるか不明な区間は誤ったidentity_referenceへ強制投入しない。
 
@@ -130,15 +130,15 @@ JSONへ永続化する際は `schema_version` を必須とし、列挙値を不�
 
 プリセットは「性能ランク」ではなく**表現目標の束**。必要ならユーザーが同一話者の参考音声を指定し、目標と本人性の両方を守る。
 
-| ID | 目標 | 歌唱で検討する制御・学習経路 | トークで検討する制御・学習経路 |
-|---|---|---|---|
-| `classic_synthetic` | 旧来の電子的、規則的な質感 | 正確な音素と音符、制御されたF0細部・時間長、合成音色の調整。**意図しない欠損を作らない** | 明瞭な音素・規則的な韻律/抑揚、対応する音色制御 |
-| `clean_controlled` | 明瞭・安定 | 発音・F0/Duration精度を優先 | 発音と抑揚の安定性 |
-| `natural` | 自然な本人らしさ | 声色保持・自然な歌唱遷移と微細表現 | 声質、間、自然なアクセント/抑揚 |
-| `expressive_complex` | 複数の表現軸を使う豊かな声 | style/tension/breath/voice-color等の実能力がある場合に学習・制御 | style/prosody/emotion等の条件と多様な参考例 |
-| `soft_breathy` | 柔らかく息のある声 | 参考歌唱とbreathinessの実制御があれば使用 | 軟らかな発話参考例と対応スタイル適応 |
-| `powerful` | 張りのある力強い声 | tension/energy/強い発声参考例等 | 抑揚・音色・発声強度の対応制御 |
-| `reference_match` | 指定した音声に近い | 同一話者の具体的な歌唱参考区間へ合わせる | 同一話者の具体的な会話/歌唱参考区間へ合わせる |
+| ID                   | 目標                       | 歌唱で検討する制御・学習経路                                                             | トークで検討する制御・学習経路                  |
+| -------------------- | -------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `classic_synthetic`  | 旧来の電子的、規則的な質感 | 正確な音素と音符、制御されたF0細部・時間長、合成音色の調整。**意図しない欠損を作らない** | 明瞭な音素・規則的な韻律/抑揚、対応する音色制御 |
+| `clean_controlled`   | 明瞭・安定                 | 発音・F0/Duration精度を優先                                                              | 発音と抑揚の安定性                              |
+| `natural`            | 自然な本人らしさ           | 声色保持・自然な歌唱遷移と微細表現                                                       | 声質、間、自然なアクセント/抑揚                 |
+| `expressive_complex` | 複数の表現軸を使う豊かな声 | style/tension/breath/voice-color等の実能力がある場合に学習・制御                         | style/prosody/emotion等の条件と多様な参考例     |
+| `soft_breathy`       | 柔らかく息のある声         | 参考歌唱とbreathinessの実制御があれば使用                                                | 軟らかな発話参考例と対応スタイル適応            |
+| `powerful`           | 張りのある力強い声         | tension/energy/強い発声参考例等                                                          | 抑揚・音色・発声強度の対応制御                  |
+| `reference_match`    | 指定した音声に近い         | 同一話者の具体的な歌唱参考区間へ合わせる                                                 | 同一話者の具体的な会話/歌唱参考区間へ合わせる   |
 
 - 実際のOutputBackendが対応するかは**個別にcapabilityで照合**する。OpenUtauの表現曲線の一部はvoicebank自体の対応を要する。
 - 旧VOCALOID系の表現は**目標音響傾向の参考**であり、商用エンジンに互換の声庫を生成できるという意味ではない。
@@ -189,16 +189,16 @@ JSONへ永続化する際は `schema_version` を必須とし、列挙値を不�
 
 すべてのStageは `stage_id`、`operation_id`、`version`、`inputs`、`outputs`、`initialization`、`required_capabilities`、`resource_refs` と依存先IDを宣言する。
 
-| 種類 | 入力例 | 出力例 | 設計上の禁止 |
-|---|---|---|---|
-| `prepare_dataset` | 目的別適格区間/音素/weights | 学習入力・hash | 誤話者や別用途の教師を無根拠に投入 |
-| `use_base_ability` | 事前学習TTS/SVS + config | 発話/歌唱能力の基盤 | checkpointを持たずに持つと表示 |
-| `adapt_identity` | 本人の参照音声・同定根拠 | 話者条件・適応重み | 話者が異なる参考音声の流用 |
-| `adapt_texture` | preset traits + 同一話者の参考例 | style/preset条件 | 未対応traitsを実現済みと表示 |
-| `train_talk` | 発話教師・TTS能力・初期重み | トークモデルのcheckpoint | 歌唱ラベルを発話教師と偽装 |
-| `train_singing` | 歌唱教師・音素/F0/音符情報 | 歌唱音響/Duration等 | 音響だけで完全声庫と表示 |
-| `compose_model` | 互換な学習成果物と声質制御 | 再利用可能なModelPackage | 異種checkpointを無検証で混合・変換 |
-| `verify_model` | 本物のモデル/target runtime | 推論WAV・検証レポート | ダミーWAV/出力ファイル存在だけで合格 |
+| 種類               | 入力例                           | 出力例                   | 設計上の禁止                         |
+| ------------------ | -------------------------------- | ------------------------ | ------------------------------------ |
+| `prepare_dataset`  | 目的別適格区間/音素/weights      | 学習入力・hash           | 誤話者や別用途の教師を無根拠に投入   |
+| `use_base_ability` | 事前学習TTS/SVS + config         | 発話/歌唱能力の基盤      | checkpointを持たずに持つと表示       |
+| `adapt_identity`   | 本人の参照音声・同定根拠         | 話者条件・適応重み       | 話者が異なる参考音声の流用           |
+| `adapt_texture`    | preset traits + 同一話者の参考例 | style/preset条件         | 未対応traitsを実現済みと表示         |
+| `train_talk`       | 発話教師・TTS能力・初期重み      | トークモデルのcheckpoint | 歌唱ラベルを発話教師と偽装           |
+| `train_singing`    | 歌唱教師・音素/F0/音符情報       | 歌唱音響/Duration等      | 音響だけで完全声庫と表示             |
+| `compose_model`    | 互換な学習成果物と声質制御       | 再利用可能なModelPackage | 異種checkpointを無検証で混合・変換   |
+| `verify_model`     | 本物のモデル/target runtime      | 推論WAV・検証レポート    | ダミーWAV/出力ファイル存在だけで合格 |
 
 **Stageは依存関係を持つDAG**。別プロセスProviderで実行する場合も、未知operation・依存循環・入出力型不一致・必要資源欠損があれば計画段階で不成立とする。音声サンプルのみを作る `audio_preview` と、実際の `model_artifact` を出すStageは別物。
 
@@ -335,31 +335,31 @@ SHA256(canonical_json(
 
 ## 10. 現行コードとの接続点と移行
 
-| 現行mainのクラス/処理 | v1で追加する責務 | 保持する互換性 |
-|---|---|---|
-| `SpeakerTrainingSelection`, `TrainingJobRecord` | 目的/texture/参照・plan ID/hash、段階的学習の結果 | 旧Job履歴の閲覧・再作成 |
-| `TrainingJobPlanningService` | Goal→Inventory→Talk/Singing Plan→不変Job | 話者ごとの複数Job、補完ON/OFF |
-| `TrainingDatasetSnapshotService` | 最新手動修正・区間role・weightとfingerprint | 原UVDと重い解析キャッシュを破壊しない |
-| `UsageDatasetRouter` | 素材分類とユーザーの生成目的を区別 | ambiguous保留、手動修正の優先 |
-| `DiffSingerDatasetBuilder` | `singing_teacher` と別のidentity/texture reference、Stageごとの教師適格性 | OpenUtau声庫形式、MFA時刻検証 |
-| `StyleBertVits2DatasetBuilder` | `speech_teacher` と別のidentity/texture reference | 公式 `esd.list` の4列互換 |
-| `MlWorkerClient` | stage/provider/operationのversion付きIPCと結果hash照合 | メインアプリは1つのexe入口 |
-| `IModelExporter`/`ExporterRegistry` | Stage出力のModelPackageを対応runtimeへexport | 出力形式登録であり学習戦略登録ではない |
+| 現行mainのクラス/処理                           | v1で追加する責務                                                          | 保持する互換性                         |
+| ----------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------- |
+| `SpeakerTrainingSelection`, `TrainingJobRecord` | 目的/texture/参照・plan ID/hash、段階的学習の結果                         | 旧Job履歴の閲覧・再作成                |
+| `TrainingJobPlanningService`                    | Goal→Inventory→Talk/Singing Plan→不変Job                                  | 話者ごとの複数Job、補完ON/OFF          |
+| `TrainingDatasetSnapshotService`                | 最新手動修正・区間role・weightとfingerprint                               | 原UVDと重い解析キャッシュを破壊しない  |
+| `UsageDatasetRouter`                            | 素材分類とユーザーの生成目的を区別                                        | ambiguous保留、手動修正の優先          |
+| `DiffSingerDatasetBuilder`                      | `singing_teacher` と別のidentity/texture reference、Stageごとの教師適格性 | OpenUtau声庫形式、MFA時刻検証          |
+| `StyleBertVits2DatasetBuilder`                  | `speech_teacher` と別のidentity/texture reference                         | 公式 `esd.list` の4列互換              |
+| `MlWorkerClient`                                | stage/provider/operationのversion付きIPCと結果hash照合                    | メインアプリは1つのexe入口             |
+| `IModelExporter`/`ExporterRegistry`             | Stage出力のModelPackageを対応runtimeへexport                              | 出力形式登録であり学習戦略登録ではない |
 
 新設概念はProcess/Processingの `training/` にPlanner/Registry/Resolver、Data/modelsとrepositoriesにrecord、Python workerに固定Backend Adapterを置く。新しい第4層を作らない。**同梱する外部学習モデルやcheckpointはコードのApache-2.0とは別にライセンス・再配布条件を検査**する。生成モデルの扱いは `docs/license-policy.md` を正とする。
 
 ## 11. テストシナリオと合否
 
-| 入力/目標 | 正常な計画決定 | 禁止される誤動作 |
-|---|---|---|
+| 入力/目標                                | 正常な計画決定                                                           | 禁止される誤動作                                      |
+| ---------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------- |
 | 歌唱豊富・発話0、目標Talk+クラシック電子 | 歌唱を声質参照として利用できるTTS/出力経路を探索。なければ能力不足を明示 | 自動で歌唱モデルに変更、歌唱WAVだけをトークモデル扱い |
-| 発話豊富・歌唱0、目標Singing+高表現 | 汎用歌唱能力+発話由来声質適応を探索し、歌詞+音符で検証 | 本人の未知の歌唱技法・音域を実測と表示 |
-| 両方豊富、目標TalkとSingingで異なる質感 | 2プランを独立構成。声質証拠を共有 | 同一のtexture/Trainerを強制 |
-| 少量/重複多、低品質だが希少音素あり | 教師適格性・有効量を分けて計画、価値ある区間はweightで残す | 再生時間のみで「大量」と判定しゼロweight |
-| 同じ素材で自然→クラシックへ変更 | Profileキャッシュを再利用し、新Goal/Plan hashを作成 | 前処理再実行、Jobを上書き |
-| Mod presetは登録済み、実stageなし | 選択可能状態と実現能力未対応を区別 | 名前だけ変わった成果物を「プリセット成功」と表示 |
-| 追加戦略Provider不在/資源hash不一致 | 旧Job閲覧可、実行は停止し理由表示 | 代替Providerへ無断移行 |
-| Talk出力の実際のSBV2互換性なし | 対応別runtimeがあれば説明して選択可能。厳密SBV2指定なら不成立 | 別TTSモデルをSBV2互換としてexport |
+| 発話豊富・歌唱0、目標Singing+高表現      | 汎用歌唱能力+発話由来声質適応を探索し、歌詞+音符で検証                   | 本人の未知の歌唱技法・音域を実測と表示                |
+| 両方豊富、目標TalkとSingingで異なる質感  | 2プランを独立構成。声質証拠を共有                                        | 同一のtexture/Trainerを強制                           |
+| 少量/重複多、低品質だが希少音素あり      | 教師適格性・有効量を分けて計画、価値ある区間はweightで残す               | 再生時間のみで「大量」と判定しゼロweight              |
+| 同じ素材で自然→クラシックへ変更          | Profileキャッシュを再利用し、新Goal/Plan hashを作成                      | 前処理再実行、Jobを上書き                             |
+| Mod presetは登録済み、実stageなし        | 選択可能状態と実現能力未対応を区別                                       | 名前だけ変わった成果物を「プリセット成功」と表示      |
+| 追加戦略Provider不在/資源hash不一致      | 旧Job閲覧可、実行は停止し理由表示                                        | 代替Providerへ無断移行                                |
+| Talk出力の実際のSBV2互換性なし           | 対応別runtimeがあれば説明して選択可能。厳密SBV2指定なら不成立            | 別TTSモデルをSBV2互換としてexport                     |
 
 **自動テスト:** schema/バージョン/legacyの読込、role分離、Profileの重複除外、strategyの適合・安定順位・DAG検証、同一入力の再現性、manual overrideの反映、unsupportedの伝播、Modの異常、キャンセル・部分成果物、出力runtime互換。
 

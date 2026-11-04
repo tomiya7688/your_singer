@@ -44,10 +44,7 @@
     "supported_targets": {
       "type": "array",
       "items": {
-        "enum": [
-          "talk",
-          "singing"
-        ]
+        "enum": ["talk", "singing"]
       },
       "minItems": 1,
       "uniqueItems": true
@@ -67,12 +64,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "role",
-          "metric",
-          "op",
-          "value"
-        ],
+        "required": ["role", "metric", "op", "value"],
         "properties": {
           "role": {
             "enum": [
@@ -94,13 +86,7 @@
             ]
           },
           "op": {
-            "enum": [
-              "gte",
-              "lte",
-              "eq",
-              "gt",
-              "lt"
-            ]
+            "enum": ["gte", "lte", "eq", "gt", "lt"]
           },
           "value": {
             "type": "number",
@@ -188,10 +174,7 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": {
-        "enum": [
-          "talk_model",
-          "singing_model"
-        ]
+        "enum": ["talk_model", "singing_model"]
       }
     },
     "resource_manifest": {

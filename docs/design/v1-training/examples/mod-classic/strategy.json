@@ -4,12 +4,8 @@
   "version": "1.0.0",
   "display_name_ja": "少量データの声質活用レシピ",
   "description_ja": "登録済みの音声基盤・声質適応・検証Operationを組み合わせる",
-  "supported_targets": [
-    "talk"
-  ],
-  "supported_preset_ids": [
-    "community.classic_clean"
-  ],
+  "supported_targets": ["talk"],
+  "supported_preset_ids": ["community.classic_clean"],
   "requirements": [
     {
       "role": "identity_reference",
@@ -35,36 +31,22 @@
       "operation_id": "builtin.load_tts_base",
       "depends_on": [],
       "input_roles": [],
-      "output_types": [
-        "tts_base"
-      ]
+      "output_types": ["tts_base"]
     },
     {
       "id": "identity",
       "operation_id": "builtin.adapt_identity",
-      "depends_on": [
-        "base"
-      ],
-      "input_roles": [
-        "identity_reference"
-      ],
-      "output_types": [
-        "talk_model"
-      ]
+      "depends_on": ["base"],
+      "input_roles": ["identity_reference"],
+      "output_types": ["talk_model"]
     },
     {
       "id": "verify",
       "operation_id": "builtin.verify_talk_model",
-      "depends_on": [
-        "identity"
-      ],
+      "depends_on": ["identity"],
       "input_roles": [],
-      "output_types": [
-        "verification_report"
-      ]
+      "output_types": ["verification_report"]
     }
   ],
-  "expected_output_types": [
-    "talk_model"
-  ]
+  "expected_output_types": ["talk_model"]
 }

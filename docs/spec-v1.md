@@ -340,7 +340,6 @@ C# 側は UI / Project / Job / Data / ML Worker Control を担当し、Python �
 - v1の基本Source Profile/Strategy選択と、v2以降の収録環境・フィードバックによる高度なAdaptive Trainingは別段階とする。
 - v1ではModユーザーがプリセットと既存処理stageを宣言ファイルで登録できるようにし、第三者開発者が独自学習処理をworkerとして登録できる契約を用意する。登録と実行可否・互換性・ライセンス条件を確認する。
 
-
 ## 16. 質感プリセットと学習戦略の拡張性
 
 - 生成目的（talk/singing/both）はユーザーが選択し、質感プリセットはそれぞれ独立に選択する。

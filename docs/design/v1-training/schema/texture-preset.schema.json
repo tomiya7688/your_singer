@@ -42,10 +42,7 @@
     "supported_targets": {
       "type": "array",
       "items": {
-        "enum": [
-          "talk",
-          "singing"
-        ]
+        "enum": ["talk", "singing"]
       },
       "minItems": 1,
       "uniqueItems": true

@@ -46,15 +46,15 @@ TexturePreset            TrainingStrategy             Backend/Provider
 
 `preset.json` の必須項目と意味:
 
-| 項目 | 内容 |
-|---|---|
-| `schema_version` | 対応する宣言形式の版。初期版は `"1"` |
-| `preset_id`, `version` | 安定識別子と版 |
-| `display_name_ja`, `description_ja` | 日本語UIに表示 |
-| `supported_targets` | `talk` / `singing`（両方なら2要素） |
-| `traits` | `syntheticness`, `expressiveness`, `breathiness`, `tension`, `articulation` の0〜1目標値 |
-| `required_capability_tags` | これがない学習経路ではプリセットの**完全対応**とみなさない条件 |
-| `preferred_strategy_tags` | 優先候補探索の助け。これだけでは実能力の証明にならない |
+| 項目                                | 内容                                                                                     |
+| ----------------------------------- | ---------------------------------------------------------------------------------------- |
+| `schema_version`                    | 対応する宣言形式の版。初期版は `"1"`                                                     |
+| `preset_id`, `version`              | 安定識別子と版                                                                           |
+| `display_name_ja`, `description_ja` | 日本語UIに表示                                                                           |
+| `supported_targets`                 | `talk` / `singing`（両方なら2要素）                                                      |
+| `traits`                            | `syntheticness`, `expressiveness`, `breathiness`, `tension`, `articulation` の0〜1目標値 |
+| `required_capability_tags`          | これがない学習経路ではプリセットの**完全対応**とみなさない条件                           |
+| `preferred_strategy_tags`           | 優先候補探索の助け。これだけでは実能力の証明にならない                                   |
 
 `traits` は音響効果を1:1に表す直接PyTorchパラメータではない。特に「クラシック電子的」にsyntheticnessを指定することと、音声を故意に歪ませることは同義ではない。
 

@@ -42,16 +42,11 @@
         "identity_reference_seconds": 1800,
         "identity_status": "measured"
       },
-      "backend_capabilities": [
-        "singing_synthesis"
-      ],
+      "backend_capabilities": ["singing_synthesis"],
       "expect": {
         "target_preserved": "talk",
         "plan_status": "unsupported_capability",
-        "forbid": [
-          "change_target_to_singing",
-          "invent_tts_checkpoint"
-        ]
+        "forbid": ["change_target_to_singing", "invent_tts_checkpoint"]
       }
     },
     {
@@ -109,9 +104,7 @@
       "expect": {
         "independent_plans": 2,
         "shared_identity_possible": true,
-        "forbid": [
-          "override_both_presets_with_one"
-        ]
+        "forbid": ["override_both_presets_with_one"]
       }
     },
     {
@@ -126,16 +119,11 @@
         "identity_reference_seconds": 1200,
         "identity_status": "measured"
       },
-      "backend_capabilities": [
-        "singing_synthesis",
-        "reusable_singing_model"
-      ],
+      "backend_capabilities": ["singing_synthesis", "reusable_singing_model"],
       "expect": {
         "target_preserved": "singing",
         "missing_texture_capabilities_must_be_reported": true,
-        "forbid": [
-          "pretend_expressive_control_supported"
-        ]
+        "forbid": ["pretend_expressive_control_supported"]
       }
     },
     {
@@ -177,14 +165,10 @@
         "identity_reference_seconds": 400,
         "identity_status": "measured"
       },
-      "backend_capabilities": [
-        "voice_clone_runtime_qwen"
-      ],
+      "backend_capabilities": ["voice_clone_runtime_qwen"],
       "expect": {
         "plan_status": "unsupported_capability",
-        "forbid": [
-          "claim_style_bert_vits2_export_from_unrelated_runtime"
-        ]
+        "forbid": ["claim_style_bert_vits2_export_from_unrelated_runtime"]
       }
     }
   ]

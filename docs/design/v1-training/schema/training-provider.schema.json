@@ -40,10 +40,7 @@
     "runtime": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "kind",
-        "entry"
-      ],
+      "required": ["kind", "entry"],
       "properties": {
         "kind": {
           "const": "external_process"
@@ -61,10 +58,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "operation_id",
-          "version"
-        ],
+        "required": ["operation_id", "version"],
         "properties": {
           "operation_id": {
             "type": "string",
@@ -87,10 +81,7 @@
       "type": "array",
       "uniqueItems": true,
       "items": {
-        "enum": [
-          "read_provided_artifacts",
-          "write_job_artifacts"
-        ]
+        "enum": ["read_provided_artifacts", "write_job_artifacts"]
       }
     },
     "license_file": {
