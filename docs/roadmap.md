@@ -182,7 +182,7 @@ v1で構築したUniversal Voice Datasetとモデル生成基盤を利用し、�
 
 ## v1とv2の境界
 
-v1.0.0からユーザー指定の目的・質感プリセットと基本Source Profile（会話/歌唱の方向性、実効素材量・多様性・品質）に応じた戦略選択、Mod学習戦略Registry、品質・希少性に基づく重み付き学習、素材自動分類、追加学習／新規学習、実推論での検証を提供します。v2.xは収録環境・フィードバックに基づく連続的な戦略最適化を高度化します。詳細は `training-strategy.md` を参照してください。
+v1.0.0からユーザー指定の目的・質感プリセットと基本Source Profile（会話/歌唱の方向性、実効素材量・多様性・品質）に応じた戦略選択、Mod学習戦略Registry、品質・希少性に基づく重み付き学習、素材自動分類、追加学習／新規学習、実推論での検証を提供します。v2.xは収録環境・フィードバックに基づく連続的な戦略最適化を高度化します。基本学習計画・質感プリセット・Mod拡張の正本は `design/v1-training/learning-system-design.md` と `design/v1-training/learning-strategy-protocol.md`、学習品質原則は `training-strategy.md` を参照してください。
 
 ## 設計上の原則
 
