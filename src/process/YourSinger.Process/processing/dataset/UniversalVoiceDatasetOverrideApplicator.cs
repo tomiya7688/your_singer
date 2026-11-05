@@ -39,6 +39,7 @@ internal static class UniversalVoiceDatasetOverrideApplicator
             {
                 segment.Phonemes.Clear();
                 segment.AlignmentConfidence = 0;
+                segment.AlignmentConfidenceStatus = ConfidenceStatus.Unavailable;
                 segment.AlignmentMethod = "invalidated-by-transcript-override";
                 segment.AlignmentWarning = "文字起こしの変更後に音素境界の再解析が必要です。";
             }

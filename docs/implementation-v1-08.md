@@ -76,7 +76,7 @@ features/completion/short-vowel-gap-1/<入力指紋>/
 生成会話に音素時刻・F0・観測信頼度を捏造して付けない。生成物の出自は候補記録と生成専用区間IDで保持する。
 観測の再抽出・分離・文字起こしは行わない。
 設定・適用記録・生成区間を入力指紋へ含める。設定・入力や候補採用が変われば古いジョブは再作成を要求する。
-補正処理版はv1-08.6。旧ジョブの移行は `docs/training-job-recreation.md` を参照する。
+補正処理版はv1-08.7。旧ジョブの移行は `docs/training-job-recreation.md` を参照する。
 
 ## 検証と残件
 
@@ -90,7 +90,6 @@ features/completion/short-vowel-gap-1/<入力指紋>/
 - 音素候補生成のAPI・モデル資料は `docs/phoneme-supplements.md` に記載。
 
 音高補完はPraatアルゴリズムの再実装ではなく、候補周期の限定的な検証である。
-
 
 ## 文字起こしの自動再確認（v1-08.5）
 
