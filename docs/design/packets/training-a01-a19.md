@@ -1,22 +1,22 @@
 # v1学習 実装パケット（A01〜A19）
 
-> **正本との関係**: Issueの実装順は [PR #115](https://github.com/tomiya7688/your_singer/pull/115) の `implementation-plan.md`、目的・質感・Mod戦略は [PR #135](https://github.com/tomiya7688/your_singer/pull/135) が正本化中です(いずれも未マージ)。本書の「依存一覧」はIssue本文との差分確認用で、順序の正本は `implementation-plan.md` です。
+> **正本との関係**: Issueの実装順は [implementation-plan.md](../v1-training/implementation-plan.md)([PR #115](https://github.com/tomiya7688/your_singer/pull/115)、マージ済み)、目的・質感・Mod戦略は [PR #135](https://github.com/tomiya7688/your_singer/pull/135)(マージ済み。`goal-texture-data-planner.md` §10)が正本です。本書の「依存一覧」は `implementation-plan.md`(A01〜A35)と §10(#88 の追加条件)に合わせてあり、食い違いはパケットを直します([D-26](../decisions.md))。
 
 実装者がこの1ファイルで着手できるよう、#79 と #80〜#98 を実装パケットにまとめる。契約・式・順序の正本は `docs/design/v1-training/` の4文書（contracts-and-weighting.md、routing-and-cross-domain.md、training-modes-and-backends.md、verification-and-release.md）で、本書は節名で参照するだけで複製しない。
-Issue 本文と設計正本が食い違う箇所は黙って採用せず「要決定」に書く。コードの実在は worktree HEAD 340f515（2026-11-02 時点）で確認し、パスの後に「既存」「新規」「不明」を付ける。README が参照する implementation-plan.md は、この worktree に存在しない。
+Issue 本文と設計正本が食い違う箇所は黙って採用せず「要決定」に書く。コードの実在は worktree HEAD 340f515（2026-11-02 時点）で確認し、パスの後に「既存」「新規」「不明」を付ける。`implementation-plan.md` は `docs/design/v1-training/` に存在する(2026-11-05 時点の main で確認)。
 
 ## 依存一覧
 
 - #79 親 <- #63, #61 / PR #68（既存前提）
 - #80 A01 <- #63
-- #81 A02 <- #80, #63
+- #81 A02 <- #80(#63 は #80 の先行で、直接の依存には置かない)
 - #82 A03 <- #81
 - #83 A04 <- #82, #63
-- #84 A05 <- なし, #136 A39（設計由来: texture preset の語彙。要決定を参照）
-- #85 A06 <- #80, #83, #84, #88 A09（設計由来: resolved mode と checkpoint hash の確定。要決定を参照）
+- #84 A05 <- なし(並行可)。#136 A39 は #84 に依存する側で、逆向きの依存は置かない
+- #85 A06 <- #80, #83, #84(#88 は先行に置かない。resolved mode と checkpoint hash は D-07 の `run_fingerprint` で扱う)
 - #86 A07 <- #81
 - #87 A08 <- #86
-- #88 A09 <- #84, #132, #133, #134, #137 A40（Issue本文。依存行には無い）, #98 A19（設計由来: Resolve の引数 backendCapabilities）
+- #88 A09 <- #84(implementation-plan)、#132, #133, #134(`goal-texture-data-planner.md` §10。#98 は #133/#134 経由)。#137 は正本のどちらにも無く、依存に置かない
 - #89 A10 <- #83, #85
 - #90 A11 <- #83, #85, #61 / PR #68
 - #91 A12 <- #89, #88
@@ -61,7 +61,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - 目的: 子Issue（#80〜#98 ほか）の進行管理。コードは持たない。
 - 先行（着手できる条件）: #63 と #61 / PR #68（既存前提）。
 - 触るもの:
-  - docs/design/v1-training/implementation-plan.md（新規。PR #115 で追加される予定で、マージされるまで `main` には無い。README が参照している）
+  - docs/design/v1-training/implementation-plan.md（既存。PR #115 でマージ済み。依存順の正本）
 - 契約: なし（契約は4文書と各子Issueが持つ）。
 - 完了条件: 各子Issueに目的・対象・入出力・手順・異常系・テスト・非目標が記載される。単体検証と実GPU生成を区別する。生成モデルが対象ソフトで読み込まれ音声を生成する。成功・未検証・失敗を偽らない。
 - テスト（自動）: なし（管理Issue）。
@@ -92,7 +92,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 ### #81 A02 話者×用途別の区間適格性と除外理由を決定する
 
 - 目的: 話者×用途ごとに各区間を eligible / needs_review / excluded に判定し、主理由と副次理由を付ける。
-- 先行（着手できる条件）: #80（型）、#63。
+- 先行（着手できる条件）: #80（型）。#63 は #80 の先行で、直接の依存には置かない。
 - 触るもの:
   - src/process/YourSinger.Process/processing/dataset/TrainingEligibilityService.cs（新規。README の提案名）
   - src/process/YourSinger.Process/processing/dataset/TrainingDatasetSnapshotService.cs（既存。LoadAsync / ResolveJobAsync を利用）
@@ -104,7 +104,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: TrainingEligibilityTests: WrongSpeaker_IsExcluded / UnknownSpeaker_IsNeedsReview / Silence_IsExcluded / BrokenWav_IsExcluded / SingingWithoutAlignment_IsNeedsReviewAndOthersContinue / LowQualityUsable_StaysEligible / AllNeedsReview_ReportsNoUsableSegments / UserExcluded_NeverReadopted
 - テスト（自動化できない確認）: なし。
 - 非目標: 重み計算（#83）と再学習ジョブ保存（#85）。
-- 要決定: 用途不一致の扱い: 設計は needs_review/wrong_content_type、Issue は feature_only 候補として残す。feature_only は #86 の role であり #80 の eligibility 値ではない。選択肢: #81 は needs_review のみ返し role は #86 が付ける / #81 が role も返す
+- 解消(D-04): `role` と `eligibility` は別の軸。#81 は needs_review/wrong_content_type を返し、`role=feature_only` は #86 が付ける。#80 の record は `role` を保持する。
 - 要決定: 「主理由」の保存位置（設計の JSON に primary フィールドがない）。選択肢: reason_codes[0] を主理由とする / primary_reason フィールドを追加
 - 要決定: 「音声破損」「有効な有声区間なし」の判定基準（数値・無音割合は未記載）
 
@@ -140,7 +140,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: TrainingWeightPolicyTests: Q1U0_Raw1_0 / Q0U1_Raw0_6125_Positive / AllUnknown_UsesNeutralButKeepsStatus / ZeroEligible_Throws / Shuffle_SameWeights / NonFinite_Rejected / AutoCorrectionOnOff_SeparateInputs
 - テスト（自動化できない確認）: なし。
 - 非目標: Trainer への反映（#91 / #92）。
-- 要決定: 全項目未計測時の quality.status: Issue は「unknown のまま」、設計は `unavailable`（status 5値に unknown はない）。どちらを正とするか
+- 解消(D-05): 全項目が未計測のときは設計正本の `unavailable` を使う。Issue本文の `unknown` は `unavailable` と読み替える。
 - 要決定: audio品質の 0〜1 化（noise / music_leak / reverb / clipping の向きと変換式。設計は「AudioQualityAnalyzer とテストに合わせて確定」）
 - 要決定: clamp 後に平均が 1 でなくなることを許容するか（設計は clamp のみ記載。選択肢: 許容 / clamp 後に再正規化）
 
@@ -158,8 +158,8 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: TrainingRecreationTests に追加: Serialization_RoundTripsModes / LegacyHistory_NotPassedOffAsNew / InvalidEnum_Rejected / Both_ExpandsWithIndependentTextureAndMode / Recreate_KeepsSettings / FromScratchWithBaseCheckpoint_Rejected
 - テスト（自動化できない確認）: なし。
 - 非目標: 実Trainer の起動。
-- 要決定: texture preset の語彙と型（#136 A39 が定義するが #84 の依存行にない。選択肢: #136 を先行依存にする / 文字列IDだけ保存し検証を #136 以降に回す）
-- 要決定: Auto の表現: 設計は auto を fine_tune か from_scratch の二択に実行前確定、Issue は複数stage計画を解決。stage record を持つか単一 resolved_training_mode か（#88 と共通の決定）
+- 解消(implementation-plan A05、`goal-texture-data-planner.md` §10): #84 は先行なしで並行可、#136 が #84 に依存する。したがって #136 を先行にせず、preset は文字列IDで保存し、語彙の検証は #136 側に置く。
+- 解消(D-01): `requested_training_mode` は1ジョブの初期化方式。複数工程の計画は別に `TrainingStagePlan` で持ち、各工程が `resolved_training_mode` を持つ。
 - 要決定: VoiceModelGoal と既存 TrainingTarget(Talk/Singing/Both, Flags) の関係。選択肢: 併存 / TrainingTarget を置換
 
 ### #85 A06 Weight/学習方式を含む学習入力Fingerprintと旧ジョブ再作成を接続する
@@ -175,8 +175,8 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: TrainingRecreationTests に追加: Fingerprint_Fixed / Fingerprint_ChangesOnWeightOrMode / UserOverrides_Reflected / AutoCorrectionOnOff_Differs / OldHistory_RequiresRecreation / Canceled_NoPartialSave / SaveFailure_KeepsOld
 - テスト（自動化できない確認）: なし。
 - 非目標: UI、実Trainerへのweight適用。
-- 要決定: resolved mode と checkpoint hash は #88 が確定するが #85 の依存に #88 がない。選択肢: ジョブ作成時は requested のみで fingerprint を作り resolve 後に再計算 / #88 を #85 の先行にする
-- 要決定: 目標texture（#84）を fingerprint に含める点は #84 に明記され #85 には記載なし。含めると確定してよいか
+- 解消(D-07、implementation-plan A06): #88 は #85 の先行に置かない。#85 は `input_fingerprint` を実装し、resolved mode と初期化資源のhashを含む `run_fingerprint` は #88 の Resolve 後に確定する。
+- 解消(D-07): `input_fingerprint` は目的/質感を含む。
 - 要決定: 新 fingerprint の version 名と、旧形式の判別根拠（TrainingJobBatch.InputVersion か fingerprint 文字列か）
 
 ### #86 A07 会話/歌唱/曖昧区間を自動で用途別に振り分けるRoutingDecisionを作る
@@ -195,7 +195,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: UsageDatasetRouterTests: McPlusSinging_SplitsPrimary / AllAmbiguous_IsReview / ManualOverride_Wins / MixedSpeakers_Separated / UserExcluded_Reflected / ExistingSelectionApi_Unchanged
 - テスト（自動化できない確認）: なし。
 - 非目標: 分類モデル自体の全面刷新。目的決定とTrainer選択（分類器は行わない）。
-- 要決定: routing の role と assessment の eligibility（#80/#81）の対応表（例: feature_only はどの eligibility か）
+- 解消(D-04): 2つは別の軸で、対応表は持たない。`role=feature_only` の区間は教師データの採否(eligibility)の対象にしない。
 - 要決定: classification_confidence の status 語彙（既存 Confidence は double で未計測の区別がない。設計の status 5値を使うか）
 - 要決定: RoutingDecision の保存先とファイル名（設計・Issue とも未記載）。および feature_only 量を #132〜#134 へ渡す型
 
@@ -213,12 +213,12 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動化できない確認）: なし。
 - 非目標: Trainer への実 conditioning（後続Issue）。
 - 要決定: 重み付き集約の重み（品質・confidence のどれをどう使うか。設計は「別途weightを付ける」のみ）
-- 要決定: unsupported 報告の型を #98 の BackendCapabilities と一本化するか分けるか
+- 解消(D-08): 「対応外を報告する契約」は #98 に一本化する。#87 は区間側の共有特徴の参照と来歴だけを保存し、対応可否は判断しない。
 
 ### #88 A09 目的・質感・素材量に応じた学習計画の確定とPreflight
 
 - 目的: Plannerの複数段階案をbackend能力・checkpoint・GPUで検証し、不変の計画manifestに確定する。
-- 先行（着手できる条件）: #84、#132、#133、#134（依存行）。本文はさらに #137 TrainingStrategyRegistry を前提にする。設計由来で #98。
+- 先行（着手できる条件）: #84、#132、#133、#134（implementation-plan と §10）。Issue本文は #137 TrainingStrategyRegistry も前提にするが、正本に無いため依存としない(要決定を参照)。#98 は #133/#134 経由。
 - 触るもの:
   - src/process/YourSinger.Process/processing/training/TrainingModeResolver.cs（新規。src 内に0件）
   - 既存ML worker bundle / version 情報（具体ファイルは不明）
@@ -228,9 +228,9 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: TrainingModeResolverTests: SingingOnly50minTalkGoal_PlansSingingLikeTalk / TalkRichSingingGoal / BothTargets / SameMaterialDifferentTexture / BackendUnsupported_Stops / CheckpointMissing_Fails / HashMismatch_Fails / AutoDecisionFixedInJob / GpuShortage / EmptyDataset / UnsupportedMode / GoalNeverAutoChanged。実GPU確認は #109 / #110。
 - テスト（自動化できない確認）: GPU/VRAM 不足判定の実機確認は自動化できない（#109 / #110）。
 - 非目標: 外部Trainerの実行、UI追加。
-- 要決定: auto の意味: 設計は「同梱checkpointがあれば原則 fine_tune、なければ from_scratch の成否」の二択（checkpoint優先）、Issue は「checkpointの有無だけでは決めず素材量で複数stage計画」。どちらを正とするか
+- 解消(D-01): `auto` は段階的な候補計画を比較して解決し、各工程が自分の `resolved_training_mode` を持つ。checkpointの有無だけでは決めない。
 - 要決定: GPU/VRAM の警告・停止閾値（設計・Issue とも数値なし）
-- 要決定: 依存行に #137（本文）と #98（設計のResolve引数 backendCapabilities）が無い。依存に加えるか
+- 解消(implementation-plan A09、§10): 依存は #84、#132、#133、#134。#98 は #133/#134 経由で先行する。#137 は正本のどちらにも無いので依存に加えない。ただしIssue本文は #137 を前提にしており、Issue本文との食い違いは未修正(Issue側の確認が必要)。
 
 ### #89 A10 Style-Bert-VITS2 Dataset Builderへ区間Weight manifestを出力する
 
@@ -263,7 +263,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動化できない確認）: なし。
 - 非目標: DiffSingerのsampler改造（#92）と音響学習の完走。
 - 要決定: manifest のファイル名とスキーマ（Issue 未記載）。#89 と共通の形式にするか
-- 要決定: PR #68 が未マージの間の進め方（待つ／別ブランチで先行しマージ時に調整）
+- 解消(D-12): PR #68(#61) が未統合の間は実装に着手しない。契約の設計までは進めてよい。
 
 ### #91 A12 SBV2公式Trainerで重み付きサンプリングを実動作させる
 
@@ -296,7 +296,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動化できない確認）: 実GPUでの重み反映確認は自動化できない（#110）。
 - 非目標: 新規・追加学習モードとサブモデル生成。
 - 要決定: DiffSinger v2.5.1 の sampler 差し込み箇所（クラス名はIssue 未記載。固定 commit 323a569 のコード確認が必要）
-- 要決定: PR #68 未マージ時の進め方（#90 と共通）
+- 解消(D-12): #90 と同じ。PR #68(#61) 未統合の間は実装に着手しない。
 
 ### #93 A14 Style-Bert-VITS2で明示的なFine-tune/新規学習を切り替える
 
@@ -314,7 +314,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動化できない確認）: 実GPUでの学習完走は自動化できない（#109）。
 - 非目標: 学習結果の品質判定。
 - 要決定: from_scratch で prepare() の G_0 / D_0 / DUR_0 必須チェックをどう緩めるか。および「共有テキストEncoder等」に含める資源の定義（設計は「定義に沿って」とのみ記載で定義の所在なし）
-- 要決定: Auto の複数stage計画（#88）に対し worker が単一 resolved_training_mode を受ける設計の整合（stage ごとに別 worker 呼出しにするか）
+- 解消(D-01): Workerは1回の呼出しで1工程を受け取り、工程ごとの結果は `stage-runs/<stage-id>` に別記録する。
 
 ### #94 A15 DiffSinger音響モデルで明示的なFine-tune/新規学習を切り替える
 
@@ -380,13 +380,13 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: DiffSingerExportTests: MissingSubmodel / InvalidF0 / EmptyNotes / ConfigVersionMismatch / MissingVocoder
 - テスト（自動化できない確認）: OpenUtau実機試験は自動化できない（後続 #110 / #111）。
 - 非目標: 最終OpenUtau実機音声試験。
-- 要決定: Pitch / Variance の位置づけ: implementation-v1-10.md と親 #79 は任意（dsdur・dsvocoder が必須）、training-modes-and-backends.md は「音響だけでduration/pitch未生成は完全歌唱モデルと呼ばない」。pitch を必須扱いにするか。選択肢: 任意のまま未生成なら『互換性未完成』と表示 / 必須に引き上げ
+- 解消(implementation-plan Phase 3 Gate と A25、D-06 暫定): pitch/variance は任意で、A18 を必須の検証と混同しない。未生成は「未提供」と表示し、エラーにしない。「音響だけで完全なOpenUtau声庫と判定しない」は維持する。
 - 要決定: 固定 Vocoder の具体（版・hash・ライセンスは本Issueの成果物として記録する形だが候補名は Issue になし）
 
 ### #98 A19 トーク／歌唱の共有声質特徴を利用できるBackend能力表を固定する
 
 - 目的: DiffSinger と SBV2 が受け入れ可能な共有特徴を yes/no で固定し、Adapter 契約と unsupported 表示を定める。
-- 先行（着手できる条件）: #87。設計由来で #88 から参照される。
+- 先行（着手できる条件）: #87。#88 の直接の依存には置かない(#133/#134 経由。`goal-texture-data-planner.md` §10)。
 - 触るもの:
   - docs/design/v1-training/routing-and-cross-domain.md（既存。能力表を追記）
   - src/process/YourSinger.Process/processing/training/ の BackendCapabilities（新規・提案名。src 内に0件）
@@ -396,7 +396,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: SharedSpeakerFeatureTests に追加: CapabilityTable_MatchesDocument / VoiceIdMismatch_Rejected / TargetMismatch_Rejected / Unsupported_ShownInJobRecord
 - テスト（自動化できない確認）: なし（調査と契約の固定）。
 - 非目標: 実際のfeature conditioning と学習反映。
-- 要決定: BackendCapabilities を #88 の Resolve 引数として使うなら #88 の依存に加えるか（#98 は #87 のみに依存）
+- 解消(implementation-plan A09、§10): #88 の直接の依存には加えない。#98 は #133/#134 の先行で、#88 はそれらに依存する。
 - 要決定: yes/no 判定の根拠となる固定commit（SBV2 d8148f3 / DiffSinger 323a569）のコード調査の記録先（docs の節か別文書か）
 
 ## 要決定一覧
@@ -405,46 +405,46 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - #80 A01: 旧UVDで measured にしてよい「測定元が明示的に特定できる」条件の具体（設計は条件の存在のみ記載）
 - #80 A01: reason_codes の語彙一覧（設計の例: user_excluded / wrong_speaker / unreadable_audio / no_usable_voice / wrong_content_type / alignment_required / rare_phoneme。これを閉じた列挙にするか自由文字列にするか）
 - #80 A01: Assessment repository のクラス名と ProjectWorkspace への安全パスAPI追加の要否（追加するか、TrainingInputDirectory の方式を流用するか）
-- #81 A02: 用途不一致の扱い: 設計は needs_review/wrong_content_type、Issue は feature_only 候補として残す。feature_only は #86 の role であり #80 の eligibility 値ではない。選択肢: #81 は needs_review のみ返し role は #86 が付ける / #81 が role も返す
+- ~~#81 A02: 用途不一致の扱い: 設計は needs_review/wrong_content_type、Issue は feature_only 候補として残す。feature_only は #86 の role であり #80 の eligibility 値ではない。選択肢: #81 は needs_review のみ返し role は #86 が付ける / #81 が role も返す~~ → (解消 D-04。上の節を参照)
 - #81 A02: 「主理由」の保存位置（設計の JSON に primary フィールドがない）。選択肢: reason_codes[0] を主理由とする / primary_reason フィールドを追加
 - #81 A02: 「音声破損」「有効な有声区間なし」の判定基準（数値・無音割合は未記載）
 - #82 A03: 音域bin希少度の式（設計は「音素希少度と平均」とだけ記載。bin出現数 n(bin) に r=1/sqrt(max(1,n)) を同様に使うか、区間内のどのF0フレームでbinを決めるか）
 - #82 A03: 「確実に観測した音素」の判定フィールド（Phonemes[].Confidence の閾値、ユーザー確定ラベルの識別、推定音素 PhonemeSupplement の除外方法）
 - #82 A03: 測定不能時の utility.status の値（5値のうち unavailable でよいか）
-- #83 A04: 全項目未計測時の quality.status: Issue は「unknown のまま」、設計は `unavailable`（status 5値に unknown はない）。どちらを正とするか
+- ~~#83 A04: 全項目未計測時の quality.status: Issue は「unknown のまま」、設計は `unavailable`（status 5値に unknown はない）。どちらを正とするか~~ → (解消 D-05。上の節を参照)
 - #83 A04: audio品質の 0〜1 化（noise / music_leak / reverb / clipping の向きと変換式。設計は「AudioQualityAnalyzer とテストに合わせて確定」）
 - #83 A04: clamp 後に平均が 1 でなくなることを許容するか（設計は clamp のみ記載。選択肢: 許容 / clamp 後に再正規化）
-- #84 A05: texture preset の語彙と型（#136 A39 が定義するが #84 の依存行にない。選択肢: #136 を先行依存にする / 文字列IDだけ保存し検証を #136 以降に回す）
-- #84 A05: Auto の表現: 設計は auto を fine_tune か from_scratch の二択に実行前確定、Issue は複数stage計画を解決。stage record を持つか単一 resolved_training_mode か（#88 と共通の決定）
+- ~~#84 A05: texture preset の語彙と型（#136 A39 が定義するが #84 の依存行にない。選択肢: #136 を先行依存にする / 文字列IDだけ保存し検証を #136 以降に回す）~~ → (解消 implementation-plan A05。上の節を参照)
+- ~~#84 A05: Auto の表現: 設計は auto を fine_tune か from_scratch の二択に実行前確定、Issue は複数stage計画を解決。stage record を持つか単一 resolved_training_mode か（#88 と共通の決定）~~ → (解消 D-01。上の節を参照)
 - #84 A05: VoiceModelGoal と既存 TrainingTarget(Talk/Singing/Both, Flags) の関係。選択肢: 併存 / TrainingTarget を置換
-- #85 A06: resolved mode と checkpoint hash は #88 が確定するが #85 の依存に #88 がない。選択肢: ジョブ作成時は requested のみで fingerprint を作り resolve 後に再計算 / #88 を #85 の先行にする
-- #85 A06: 目標texture（#84）を fingerprint に含める点は #84 に明記され #85 には記載なし。含めると確定してよいか
+- ~~#85 A06: resolved mode と checkpoint hash は #88 が確定するが #85 の依存に #88 がない。選択肢: ジョブ作成時は requested のみで fingerprint を作り resolve 後に再計算 / #88 を #85 の先行にする~~ → (解消 D-07。上の節を参照)
+- ~~#85 A06: 目標texture（#84）を fingerprint に含める点は #84 に明記され #85 には記載なし。含めると確定してよいか~~ → (解消 D-07。上の節を参照)
 - #85 A06: 新 fingerprint の version 名と、旧形式の判別根拠（TrainingJobBatch.InputVersion か fingerprint 文字列か）
-- #86 A07: routing の role と assessment の eligibility（#80/#81）の対応表（例: feature_only はどの eligibility か）
+- ~~#86 A07: routing の role と assessment の eligibility（#80/#81）の対応表（例: feature_only はどの eligibility か）~~ → (解消 D-04。上の節を参照)
 - #86 A07: classification_confidence の status 語彙（既存 Confidence は double で未計測の区別がない。設計の status 5値を使うか）
 - #86 A07: RoutingDecision の保存先とファイル名（設計・Issue とも未記載）。および feature_only 量を #132〜#134 へ渡す型
 - #87 A08: 重み付き集約の重み（品質・confidence のどれをどう使うか。設計は「別途weightを付ける」のみ）
-- #87 A08: unsupported 報告の型を #98 の BackendCapabilities と一本化するか分けるか
-- #88 A09: auto の意味: 設計は「同梱checkpointがあれば原則 fine_tune、なければ from_scratch の成否」の二択（checkpoint優先）、Issue は「checkpointの有無だけでは決めず素材量で複数stage計画」。どちらを正とするか
+- ~~#87 A08: unsupported 報告の型を #98 の BackendCapabilities と一本化するか分けるか~~ → (解消 D-08。上の節を参照)
+- ~~#88 A09: auto の意味: 設計は「同梱checkpointがあれば原則 fine_tune、なければ from_scratch の成否」の二択（checkpoint優先）、Issue は「checkpointの有無だけでは決めず素材量で複数stage計画」。どちらを正とするか~~ → (解消 D-01。上の節を参照)
 - #88 A09: GPU/VRAM の警告・停止閾値（設計・Issue とも数値なし）
-- #88 A09: 依存行に #137（本文）と #98（設計のResolve引数 backendCapabilities）が無い。依存に加えるか
+- ~~#88 A09: 依存行に #137（本文）と #98（設計のResolve引数 backendCapabilities）が無い。依存に加えるか~~ → (解消 implementation-plan A09 と §10。上の節を参照)
 - #89 A10: manifest のファイル名とスキーマ（設計に train_weights.json の名があるが Issue は未指定）。train_weights.json を採用するか
 - #89 A10: esd.list に載らない needs_review / excluded を manifest に含めるか（含めない場合の検証方法）
 - #90 A11: manifest のファイル名とスキーマ（Issue 未記載）。#89 と共通の形式にするか
-- #90 A11: PR #68 が未マージの間の進め方（待つ／別ブランチで先行しマージ時に調整）
+- ~~#90 A11: PR #68 が未マージの間の進め方（待つ／別ブランチで先行しマージ時に調整）~~ → (解消 D-12。上の節を参照)
 - #91 A12: 2/8 weight比の統計テストの許容誤差・試行回数（Issue 未記載）
 - #91 A12: sampler patch を #93 の fallback 検出 patch と同じ overlay に入れるか分けるか（同一 train_ms.py を触る）
 - #92 A13: DiffSinger v2.5.1 の sampler 差し込み箇所（クラス名はIssue 未記載。固定 commit 323a569 のコード確認が必要）
-- #92 A13: PR #68 未マージ時の進め方（#90 と共通）
+- ~~#92 A13: PR #68 未マージ時の進め方（#90 と共通）~~ → (解消 D-12。上の節を参照)
 - #93 A14: from_scratch で prepare() の G_0 / D_0 / DUR_0 必須チェックをどう緩めるか。および「共有テキストEncoder等」に含める資源の定義（設計は「定義に沿って」とのみ記載で定義の所在なし）
-- #93 A14: Auto の複数stage計画（#88）に対し worker が単一 resolved_training_mode を受ける設計の整合（stage ごとに別 worker 呼出しにするか）
+- ~~#93 A14: Auto の複数stage計画（#88）に対し worker が単一 resolved_training_mode を受ける設計の整合（stage ごとに別 worker 呼出しにするか）~~ → (解消 D-01。上の節を参照)
 - #94 A15: config 生成 module の特定（Issue は「該当Process/worker module」と記載）
 - #94 A15: acoustic 以外のサブモデルの初期化は #96 / #97 が持つ。resolved mode を#94 で共通フィールドにするかサブモデル別にするか
 - #95 A16: 長音・促音など MFA が対応できない音素の扱い（implementation-v1-10.md は「未対応表現は実測成功にしない」。保留理由コードを何と呼ぶか）
 - #95 A16: duration 入力 schema のファイル名と形式（Issue 未記載。公式 binarizer 要件の確認が前提）
 - #96 A17: Trainer 起動入口の具体（scripts/train.py の config 名など。Issue は「具体的に固定する」ことを手順に挙げ、値は未記載）
 - #96 A17: #92（重み付きsampler）を duration 学習にも適用するか（Issue に記載なし）
-- #97 A18: Pitch / Variance の位置づけ: implementation-v1-10.md と親 #79 は任意（dsdur・dsvocoder が必須）、training-modes-and-backends.md は「音響だけでduration/pitch未生成は完全歌唱モデルと呼ばない」。pitch を必須扱いにするか。選択肢: 任意のまま未生成なら『互換性未完成』と表示 / 必須に引き上げ
+- ~~#97 A18: Pitch / Variance の位置づけ: implementation-v1-10.md と親 #79 は任意（dsdur・dsvocoder が必須）、training-modes-and-backends.md は「音響だけでduration/pitch未生成は完全歌唱モデルと呼ばない」。pitch を必須扱いにするか。選択肢: 任意のまま未生成なら『互換性未完成』と表示 / 必須に引き上げ~~ → (解消 implementation-plan Phase 3 Gate と D-06。上の節を参照)
 - #97 A18: 固定 Vocoder の具体（版・hash・ライセンスは本Issueの成果物として記録する形だが候補名は Issue になし）
-- #98 A19: BackendCapabilities を #88 の Resolve 引数として使うなら #88 の依存に加えるか（#98 は #87 のみに依存）
+- ~~#98 A19: BackendCapabilities を #88 の Resolve 引数として使うなら #88 の依存に加えるか（#98 は #87 のみに依存）~~ → (解消 implementation-plan A09 と §10。上の節を参照)
 - #98 A19: yes/no 判定の根拠となる固定commit（SBV2 d8148f3 / DiffSinger 323a569）のコード調査の記録先（docs の節か別文書か）
