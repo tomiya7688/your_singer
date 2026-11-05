@@ -123,9 +123,9 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: TrainingUtilityTests: RarePhoneme_ScoresHigherThanFrequent / SingingRangeBoundary_Bin / SpeakersAreSeparated / EmptyPhonemes_IsNeutralWithStatus / InvalidF0_ZeroNegativeNaN_NoRangeBin / OrderIndependent
 - テスト（自動化できない確認）: なし。
 - 非目標: training_weight の計算（#83）。
-- 要決定: 音域bin希少度の式（設計は「音素希少度と平均」とだけ記載。bin出現数 n(bin) に r=1/sqrt(max(1,n)) を同様に使うか、区間内のどのF0フレームでbinを決めるか）
-- 要決定: 「確実に観測した音素」の判定フィールド（Phonemes[].Confidence の閾値、ユーザー確定ラベルの識別、推定音素 PhonemeSupplement の除外方法）
-- 要決定: 測定不能時の utility.status の値（5値のうち unavailable でよいか）
+- ~~要決定: 音域bin希少度の式（設計は「音素希少度と平均」とだけ記載。bin出現数 n(bin) に r=1/sqrt(max(1,n)) を同様に使うか、区間内のどのF0フレームでbinを決めるか）~~ → 暫定(#82): 音域bin希少度は音素と同じ r=1/sqrt(max(1,n(bin))) とし、全F0フレームでbinを決めて区間内の最大希少度を使う。n(bin) は話者×用途のeligible区間の全フレーム数
+- ~~要決定: 「確実に観測した音素」の判定フィールド（Phonemes[].Confidence の閾値、ユーザー確定ラベルの識別、推定音素 PhonemeSupplement の除外方法）~~ → 暫定(#82): 「確実に観測した音素」は、AlignmentMethod が placeholder でなく、AlignmentConfidenceStatus が unavailable/invalid でなく、語彙(Core/Palatalized/Foreign)内で、時刻が有限かつ end>start の音素。歌唱は HasValidSingingTrainingAlignment も必須。Confidence の数値閾値は置かない。PhonemeSupplement(推定)は入力に含めない。ユーザー確定ラベルの識別は未対応
+- ~~要決定: 測定不能時の utility.status の値（5値のうち unavailable でよいか）~~ → 暫定(#82): 測定不能時は 0.5 と status=unavailable でよい
 
 ### #83 A04 品質とUtilityから決定的な区間Weightを計算する
 
