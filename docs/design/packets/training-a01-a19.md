@@ -406,8 +406,9 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - #80 A01: reason_codes の語彙一覧（設計の例: user_excluded / wrong_speaker / unreadable_audio / no_usable_voice / wrong_content_type / alignment_required / rare_phoneme。これを閉じた列挙にするか自由文字列にするか）
 - #80 A01: Assessment repository のクラス名と ProjectWorkspace への安全パスAPI追加の要否（追加するか、TrainingInputDirectory の方式を流用するか）
 - ~~#81 A02: 用途不一致の扱い: 設計は needs_review/wrong_content_type、Issue は feature_only 候補として残す。feature_only は #86 の role であり #80 の eligibility 値ではない。選択肢: #81 は needs_review のみ返し role は #86 が付ける / #81 が role も返す~~ → (解消 D-04。上の節を参照)
-- #81 A02: 「主理由」の保存位置（設計の JSON に primary フィールドがない）。選択肢: reason_codes[0] を主理由とする / primary_reason フィールドを追加
-- #81 A02: 「音声破損」「有効な有声区間なし」の判定基準（数値・無音割合は未記載）
+- ~~#81 A02: 「主理由」の保存位置（設計の JSON に primary フィールドがない）。選択肢: reason_codes[0] を主理由とする / primary_reason フィールドを追加~~ → 実装済み(#81): `reason_codes[0]` を主理由とし、以降を副次理由とする。フィールドは増やさない
+- ~~#81 A02: 「音声破損」「有効な有声区間なし」の判定基準（数値・無音割合は未記載）~~ → 暫定(#81): 音声が読めない(呼び出し側の判定)ときは unreadable_audio、有声率が非有限または0以下のときは no_usable_voice。数値の閾値は置かず、低SNR・低品質は理由にしない。閾値の導入は D-02/D-03 の確定後
+- #81 A02: 話者未確定(SpeakerId 空)の区間は語彙 `speaker_unconfirmed` の needs_review とした(設計の語彙に追加。docs/data-model.md に反映済み)
 - #82 A03: 音域bin希少度の式（設計は「音素希少度と平均」とだけ記載。bin出現数 n(bin) に r=1/sqrt(max(1,n)) を同様に使うか、区間内のどのF0フレームでbinを決めるか）
 - #82 A03: 「確実に観測した音素」の判定フィールド（Phonemes[].Confidence の閾値、ユーザー確定ラベルの識別、推定音素 PhonemeSupplement の除外方法）
 - #82 A03: 測定不能時の utility.status の値（5値のうち unavailable でよいか）
