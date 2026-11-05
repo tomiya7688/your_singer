@@ -7,7 +7,7 @@ namespace YourSinger.Process.Processing.Dataset;
 
 public sealed class AutoCorrectionService
 {
-    public const string StageVersion = "v1-08.6";
+    public const string StageVersion = "v1-08.7";
     private readonly UniversalVoiceDatasetRepository _datasetRepository;
     private readonly AutoCorrectionRepository _correctionRepository;
     private readonly TranscriptCorrectionService _transcriptCorrection;
@@ -66,16 +66,22 @@ public sealed class AutoCorrectionService
         var result = new List<CorrectionRecord>();
         foreach (var segment in dataset.Segments)
         {
-            var rejected = segment.AsrConfidence < 0.35 || segment.AlignmentConfidence < 0.35;
-            var weak = segment.AsrConfidence < 0.65 || segment.AlignmentConfidence < 0.65;
+            // 未校正・未計測の信頼度(0を含む)は低信頼と判定せず、実測値だけで判定する。
+            var measured = new List<double>(2);
+            if (segment.IsAsrConfidenceMeasured()) measured.Add(segment.AsrConfidence);
+            if (segment.IsAlignmentConfidenceMeasured()) measured.Add(segment.AlignmentConfidence);
+            var rejected = measured.Any(x => x < 0.35);
+            var weak = measured.Any(x => x < 0.65);
             result.Add(new CorrectionRecord
             {
                 SegmentId = segment.SegmentId, SpeakerId = segment.SpeakerId,
                 State = rejected ? CorrectionState.Rejected : weak ? CorrectionState.WeakObserved : CorrectionState.Observed,
                 Method = rejected ? "confidence-outlier-rejection" : "observed",
                 ApplicationStatus = rejected ? CorrectionApplicationStatus.Applied : CorrectionApplicationStatus.NotRequired,
-                Confidence = Math.Min(segment.AsrConfidence, segment.AlignmentConfidence),
-                Reason = rejected ? "文字起こしまたは音素時刻の信頼度が低いため学習対象から除外しました。" : "観測データを保持します。"
+                Confidence = measured.Count > 0 ? measured.Min() : 0,
+                Reason = rejected ? "文字起こしまたは音素時刻の信頼度が低いため学習対象から除外しました。"
+                    : measured.Count == 0 ? "信頼度は未校正・未計測のため判定せず、観測データを保持します。"
+                    : "観測データを保持します。"
             });
         }
         var rejectedIds = result.Where(x => x.State == CorrectionState.Rejected).Select(x => x.SegmentId).ToHashSet(StringComparer.Ordinal);

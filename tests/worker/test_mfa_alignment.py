@@ -273,6 +273,8 @@ class MfaExecutionTests(unittest.TestCase):
         transcribe.assert_not_called()
         self.assertEqual("修正歌詞", feature["transcript"])
         self.assertEqual(0.0, feature["asr_confidence"])
+        self.assertEqual("unavailable", feature["asr_confidence_status"])
+        self.assertEqual("uncalibrated", feature["alignment_confidence_status"])
         self.assertEqual(
             {
                 "path": "alignment/measurements/example.json",

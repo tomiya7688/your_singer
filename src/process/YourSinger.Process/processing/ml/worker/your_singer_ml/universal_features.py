@@ -50,6 +50,10 @@ def extract_universal_features(payload: dict) -> dict:
     duration_sec = len(samples) / max(1, sample_rate)
 
     transcript, asr_confidence, alignment_units = _resolve_transcript(payload, audio_path)
+    # 修正歌詞は再認識しないため、ASR信頼度0は算出不可であり低信頼ではない。
+    asr_confidence_status = (
+        "unavailable" if payload.get("transcript_override") is not None else "measured"
+    )
     phonemes = _phonemize(transcript)
     (
         phoneme_timings,
@@ -90,8 +94,12 @@ def extract_universal_features(payload: dict) -> dict:
         "cache_key": cache_key,
         "transcript": transcript,
         "asr_confidence": asr_confidence,
+        "asr_confidence_status": asr_confidence_status,
         "phonemes": phoneme_timings,
         "alignment_confidence": alignment_confidence,
+        "alignment_confidence_status": _alignment_confidence_status(
+            alignment_method, phoneme_timings, asr_confidence_status
+        ),
         "alignment_method": alignment_method,
         "alignment_warning": alignment_warning,
         "alignment_measurement": measurement_reference,
@@ -123,6 +131,23 @@ def _resolve_transcript(payload: dict, audio_path: Path) -> tuple[str, float, li
     if not isinstance(transcript_override, str):
         raise ValueError("文字起こし修正は文字列で指定してください。")
     return transcript_override, 0.0, []
+
+
+# {
+#   責務: [_alignment_confidence_status: 音素境界の信頼度が実測値か未校正かを返す]
+#   処理: [1: MFA実測方式は信頼度が未校正なのでuncalibrated 2: 音素が無ければunavailable 3: 推定方式は算出した値なのでmeasured]
+#   引数: [alignment_method: 境界の求め方, phoneme_timings: 音素時刻, asr_confidence_status: ASR信頼度の状態]
+#   戻り値: [status: measured / uncalibrated / unavailable]
+# }
+def _alignment_confidence_status(
+    alignment_method: str, phoneme_timings: list[dict], asr_confidence_status: str
+) -> str:
+    if alignment_method == ALIGNMENT_METHOD:
+        return "uncalibrated"
+    if not phoneme_timings:
+        return "unavailable"
+    # 推定方式の信頼度はASR信頼度から算出する。ASRが算出不可なら推定値も算出不可。
+    return "unavailable" if asr_confidence_status == "unavailable" else "measured"
 
 
 # {
