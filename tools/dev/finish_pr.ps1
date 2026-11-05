@@ -16,14 +16,14 @@ $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
 $summary = $null
 while ((Get-Date) -lt $deadline) {
     $json = (gh pr view $Pr --json statusCheckRollup,mergeable,state 2>$null) -join "`n"
-    $pr = $null
-    if ($LASTEXITCODE -eq 0 -and $json) { try { $pr = $json | ConvertFrom-Json } catch { $pr = $null } }
-    if ($pr) {
-        if ($pr.state -ne 'OPEN') { Write-Output "#$Pr $($pr.state)"; exit 0 }
-        $pending = @($pr.statusCheckRollup | Where-Object { $_.status -ne 'COMPLETED' }).Count
-        $failed = @($pr.statusCheckRollup | Where-Object { $_.conclusion -eq 'FAILURE' }).Count
-        $summary = "pending=$pending failed=$failed mergeable=$($pr.mergeable)"
-        if ($pending -eq 0 -and $pr.mergeable -ne 'UNKNOWN' -and $pr.statusCheckRollup.Count -gt 0) { break }
+    $info = $null
+    if ($LASTEXITCODE -eq 0 -and $json) { try { $info = $json | ConvertFrom-Json } catch { $info = $null } }
+    if ($info) {
+        if ($info.state -ne 'OPEN') { Write-Output "#$Pr $($info.state)"; exit 0 }
+        $pending = @($info.statusCheckRollup | Where-Object { $_.status -ne 'COMPLETED' }).Count
+        $failed = @($info.statusCheckRollup | Where-Object { $_.conclusion -eq 'FAILURE' }).Count
+        $summary = "pending=$pending failed=$failed mergeable=$($info.mergeable)"
+        if ($pending -eq 0 -and $info.mergeable -ne 'UNKNOWN' -and $info.statusCheckRollup.Count -gt 0) { break }
     }
     Start-Sleep -Seconds 20
 }
