@@ -50,6 +50,8 @@ if (-not $SkipSize) {
     Invoke-CheckStep 'ファイル行数 (300/500行基準)' { & (Join-Path $PSScriptRoot 'check_file_size.ps1') }
 }
 
+Invoke-CheckStep '設計書・開発文書の照合 (リンク/決定記録/索引)' { python tools/dev/check_docs.py }
+
 if (-not $SkipWorker) {
     $workerRoot = Join-Path $repositoryRoot 'src/process/YourSinger.Process/processing/ml/worker'
     $workerPython = Get-WorkerTestPython
