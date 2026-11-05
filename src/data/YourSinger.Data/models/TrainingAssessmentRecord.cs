@@ -67,6 +67,6 @@ public static class TrainingAssessmentVocabulary
     public static readonly IReadOnlyList<string> ReasonCodes =
     [
         "user_excluded", "wrong_speaker", "unreadable_audio", "no_usable_voice",
-        "wrong_content_type", "alignment_required", "rare_phoneme"
+        "wrong_content_type", "alignment_required", "rare_phoneme", "speaker_unconfirmed"
     ];
 }
