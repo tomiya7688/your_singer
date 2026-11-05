@@ -1,6 +1,6 @@
 # v1学習 実装パケット(A20〜A35)
 
-> **範囲の注記**: A36〜A42(#132〜#139。質感プリセット・学習戦略Registry・Mod・素材量の棚卸し)は、[PR #135](https://github.com/tomiya7688/your_singer/pull/135) が約2,000行で設計を正本化している最中のため、このファイルには含めません。#135 が `main` に入った後に、同じ形式のパケットを追加します。このファイルの `#132`〜`#139` への言及は、依存関係を示すための参照です。
+> **範囲の注記**: A36〜A42(#132〜#139。質感プリセット・学習戦略Registry・Mod・素材量の棚卸し)は、[PR #135](https://github.com/tomiya7688/your_singer/pull/135) で設計が正本化されたため、別ファイル [training-a36-a42.md](training-a36-a42.md) にまとめています。このファイルの `#132`〜`#139` への言及は、依存関係を示すための参照です。
 
 本書は #99〜#114(A20〜A35)を、実装者が着手できる単位にまとめた設計書です。
 契約・式・順序は設計正本(README.md、contracts-and-weighting.md、routing-and-cross-domain.md、training-modes-and-backends.md、verification-and-release.md)が正で、Issue 本文との食い違いは「要決定」に記録します。
