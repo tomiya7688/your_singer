@@ -16,6 +16,8 @@ public sealed class ProjectWorkspace
     public string FeaturesPath => Path.Combine(RootPath, "features");
     public string CachePath => Path.Combine(RootPath, "cache");
     public string ExportsPath => Path.Combine(RootPath, "exports");
+    // 学習ジョブ単位の成果物。EnsureCreatedでは作らず、保存時に必要な分だけ作る。
+    public string TrainingPath => Path.Combine(RootPath, "training");
 
     public void EnsureCreated()
     {
