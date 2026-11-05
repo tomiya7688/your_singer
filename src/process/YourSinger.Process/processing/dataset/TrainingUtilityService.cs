@@ -99,7 +99,7 @@ public sealed class TrainingUtilityService
             .ToList();
     }
 
-    // 音高の信頼性が正で、F0が有限の正値のときだけ6半音幅のbinにする。
+    // 音高の信頼性が正で、F0が有限の正値のときだけ6半音幅のbinにする。binは区間ごとに1回だけ数え、n(bin)を音素と同じ「区間数」にする(フレーム数の多い区間が有利にならない)。
     private static List<int> ObservedBins(UtilityObservation obs)
     {
         var reliability = obs.Segment.PitchReliability;
@@ -107,6 +107,7 @@ public sealed class TrainingUtilityService
         return obs.F0Hz
             .Where(f => double.IsFinite(f) && f > 0)
             .Select(f => (int)Math.Floor(12.0 * Math.Log2(f / BaseHz) / BinSemitones))
+            .Distinct()
             .ToList();
     }
 }

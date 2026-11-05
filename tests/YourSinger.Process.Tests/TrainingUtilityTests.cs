@@ -105,6 +105,19 @@ public sealed class TrainingUtilityTests
     }
 
     [Fact]
+    public void RangeRarity_CountsSegmentsNotFrames()
+    {
+        // 長い区間が単独の高いbinを持ち、短い2区間が低いbinを共有する。フレーム数ではなく区間数で数える。
+        var longHigh = Obs("a", [], Enumerable.Repeat(440.0, 500).ToArray());
+        var shortLowA = Obs("b", [], Enumerable.Repeat(110.0, 50).ToArray());
+        var shortLowB = Obs("c", [], Enumerable.Repeat(110.0, 50).ToArray());
+        var u = Service.Compute([longHigh, shortLowA, shortLowB], "singing");
+        Assert.Equal(1.0, u["a"].Value!.Value, 6);
+        Assert.Equal(1.0 / Math.Sqrt(2), u["b"].Value!.Value, 6);
+        Assert.True(u["a"].Value > u["b"].Value);
+    }
+
+    [Fact]
     public void OrderIndependent()
     {
         var items = new[] { Obs("a", ["a", "ky"]), Obs("b", ["a"]), Obs("c", ["e"]) };
