@@ -10,12 +10,15 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+$OutputEncoding = [Text.Encoding]::UTF8
 $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
 $summary = $null
 while ((Get-Date) -lt $deadline) {
-    $json = gh pr view $Pr --json statusCheckRollup,mergeable,state 2>$null
-    if ($LASTEXITCODE -eq 0 -and $json) {
-        $pr = $json | ConvertFrom-Json
+    $json = (gh pr view $Pr --json statusCheckRollup,mergeable,state 2>$null) -join "`n"
+    $pr = $null
+    if ($LASTEXITCODE -eq 0 -and $json) { try { $pr = $json | ConvertFrom-Json } catch { $pr = $null } }
+    if ($pr) {
         if ($pr.state -ne 'OPEN') { Write-Output "#$Pr $($pr.state)"; exit 0 }
         $pending = @($pr.statusCheckRollup | Where-Object { $_.status -ne 'COMPLETED' }).Count
         $failed = @($pr.statusCheckRollup | Where-Object { $_.conclusion -eq 'FAILURE' }).Count
