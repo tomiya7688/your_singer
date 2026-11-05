@@ -283,4 +283,14 @@ Adaptive TrainingはSource Profileごとに完全に別パイプラインを作�
 
 **nullを0と同一視して自動除外しません。** 品質が低くても有用な区間は原則として非ゼロweightで保持します。適格性・weightは歌唱用とトーク用で別々に設定できるようにします。
 
+### 実装済み: TrainingAssessment の保存形式(#80 A01)
+
+- 型は `TrainingAssessmentRecord`(`src/data/YourSinger.Data/models/`)、保存は `TrainingAssessmentRepository`。保存先は `training/assessments/<job-id>/assessment.json`、JSONはsnake_case、`schema_version` は `"1"`。
+- 正本の契約は `docs/design/v1-training/contracts-and-weighting.md`「1. 入出力データ契約」。`role`(primary / feature_only / review / excluded)は任意項目、`manual_override_revision` も任意。
+- 状態は `measured` / `uncalibrated` / `unavailable` / `legacy_unknown` / `invalid`。`value` が `null`(未計測)と `0`(測定済みの0)はJSONでも区別する。`measured` は値が必須、`unavailable` は値が `null`。
+- `reason_codes` は閉じた語彙(user_excluded / wrong_speaker / unreadable_audio / no_usable_voice / wrong_content_type / alignment_required / rare_phoneme)。
+- 保存は同じディレクトリの一時ファイルへ書き、再読込して検証してから置換する。取消・失敗では公開済みの版を残す。`job_id` は領域外を指す文字を拒否する。不正なenum・NaN/Infinity・未知の項目・重複/非昇順の `segment_id`・eligibleで重み0などは日本語の原因付きで失敗する。
+- 旧UVDの `AsrConfidence` / `AlignmentConfidence` は値だけからは推測せず、UVDに記録された状態(#63)が明示するときだけその状態を使い、それ以外は `legacy_unknown` で保持する(`TrainingAssessmentLegacyImporter`)。原UVDは変更しない。
+- 未実装: 適格性・品質・価値・重みの算出(A02以降)、UI、学習器への反映。
+
 詳細は `docs/training-strategy.md` を参照してください。
