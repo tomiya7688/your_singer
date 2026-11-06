@@ -97,6 +97,7 @@ Issue 本文と設計正本の食い違いは「要決定」に記録します�
 - 完了条件: 発話のみ + singing 目的 + talk-like texture を、対応 Backend なら計画可能にする。歌唱豊富なら実測歌唱教師を使う計画を作れる。必須 submodel の欠損・未校正 F0・歌詞不明を隠さない。同一話者の talk と singing が別目標でも両プランが独立する。発話優勢でも target=talk へ変更しない。発話から未知の歌唱音域・ビブラート・音符教師を捏造しない。OpenUtau/DiffSinger の必須 submodel と Vocoder を考慮し、能力不足を明示する。texture の参考区間と制約を保持し、別計画・別 fingerprint にする。
 - テスト: 自動(クラス名は Issue になし): 発話のみ+singing、歌唱豊富、必須 submodel 欠損、未校正 F0、歌詞不明、talk と singing の独立。
 - 非目標: TalkPlanner、Trainer 改変、GPU preflight と計画の最終決定(#88)、UI。
+- 実装済み(#134): `BuiltInSingingStrategies`(歌唱教師 / 発話由来声質 S1 / 表現軸の3戦略。成立条件の数値は暫定で D-02/D-03 待ち。話者エンコーダと表現軸の条件付けは未実装のため unsupported と理由を返す)、`SingingTrainingStrategyPlanner.Plan`(話者・棚卸し・質感・参考区間を検証し、候補/不成立の理由/警告を返す。発話優勢でも target は singing のまま、歌唱教師なしで singing_base を作る宣言は候補にしない、実測歌唱教師の案を発話由来案より先に並べる、必須 submodel(acoustic・duration・vocoder)の未提供分と未測定の指標を候補・警告に隠さず出す)。テスト: `SingingTrainingStrategyPlannerTests`。未実装: `TrainingStagePlan` への接続(#88)、Backend 能力表(#98)との照合、UI。実音声での品質評価は未実施。
 - 要決定: #133 と同じ(依存の循環、`singing_like` 相当の preset 表現、role 名の対応)。
 - 要決定: pitch/variance の扱い。設計正本は「存在しない pitch/expression モデルを必須にしない」(§6.2)、D-06 は pitch/variance を任意とする。Planner が必須 submodel をどの型で BackendCapability から受け取るか(#98 の型待ち)。
 
