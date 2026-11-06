@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 import subprocess
 
+from pathlib import Path
+
+from .run_report import build_run_report
 from .style_bert_vits2_session import StyleBertVits2TrainingSession
 
 
@@ -69,6 +72,20 @@ def train_style_bert_vits2(payload: dict) -> dict:
         result["timbre_style"] = json.loads(
             (session.output / "timbre_style_report.json").read_text(encoding="utf-8")
         )
+    # 実際に行った学習の記録。指定(モード・seed)と成果物のhashを残す。初期重みの実読込は未観測(null)。
+    artifacts = [
+        ("config", Path(result["config_path"])),
+        ("style_vectors", Path(result["style_vectors_path"])),
+        *[("model_weights", Path(path)) for path in result["model_weights_paths"]],
+    ]
+    result["run_report"] = build_run_report(
+        payload.get("job_id", ""),
+        payload.get("resolved_training_mode"),
+        payload.get("seed"),
+        0,
+        session.output,
+        artifacts,
+    )
     # 結果の参照も非公開Voice Project内に残し、Exporterへ渡せるようにする。
     (session.output / "result.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
