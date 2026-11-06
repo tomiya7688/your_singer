@@ -63,7 +63,8 @@ VoiceProject/training/diffsinger/<job-id>/
 - `ph_num`(語ごとの音素数)は測定値がないため、拍(子音+母音、`N`・`cl`・長音・`SP`は単独)から導出します。導出方式は `provenance.json` の `word_grouping`(`mora-v1`、`measured: false`)に残します。
 - 未知の音素、母音のない子音、非有限・ゼロ・負の音素長、音声長との不一致のクリップは、原因付きで `held` に保留します。素材は消しません。採用が0件なら出力を作りません。
 - 元音声・音響学習入力は変更せず、`duration-input/` は新規作成のみ(既存なら拒否)です。
-- 公式 binarizer の実行確認と、C# 側の呼出しサービスは未実装です。
+- 確認済み(2026-11-07, 合成音声4件): 構築済み bundle の公式 `variance_binarizer`(`predict_dur: true`、`predict_pitch: false`)が、この `duration-input` を受け付け、学習3件・検証1件の `train.data`/`valid.data` を作りました。公式の音素カバレッジ検査は `AP`・`SP` の出現を要求するため、#181 の起動入口(不足が `AP`・`SP` だけの場合に限り許可)を通して実行しています。実素材・実GPU学習は未検証です。
+- Duration の binarization を起動する worker/C# の呼出し(設定生成を含む)は未実装です。
 
 ## 歌唱Trainer専用runtimeの構築
 
