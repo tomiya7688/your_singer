@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import math
 import re
@@ -14,6 +15,21 @@ CONFIG_NAME = "acoustic-training.yaml"
 # 検証用に取り分ける割合と上限。少数素材でも学習用を1件以上残す。
 VALID_FRACTION = 0.1
 MAX_VALID = 5
+
+
+# {
+#   責務: [read_clip_names: transcriptions.csv をCSVとして読み、クリップ名の一覧を返す]
+#   エラー: [name列が無い、名前が空、または重複しているとき ValueError(検証分割と件数照合を狂わせない)]
+# }
+def read_clip_names(csv_path: Path) -> list[str]:
+    with csv_path.open(encoding="utf-8", newline="") as stream:
+        reader = csv.DictReader(stream)
+        if not reader.fieldnames or "name" not in reader.fieldnames:
+            raise ValueError("transcriptions.csv に name 列がありません。")
+        names = [row["name"] for row in reader]
+    if not names or any(not name for name in names) or len(set(names)) != len(names):
+        raise ValueError("transcriptions.csv のクリップ名が空または重複しています。")
+    return names
 
 
 # {
@@ -44,11 +60,7 @@ def write_training_config(
     csv_path, dictionary = acoustic / "transcriptions.csv", acoustic / "dictionary-ja.txt"
     if not csv_path.is_file() or not dictionary.is_file():
         raise FileNotFoundError("音響学習入力(transcriptions.csv・dictionary-ja.txt)がありません。")
-    names = [
-        line.split(",", 1)[0]
-        for line in csv_path.read_text(encoding="utf-8").splitlines()[1:]
-        if line
-    ]
+    names = read_clip_names(csv_path)
     prefixes = choose_test_prefixes(names)
     binary_dir = job_dir / "binary"
     config = job_dir / CONFIG_NAME
@@ -122,14 +134,7 @@ def binarize_diffsinger(payload: dict) -> dict:
                 f"DiffSingerのbinarizationが終了コード{completed.returncode}で失敗しました。"
             )
         names = read_item_names(binary_dir)
-        rows = (
-            len(
-                (job_dir / "acoustic-input" / "transcriptions.csv")
-                .read_text(encoding="utf-8")
-                .splitlines()
-            )
-            - 1
-        )
+        rows = len(read_clip_names(job_dir / "acoustic-input" / "transcriptions.csv"))
         if len(names) != rows - len(prefixes):
             raise RuntimeError("記録された学習itemの数が、入力から検証用を除いた数と一致しません。")
     except BaseException as error:
