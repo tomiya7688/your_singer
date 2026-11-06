@@ -178,7 +178,8 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - 非目標: UI、実Trainerへのweight適用。
 - 解消(D-07、implementation-plan A06): #88 は #85 の先行に置かない。#85 は `input_fingerprint` を実装し、resolved mode と初期化資源のhashを含む `run_fingerprint` は #88 の Resolve 後に確定する。
 - 解消(D-07): `input_fingerprint` は目的/質感を含む。
-- 要決定: 新 fingerprint の version 名と、旧形式の判別根拠（TrainingJobBatch.InputVersion か fingerprint 文字列か）
+- ~~要決定: 新 fingerprint の version 名と、旧形式の判別根拠（TrainingJobBatch.InputVersion か fingerprint 文字列か）~~ → 暫定(#85): 新 fingerprint の version は `training-input-v1`。旧形式の判別は `TrainingJobBatch.InputVersion`（#84 で `v1-09.5` に更新済み）で行い、fingerprint 文字列からは判別しない
+- 未実装(#85): 作成時に区間ごとの評価を組み立ててジョブへ保存し input_fingerprint を記録する結線（`TrainingJobPlanningService`）。現状は `TrainingAssessmentBuilder` と `TrainingInputFingerprint` の部品まで。結線は実データの音声可読性・歌唱F0の読み込み・backend revision の取得元が決まってから行う
 
 ### #86 A07 会話/歌唱/曖昧区間を自動で用途別に振り分けるRoutingDecisionを作る
 
