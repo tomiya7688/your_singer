@@ -6,10 +6,15 @@ import json
 import sys
 import traceback
 
+
 def _configure_stdio() -> None:
     # PyInstaller化したWindows workerをPowerShell等から直接起動しても、
     # 日本語JSONとログが既定コードページへ落ちないよう明示的にUTF-8へ固定する。
-    for stream, errors in ((sys.stdin, "strict"), (sys.stdout, "strict"), (sys.stderr, "backslashreplace")):
+    for stream, errors in (
+        (sys.stdin, "strict"),
+        (sys.stdout, "strict"),
+        (sys.stderr, "backslashreplace"),
+    ):
         reconfigure = getattr(stream, "reconfigure", None)
         if callable(reconfigure):
             reconfigure(encoding="utf-8", errors=errors)
@@ -22,6 +27,7 @@ COMMANDS = {
     "extract_universal_features": ("universal_features", "extract_universal_features"),
     "forced_alignment_preflight": ("mfa_alignment", "check_forced_alignment_runtime"),
     "prepare_diffsinger_acoustic": ("diffsinger_acoustic_input", "prepare_diffsinger_acoustic"),
+    "binarize_diffsinger": ("diffsinger_binarize", "binarize_diffsinger"),
     "train_diffsinger": ("diffsinger_training", "train_diffsinger"),
     "train_style_bert_vits2": ("style_bert_vits2_training", "train_style_bert_vits2"),
     "generate_phoneme_candidate": ("phoneme_supplement", "generate_phoneme_candidate"),
@@ -49,10 +55,18 @@ def main() -> None:
         with contextlib.redirect_stdout(sys.stderr):
             handler = getattr(importlib.import_module("." + module, __package__), function)
             result = handler(payload)
-        response = json.dumps(dict(request_id=request_id, status="ok", result=result, error=None), ensure_ascii=False, allow_nan=False)
+        response = json.dumps(
+            dict(request_id=request_id, status="ok", result=result, error=None),
+            ensure_ascii=False,
+            allow_nan=False,
+        )
     except Exception as exception:
         traceback.print_exc(file=sys.stderr)
-        response = json.dumps(dict(request_id=request_id, status="error", result=None, error=str(exception)), ensure_ascii=False, allow_nan=False)
+        response = json.dumps(
+            dict(request_id=request_id, status="error", result=None, error=str(exception)),
+            ensure_ascii=False,
+            allow_nan=False,
+        )
     sys.stdout.write(response + "\n")
     sys.stdout.flush()
 
