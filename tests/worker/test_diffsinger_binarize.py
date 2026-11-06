@@ -100,10 +100,7 @@ class DiffSingerBinarizeTests(unittest.TestCase):
 
     def test_duplicate_clip_names_are_rejected_before_anything_is_written(self):
         (self.job / "acoustic-input" / "transcriptions.csv").write_text(
-            "name,ph_seq,ph_dur
-segment_0,a,1.0
-segment_0,a,1.0
-", encoding="utf-8"
+            "name,ph_seq,ph_dur\nsegment_0,a,1.0\nsegment_0,a,1.0\n", encoding="utf-8"
         )
         with self.assertRaises(ValueError):
             binarize.binarize_diffsinger(self.payload)
