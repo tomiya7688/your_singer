@@ -183,6 +183,8 @@ project/
 
 学習ジョブにはユーザー指定の `target` と `texture_preset_id/version`、`SpeakerDataInventory` fingerprint、選択した `strategy_id/version/provider`、複数stageの学習計画、stageごとの `training_mode`（auto / fine_tune / from_scratch）、利用checkpointとそのversion、weighting policy/version、データ分割条件、評価結果を保存します。保存契約と原本・派生データの境界は `docs/design/v1-training/learning-system-design.md` を正とします。学習戦略の追加/削除で旧ジョブを黙って違う方法に変更しません。
 
+実行前の解決結果は `TrainingJobRecord.ResolvedPlan` に保存します(manifest hash、棚卸しの版、各工程の `training_mode` と初期化方式、警告、停止理由、解決時刻)。解決できない構成も停止理由つきで残し、学習は始めません。棚卸しが解決後に変わった場合は再度の解決が必要です。
+
 現行の学習ジョブ(`TrainingJobRecord`)は、`requested_texture{preset, description, reference_segment_ids}`、`requested_training_mode`（auto / fine_tune / from_scratch）、`resolved_training_mode`、`initialization{type, components[{name, sha256, path}]}`、`seed` を保存します。auto は解決まで resolved と initialization が null です。from_scratch は `random_initialization` で構成要素が空、fine_tune は `pretrained_checkpoint` と初期重み（sha256 64桁・作業領域内の相対path）が必須です。これらの項目がない旧ジョブは新規学習の成功として扱わず、再作成を必要とします（入力版 `v1-09.6`）。トーク学習入力（`training/style-bert-vits2/<job-id>/`）には、公式の `esd.list` を変えずに、学習に使う区間と重みを1対1で持つ `train_weights.json` を出力し、そのSHA-256を `dataset.json` に記録します。評価で eligible の区間だけが学習に使われ、確認待ち・除外は理由付きで `skipped` に残ります。旧形式のジョブ（評価なし）や評価が変わったジョブは、再作成が必要です。ジョブ作成時には区間ごとの評価（適格性・理由・品質・Utility・重み）を `training/assessments/<job-id>/assessment.json` に保存し、素材・学習方式・backend revision・評価から作る `input_fingerprint`（`training-input-v1`）をジョブに記録します。
 
 ## キャッシュ

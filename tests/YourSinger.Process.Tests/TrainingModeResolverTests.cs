@@ -114,19 +114,18 @@ public sealed class TrainingModeResolverTests
     }
 
     [Fact]
-    public void FromScratch_IsRejectedForSbv2_AndWhenBaseCheckpointsAreSupplied()
+    public void FromScratch_IsRejectedForSbv2_AndNeverLoadsAvailableCheckpoints()
     {
         var talk = Inventory(900, 0);
         var sbv2 = TrainingModeResolver.Resolve(Request("talk", talk, TalkCandidates(talk), TrainingMode.FromScratch));
         Assert.Contains(sbv2.Rejected.SelectMany(x => x.Reasons), x => x.Contains("from_scratch"));
 
         var singing = Inventory(0, 3000);
-        var supplied = TrainingModeResolver.Resolve(Request("singing", singing, SingingCandidates(singing), TrainingMode.FromScratch,
+        // 環境に事前学習重みがあっても、from_scratch は読み込まない(Initialization は random_initialization で components 空)。
+        var withCheckpoint = TrainingModeResolver.Resolve(Request("singing", singing, SingingCandidates(singing), TrainingMode.FromScratch,
             checkpoints: SingingCheckpoint()));
-        Assert.False(supplied.Executable);
-        Assert.Contains(supplied.Rejected.SelectMany(x => x.Reasons), x => x.Contains("初期重みを指定できません"));
-        var ok = TrainingModeResolver.Resolve(Request("singing", singing, SingingCandidates(singing), TrainingMode.FromScratch));
-        Assert.Equal(ResolvedStageMode.FromScratch, ok.ResolvedTrainingMode);
+        Assert.Empty(withCheckpoint.Stages.Single(x => x.OperationId == "builtin.diffsinger.acoustic").Initialization!.Components);
+        Assert.Equal(ResolvedStageMode.FromScratch, withCheckpoint.ResolvedTrainingMode);
     }
 
     [Fact]
