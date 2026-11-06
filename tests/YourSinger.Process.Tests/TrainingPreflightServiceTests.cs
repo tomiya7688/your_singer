@@ -142,4 +142,40 @@ public sealed class TrainingPreflightServiceTests
         Assert.Equal(BuiltInSingingStrategies.SingingTeacherId, record.StrategyId);
         Assert.Equal("from_scratch", record.ResolvedTrainingMode);
     }
+
+    [Fact]
+    public void TrainerGate_StopsUnresolvedNotExecutableAndInconsistentPlans()
+    {
+        var job = Job(TrainingTarget.Talk, TrainingMode.FineTune);
+        Assert.Throws<InvalidOperationException>(() => TrainingPreflightService.RequireResolvedPlan(job));
+
+        job.ResolvedPlan = new TrainingResolvedPlanRecord
+        { ManifestHash = "h", InventoryRevision = "r", Executable = false, StopReasons = ["理由"] };
+        Assert.Contains("理由", Assert.Throws<InvalidOperationException>(() => TrainingPreflightService.RequireResolvedPlan(job)).Message);
+
+        job.ResolvedPlan = new TrainingResolvedPlanRecord
+        {
+            ManifestHash = "h", InventoryRevision = "r", Executable = true,
+            Stages = [new TrainingResolvedStageRecord { StageId = "s", OperationId = "o", Mode = "fine_tune", Backend = "other-backend" }]
+        };
+        Assert.Throws<InvalidOperationException>(() => TrainingPreflightService.RequireResolvedPlan(job));
+
+        job.ResolvedPlan = new TrainingResolvedPlanRecord
+        { ManifestHash = "h", InventoryRevision = "r", Executable = true, ResolvedTrainingMode = "from_scratch" };
+        Assert.Throws<InvalidOperationException>(() => TrainingPreflightService.RequireResolvedPlan(job));
+
+        job.ResolvedPlan = new TrainingResolvedPlanRecord
+        { ManifestHash = "h", InventoryRevision = "r", Executable = true, ResolvedTrainingMode = "fine_tune" };
+        TrainingPreflightService.RequireResolvedPlan(job);
+    }
+
+    [Fact]
+    public async Task TrainerServices_RefuseToStartWithoutAnExecutablePlan()
+    {
+        using var project = new TestProject();
+        var talk = new YourSinger.Process.Processing.Talk.StyleBertVits2TrainerService(
+            new YourSinger.Process.Processing.Ml.Bridge.MlWorkerClient("python", ["-c", "raise SystemExit(1)"]));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            talk.TrainAsync(project.Workspace, Job(TrainingTarget.Talk), "モデル", TestProject.Token));
+    }
 }
