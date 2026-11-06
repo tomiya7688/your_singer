@@ -23,7 +23,7 @@ public static class TrainingJobContractFingerprint
         {
             "training-job-contract-v1",
             $"target={job.Target}",
-            $"preset={texture.Preset}",
+            $"preset={texture.Preset}{(texture.PresetVersion is null ? string.Empty : "@" + texture.PresetVersion)}",
             $"description={texture.Description ?? string.Empty}",
             $"references={string.Join(',', texture.ReferenceSegmentIds.Order(StringComparer.Ordinal))}",
             $"requested={job.RequestedTrainingMode}",

@@ -13,6 +13,8 @@ public enum TrainingMode
 public sealed class TrainingTextureRequest
 {
     public required string Preset { get; init; }
+    // 選んだプリセットのversion。登録簿(TexturePresetRegistry)から選んだときに入る。無いときは null。
+    public string? PresetVersion { get; init; }
     public string? Description { get; init; }
     // 同一話者の参考区間ID。声質参照として使う区間。
     public List<string> ReferenceSegmentIds { get; init; } = [];
