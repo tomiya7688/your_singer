@@ -49,6 +49,10 @@ public sealed class TrainingJobRecord
     public TrainingMode? ResolvedTrainingMode { get; init; }
     public TrainingInitialization? Initialization { get; init; }
     public int? Seed { get; init; }
+    // 学習入力のfingerprint(training-input-v1)と、使うbackendの識別・固定revision。旧ジョブは null。
+    public string? InputFingerprint { get; set; }
+    public string? Backend { get; set; }
+    public string? BackendRevision { get; set; }
     // 学習方式の契約を持たない旧ジョブか。
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsLegacyWithoutTrainingContract => RequestedTrainingMode is null;

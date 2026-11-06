@@ -42,6 +42,6 @@ public sealed class TrainingSafetyTests
             .BuildAsync(p.Workspace, Assert.Single(batch.Jobs, x => x.Target == TrainingTarget.Talk), "話者", Token));
         await Assert.ThrowsAsync<InvalidOperationException>(() => new DiffSingerDatasetBuilder(p.DatasetRepository)
             .BuildAsync(p.Workspace, Assert.Single(batch.Jobs, x => x.Target == TrainingTarget.Singing), Token));
-        Assert.False(Directory.Exists(Path.Combine(p.Workspace.RootPath, "training")));
+        TestProject.AssertNoTrainingInputPublished(p.Workspace);
     }
 }

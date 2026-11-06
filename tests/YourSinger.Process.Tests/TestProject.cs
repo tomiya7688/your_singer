@@ -22,6 +22,15 @@ internal sealed class TestProject : IDisposable
 
     public TestProject() => Workspace.EnsureCreated();
 
+    // 学習入力(データセット)が公開されていないこと。Assessment(training/assessments)はジョブ作成時に保存される正規の成果物なので除く。
+    public static void AssertNoTrainingInputPublished(YourSinger.Data.Processing.ProjectWorkspace workspace)
+    {
+        if (!Directory.Exists(workspace.TrainingPath)) return;
+        var others = Directory.EnumerateFileSystemEntries(workspace.TrainingPath)
+            .Where(x => Path.GetFileName(x) != "assessments").ToArray();
+        Assert.Empty(others);
+    }
+
     public AutoCorrectionService Correction() => new(DatasetRepository, new AutoCorrectionRepository());
     public TrainingJobPlanningService Planner() => new(DatasetRepository, Correction(), Jobs);
 
@@ -33,7 +42,7 @@ internal sealed class TestProject : IDisposable
         AudioPath = $"segments/{id}.wav", CacheKey = $"sha256-{id}",
         Transcript = "あいうえお", AsrConfidence = confidence, AlignmentConfidence = confidence,
         AlignmentMethod = DiffSingerDatasetBuilder.RequiredAlignmentMethod,
-        PitchReliability = 0.95, MeanF0Hz = 220,
+        PitchReliability = 0.95, MeanF0Hz = 220, VoicedRatio = 0.8,
         F0FeaturePath = $"features/{id}-f0.json", EnergyFeaturePath = $"features/{id}-energy.json",
         VoicingFeaturePath = $"features/{id}-voicing.json",
         Phonemes = [new() { Phoneme = "a", StartSec = 0, EndSec = duration, Confidence = 0.95 }]
