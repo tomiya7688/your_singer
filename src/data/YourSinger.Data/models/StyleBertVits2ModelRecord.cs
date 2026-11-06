@@ -7,6 +7,9 @@ public sealed class StyleBertVits2DatasetRecord
     public required string SpeakerId { get; init; }
     public required string DatasetFingerprint { get; init; }
     public bool AutoCorrectionEnabled { get; init; }
+    // 区間Weight manifest(train_weights.json)の相対名とSHA-256。この項目が無い旧データには null。
+    public string? WeightManifestFile { get; init; }
+    public string? WeightManifestSha256 { get; init; }
     public List<StyleBertVits2TrainingItem> Items { get; init; } = [];
 }
 

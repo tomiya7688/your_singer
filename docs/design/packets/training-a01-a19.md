@@ -247,8 +247,9 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: StyleBertVits2TrainingTests に追加: Manifest_SixSegmentWeights / MissingSegment_Rejected / Duplicate_Rejected / PathTraversal_Rejected / OldJob_RequiresRecreation / Canceled_NoPublish / EsdListUnchanged
 - テスト（自動化できない確認）: なし。
 - 非目標: Trainer 本体の weighted sampler（#91）。
-- 要決定: manifest のファイル名とスキーマ（設計に train_weights.json の名があるが Issue は未指定）。train_weights.json を採用するか
-- 要決定: esd.list に載らない needs_review / excluded を manifest に含めるか（含めない場合の検証方法）
+- ~~要決定: manifest のファイル名とスキーマ（設計に train_weights.json の名があるが Issue は未指定）。train_weights.json を採用するか~~ → 暫定(#89): `train_weights.json` を採用。スキーマは `schema_version / job_id / policy_version / input_fingerprint / items[{segment_id, audio_filename, training_weight}] / skipped[{segment_id, eligibility, reason_codes}]`。dataset.json に `weight_manifest_file` と `weight_manifest_sha256` を記録する
+- ~~要決定: esd.list に載らない needs_review / excluded を manifest に含めるか（含めない場合の検証方法）~~ → 暫定(#89): 学習に使うのは評価で eligible の区間だけで、esd.list と items の音声が1対1であることを検証する。確認待ち・除外は esd.list にも items にも入れず、理由付きで `skipped` に残す(重みは持たない)。これにより、従来すべてを esd.list に入れていた needs_review / excluded の区間は学習から外れる。
+- 暫定(#89 / #81 の修正): 有声率が 0 の区間を「有効な有声区間なし」で除外するのは、有声特徴ファイルがあるとき(有声判定を実測したとき)だけ。補完生成区間などファイルが無い 0 は未測定として除外しない
 
 ### #90 A11 DiffSinger Dataset Builderへ区間Weight manifestを出力する
 

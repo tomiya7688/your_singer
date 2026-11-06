@@ -12,14 +12,15 @@ namespace YourSinger.Process.Processing.Talk;
 //   責務: [StyleBertVits2DatasetBuilder: 確定済みのトーク学習入力を公式4列形式へ変換する]
 //   フィールド: [datasetRepository: 解析済み区間と学習計画の照合元]
 // }
-public sealed class StyleBertVits2DatasetBuilder(UniversalVoiceDatasetRepository datasetRepository)
+public sealed class StyleBertVits2DatasetBuilder(
+    UniversalVoiceDatasetRepository datasetRepository, TrainingAssessmentRepository? assessmentRepository = null)
 {
-    public const string StageVersion = "v1-11.3";
+    public const string StageVersion = "v1-11.4";
 
     // {
     //   責務: [BuildAsync: 対象話者の音声と書き起こしを学習ジョブ内へ保存する]
-    //   処理: [1: 学習計画を照合する 2: 音声と4列リストを複製する 3: 完成時に入力を公開する]
-    //   エラー: [入力変更・列として不正な文字・音声不足の場合に失敗する]
+    //   処理: [1: 学習計画と評価を照合する 2: eligibleな区間の音声と4列リスト、weight manifestを作る 3: 完成時に入力を公開する]
+    //   エラー: [入力変更・列として不正な文字・音声不足・旧形式のジョブ・評価の不一致の場合に失敗する]
     // }
     public async Task<StyleBertVits2DatasetRecord> BuildAsync(ProjectWorkspace workspace, TrainingJobRecord job,
         string speakerName, CancellationToken cancellationToken = default)
@@ -27,7 +28,14 @@ public sealed class StyleBertVits2DatasetBuilder(UniversalVoiceDatasetRepository
         if (job.Target != TrainingTarget.Talk)
             throw new InvalidOperationException("トーク学習ジョブのみトーク用データを生成できます。");
         RequireField(speakerName);
-        var selected = await TrainingDatasetSnapshotService.ResolveJobAsync(datasetRepository, workspace, job, cancellationToken);
+        var resolved = await TrainingDatasetSnapshotService.ResolveJobAsync(datasetRepository, workspace, job, cancellationToken);
+        var assessment = await (assessmentRepository ?? new TrainingAssessmentRepository())
+            .LoadAsync(workspace, job.JobId, cancellationToken);
+        // 評価でeligibleな区間だけを学習に使う。確認待ち・除外はesd.listにもmanifestのitemにも入れない。
+        var (manifest, usedIds) = TrainingWeightManifestService.Build(job, assessment,
+            resolved.Select(x => x.SegmentId).ToArray(), id => TrainingInputDirectory.RequireComponent(id) + ".wav");
+        var used = usedIds.ToHashSet(StringComparer.Ordinal);
+        var selected = resolved.Where(x => used.Contains(x.SegmentId)).ToArray();
         var root = Path.Combine(workspace.RootPath, "training", "style-bert-vits2", TrainingInputDirectory.RequireComponent(job.JobId));
         return await TrainingInputDirectory.BuildAsync(root, async staging =>
         {
@@ -58,10 +66,13 @@ public sealed class StyleBertVits2DatasetBuilder(UniversalVoiceDatasetRepository
                 });
             }
             await File.WriteAllLinesAsync(Path.Combine(staging, "esd.list"), lines, new UTF8Encoding(false), cancellationToken);
+            var manifestHash = await TrainingWeightManifestService.WriteAsync(
+                Path.Combine(staging, TrainingWeightManifest.FileName), manifest, cancellationToken);
             var record = new StyleBertVits2DatasetRecord
             {
                 StageVersion = StageVersion, JobId = job.JobId, SpeakerId = job.SpeakerId,
-                DatasetFingerprint = job.DatasetFingerprint, AutoCorrectionEnabled = job.AutoCorrectionEnabled, Items = items
+                DatasetFingerprint = job.DatasetFingerprint, AutoCorrectionEnabled = job.AutoCorrectionEnabled,
+                WeightManifestFile = TrainingWeightManifest.FileName, WeightManifestSha256 = manifestHash, Items = items
             };
             await using var stream = File.Create(Path.Combine(staging, "dataset.json"));
             await JsonSerializer.SerializeAsync(stream, record,

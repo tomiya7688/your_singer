@@ -15,7 +15,7 @@ public sealed class TrainingEligibilityTests
         var s = new UniversalVoiceSegment
         {
             SegmentId = id, SourceId = "src", AudioPath = $"{id}.wav", CacheKey = id,
-            SpeakerId = speaker, ContentType = type, VoicedRatio = voiced
+            SpeakerId = speaker, ContentType = type, VoicedRatio = voiced, VoicingFeaturePath = $"{id}-voicing.json"
         };
         if (aligned)
         {
@@ -69,6 +69,15 @@ public sealed class TrainingEligibilityTests
             Assert.Equal("excluded", d.Eligibility);
             Assert.Equal("no_usable_voice", d.PrimaryReason);
         }
+    }
+
+    [Fact]
+    public void UnmeasuredVoicing_IsNotTreatedAsSilence()
+    {
+        // 有声特徴ファイルが無い(補完生成区間など)有声率0は未測定で、除外の根拠にしない。
+        var generated = Seg("gen", voiced: 0);
+        generated.VoicingFeaturePath = string.Empty;
+        Assert.Equal("eligible", One(generated, Input()).Eligibility);
     }
 
     [Fact]
