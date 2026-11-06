@@ -105,6 +105,7 @@ public sealed partial class TrainingHistoryWindow : Window
             BatchDetailText.Text = "再作成するジョブ一式を選択してください。";
             RecreateBatchButton.IsEnabled = false;
             StartTalkButton.IsEnabled = false;
+            StartSingingButton.IsEnabled = false;
             return;
         }
         var batch = row.Batch;
@@ -116,6 +117,7 @@ public sealed partial class TrainingHistoryWindow : Window
         if (running) BatchDetailText.Text += "\n実行中のジョブを含むため、終了または中止を確認するまで再作成できません。";
         RecreateBatchButton.IsEnabled = !_busy && !running;
         StartTalkButton.IsEnabled = !_busy && PendingTalkJob(batch) is not null;
+        StartSingingButton.IsEnabled = !_busy && PendingSingingJob(batch) is not null;
     }
 
     private async void OnRecreateBatchClick(object? sender, RoutedEventArgs e)
