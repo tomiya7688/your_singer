@@ -29,7 +29,8 @@ public sealed class StyleBertVits2TrainerService
         ProjectWorkspace workspace,
         TrainingJobRecord job,
         string modelName,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        TalkTimbreAdaptationInput? timbre = null)
     {
         if (job.Target != TrainingTarget.Talk)
             throw new InvalidOperationException(
@@ -50,11 +51,14 @@ public sealed class StyleBertVits2TrainerService
             !File.Exists(Path.Combine(datasetDirectory, "esd.list")))
             throw new InvalidOperationException("トーク学習入力を作成してから学習を実行してください。");
         var outputDirectory = Path.Combine(datasetDirectory, "trainer");
+        var references = ResolveTimbreReferences(workspace, timbre);
 
         var result = await _workerClient.SendAsync(
             "train_style_bert_vits2",
             new
             {
+                timbre_references = references,
+                timbre_style_name = TalkTimbreAdaptationInput.StyleName,
                 trainer_root = trainerRoot,
                 model_name = modelName,
                 dataset_dir = datasetDirectory,
@@ -69,8 +73,55 @@ public sealed class StyleBertVits2TrainerService
             throw new InvalidOperationException(
                 "Style-Bert-VITS2 trainer結果にlog_pathがありません。");
 
+        RecordTimbreUsage(job, timbre, references, result);
+
         return logPath.GetString()
             ?? throw new InvalidOperationException(
                 "Style-Bert-VITS2 trainer log pathが空です。");
+    }
+
+    // {
+    //   責務: [ResolveTimbreReferences: 声質参照の音声をワークスペース内の絶対パスへ解決する]
+    //   引数: [workspace: 対象ワークスペース, timbre: 声質参照の入力(無ければnull)]
+    //   戻り値: [絶対パスの一覧(参照が無ければ空)]
+    //   エラー: [ワークスペース外を指す参照を拒否する]
+    // }
+    public static List<string> ResolveTimbreReferences(ProjectWorkspace workspace, TalkTimbreAdaptationInput? timbre)
+    {
+        var root = Path.GetFullPath(workspace.RootPath);
+        var rootWithSeparator = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
+        var resolved = new List<string>();
+        foreach (var reference in timbre?.References ?? [])
+        {
+            var full = Path.GetFullPath(reference.AudioPath, root);
+            if (!full.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("声質参照の音声がワークスペース外です。");
+            resolved.Add(full);
+        }
+        return resolved;
+    }
+
+    // {
+    //   責務: [RecordTimbreUsage: Trainerの報告で確認できた場合だけ、声質参照の利用をジョブに記録する]
+    //   エラー: [参照を渡したのに報告が無い場合に失敗する(使ったと偽らない)]
+    // }
+    public static void RecordTimbreUsage(
+        TrainingJobRecord job, TalkTimbreAdaptationInput? timbre, List<string> references, JsonElement result)
+    {
+        if (timbre is null) return;
+        var usage = timbre.Usage;
+        if (references.Count > 0)
+        {
+            if (!result.TryGetProperty("timbre_style", out var report) ||
+                !report.TryGetProperty("reference_count", out var count))
+                throw new InvalidOperationException("声質参照を渡しましたが、Trainerがスタイル追加を報告していません。");
+            usage = new SharedFeatureUsageEntry
+            {
+                Feature = usage.Feature, Domain = usage.Domain, Support = usage.Support, Used = true,
+                Reason = $"歌唱区間 {count.GetInt32()} 件の音声から作ったスタイル「{TalkTimbreAdaptationInput.StyleName}」をトークモデルへ追加しました(教師データには使っていません)。"
+            };
+        }
+        job.SharedFeatureUsage = (job.SharedFeatureUsage ?? [])
+            .Where(entry => entry.Feature != usage.Feature).Append(usage).ToList();
     }
 }
