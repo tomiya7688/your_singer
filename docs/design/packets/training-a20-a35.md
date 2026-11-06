@@ -119,7 +119,7 @@
 - 実装済み(#102 C#側): `TrainingJobRunner.RunAsync` が学習処理を挟み、Running → Succeeded / Failed / Canceled を保存する(取消済みトークンでも終了状態は保存。終了済みjobは再実行不可)。`TrainingJobRunnerTests`。
 - 実装済み(連結): `TrainingExecutionService.ExecuteAsync` が Preflight → 実行可否 → 棚卸し版の照合 → Trainer 実行 → 終了状態の記録を連結する。実行不可は Trainer を起動せず Pending のまま理由を返す(Failed にしない)。`TrainingExecutionServiceTests`。
 - 実装済み(配線): `DiffSingerTrainerService.AsExecution` と `StyleBertVits2TrainerService.AsExecution` が実行デリゲートを返す(計画の無いjobは worker 起動前に拒否。`TrainerExecutionBindingTests`)。
-- 未実装: 画面からの呼出し(UI接続)。`TrainingExecutionService.ExecuteAsync` に渡す入力のうち、現状に供給元が無いものがある: (1) `PreflightEnvironment` のGPU有無・VRAM(#88 の測定が前提。固定値で代用すると実行可否を偽る)、(2) 初期重み(ResolverCheckpoint)の棚卸し、(3) 歌唱の学習設定パス・トークのモデル名。これらの供給元を決めてから、`TrainingHistoryWindow` に開始/取消の操作を追加する。実 Trainer での回収は実GPU手動確認が必要(未確認)。
+- 未実装: 画面からの呼出し(UI接続)。`TrainingExecutionService.ExecuteAsync` に渡す入力のうち、現状に供給元が無いものがある: (1) `PreflightEnvironment` のGPU有無・VRAM(`HardwareProbe.DetectAsync` が nvidia-smi の搭載メモリ申告値を返す。取得失敗はCUDAなしへ倒す。学習が実際に必要とするVRAMの測定は #88 で未実装)、(2) 初期重み(ResolverCheckpoint)の棚卸し、(3) 歌唱の学習設定パス・トークのモデル名。これらの供給元を決めてから、`TrainingHistoryWindow` に開始/取消の操作を追加する。実 Trainer での回収は実GPU手動確認が必要(未確認)。
 
 ### #103 A24 トークモデルの本物の読み上げ推論と結果検証を実装する
 
