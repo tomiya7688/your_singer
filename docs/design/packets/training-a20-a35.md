@@ -85,7 +85,8 @@
 - 解消(D-09): unsupported と根拠を記録して完了とする。
 - 要決定: 「texture を満たす」の評価指標と基準(#99 と共通化するか)。
 - 実装済み(#100 T1 の部品): `TalkTimbreAdaptationService`(同一話者の歌唱区間から参照音声を選ぶ。発話教師が0件でも作れる。別話者・話者不明・除外・確認待ち・発話区間は含めない。無効/参照なしは `Used=false` と理由を記録)、`style_bert_vits2_timbre.py`(参照音声の埋め込みを検査し、平均を新しいスタイルとして `style_vectors.npy` と `config.json` の `style2id`/`num_styles` へ原子的に追記)。
-- 未実装(#100): pyannote による埋め込み計算の worker 組み込み、エクスポート工程でのスタイル追記の呼び出し、ジョブへの利用記録の保存、実日本語読み上げでの ON/OFF 評価(未実施は未検証と記録)。
+- 実装済み(#100 worker 組み込み): `train_style_bert_vits2` のペイロードに `timbre_references`(ワークスペース内の絶対パス)を受け付け、ジョブ内 `timbre_refs/` へ複製(wav以外・欠落は拒否)、学習成功後に `timbre_style` 工程で pyannote(wespeaker, 公式 style_gen.py と同じ 256 次元)の埋め込みを計算して新スタイルを追記し、`timbre_style_report.json` を残す。使える埋め込みが0件なら学習成功にせず失敗。C# 側は Trainer の報告で追記を確認できた場合だけ `SharedFeatureUsage.Used=true` にする(報告が無ければ失敗)。
+- 未実装・未検証(#100): UI/オーケストレーションからの `timbre` 引数の接続、実日本語読み上げでの ON/OFF 評価(未実施は未検証と記録)。pyannote 実モデルでの追記は実機未実行。
 
 ### #101 A22 Workerが実際の学習モード・重み使用・成果物Hashを記録する
 

@@ -16,23 +16,61 @@ def train_style_bert_vits2(payload: dict) -> dict:
     session.prepare()
     log_path = session.output / "trainer.log"
     with log_path.open("x", encoding="utf-8") as log:
-        for stage in ("initialize", "resample.py", "preprocess_text.py", "bert_gen.py", "style_gen.py", "train_ms.py"):
+        for stage in (
+            "initialize",
+            "resample.py",
+            "preprocess_text.py",
+            "bert_gen.py",
+            "style_gen.py",
+            "train_ms.py",
+        ):
             # 前処理CLIの戻り値を握りつぶすpreprocess_all.pyを経由しない。
             log.write(f"\n--- {stage} ---\n")
             log.flush()
             if stage == "train_ms.py":
                 session.require_training_features()
             completed = subprocess.run(
-                session.command(stage), cwd=session.output, env=session.environment(),
-                check=False, stdout=log, stderr=subprocess.STDOUT,
+                session.command(stage),
+                cwd=session.output,
+                env=session.environment(),
+                check=False,
+                stdout=log,
+                stderr=subprocess.STDOUT,
             )
             if completed.returncode != 0:
                 raise RuntimeError(
                     f"Style-Bert-VITS2の{stage}が終了コード{completed.returncode}で失敗しました。 log={log_path}"
                 )
     artifacts = session.require_artifacts()
-    result = dict(exit_code=0, log_path=str(log_path), trainer_root=str(session.trainer),
-                  model_name=session.model_name, **artifacts)
+    result = dict(
+        exit_code=0,
+        log_path=str(log_path),
+        trainer_root=str(session.trainer),
+        model_name=session.model_name,
+        **artifacts,
+    )
+    if session.timbre_references:
+        # 声質参照が指定されたのに追加できなかった場合は、学習成功として扱わず失敗にする。
+        with log_path.open("a", encoding="utf-8") as log:
+            log.write("\n--- timbre_style ---\n")
+            log.flush()
+            completed = subprocess.run(
+                session.command("timbre_style"),
+                cwd=session.output,
+                env=session.environment(),
+                check=False,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
+        if completed.returncode != 0:
+            raise RuntimeError(
+                f"歌唱由来の声質スタイルの追加が終了コード{completed.returncode}で失敗しました。 log={log_path}"
+            )
+        result["timbre_style"] = json.loads(
+            (session.output / "timbre_style_report.json").read_text(encoding="utf-8")
+        )
     # 結果の参照も非公開Voice Project内に残し、Exporterへ渡せるようにする。
-    (session.output / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    (session.output / "result.json").write_text(
+        json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return result

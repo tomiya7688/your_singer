@@ -22,6 +22,7 @@ def require_training_runtime() -> None:
     if not torch.cuda.is_available():
         raise RuntimeError("Style-Bert-VITS2学習にはCUDA対応GPUと対応する専用PyTorchが必要です。")
     import pyopenjtalk
+
     if not callable(getattr(pyopenjtalk, "unset_user_dict", None)):
         raise RuntimeError("専用runtimeには公式が要求するpyopenjtalk-dictが必要です。")
     if not Path(os.fsdecode(pyopenjtalk.OPEN_JTALK_DICT_DIR)).is_dir():
@@ -46,23 +47,41 @@ def initialize(trainer: Path, output: Path) -> None:
     # 分散学習の環境変数を既存のシェルから継承しない。1ジョブ1GPUで起動する。
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
-        settings["train_ms"]["env"].update(MASTER_ADDR="127.0.0.1", MASTER_PORT=reservation.getsockname()[1],
-                                         WORLD_SIZE=1, LOCAL_RANK=0, RANK=0)
-    (output / "config.yml").write_text(yaml.safe_dump(settings, allow_unicode=True), encoding="utf-8")
+        settings["train_ms"]["env"].update(
+            MASTER_ADDR="127.0.0.1",
+            MASTER_PORT=reservation.getsockname()[1],
+            WORLD_SIZE=1,
+            LOCAL_RANK=0,
+            RANK=0,
+        )
+    (output / "config.yml").write_text(
+        yaml.safe_dump(settings, allow_unicode=True), encoding="utf-8"
+    )
     configs = output / "configs"
     configs.mkdir()
-    (configs / "paths.yml").write_text(yaml.safe_dump(dict(dataset_root=str(output),
-        assets_root=str(output / "model_assets"))), encoding="utf-8")
+    (configs / "paths.yml").write_text(
+        yaml.safe_dump(dict(dataset_root=str(output), assets_root=str(output / "model_assets"))),
+        encoding="utf-8",
+    )
     hyperparameters = json.loads((trainer / "configs" / "config.json").read_text(encoding="utf-8"))
     if hyperparameters.get("version") != "2.7.0":
         raise RuntimeError("Style-Bert-VITS2学習設定は2.7.0が必要です。")
     hyperparameters["model_name"] = model_name
-    hyperparameters["data"].update(training_files=str(data / "train.list"),
-        validation_files=str(data / "val.list"), use_jp_extra=False)
-    hyperparameters["train"].update(batch_size=2, epochs=100, eval_interval=1000, log_interval=200, bf16_run=False)
+    hyperparameters["data"].update(
+        training_files=str(data / "train.list"),
+        validation_files=str(data / "val.list"),
+        use_jp_extra=False,
+    )
+    hyperparameters["train"].update(
+        batch_size=2, epochs=100, eval_interval=1000, log_interval=200, bf16_run=False
+    )
     # 公式モデル内のWavLM参照も、カレントディレクトリに依存させない。
-    hyperparameters["model"].setdefault("slm", {})["model"] = str(trainer / "slm" / "wavlm-base-plus")
-    (data / "config.json").write_text(json.dumps(hyperparameters, ensure_ascii=False, indent=2), encoding="utf-8")
+    hyperparameters["model"].setdefault("slm", {})["model"] = str(
+        trainer / "slm" / "wavlm-base-plus"
+    )
+    (data / "config.json").write_text(
+        json.dumps(hyperparameters, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     shutil.copytree(trainer / "pretrained", data / "models")
     dictionary = output / "dict_data"
     if (trainer / "dict_data").is_dir():
@@ -85,9 +104,19 @@ def isolated_dictionary_worker():
     with socket.socket() as reservation:
         reservation.bind((socket.gethostname(), 0))
         port = reservation.getsockname()[1]
-    command = [sys.executable, "-m", "style_bert_vits2.nlp.japanese.pyopenjtalk_worker", "--port", str(port)]
-    process = subprocess.Popen(command, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-                               stdout=sys.stderr, stderr=sys.stderr)
+    command = [
+        sys.executable,
+        "-m",
+        "style_bert_vits2.nlp.japanese.pyopenjtalk_worker",
+        "--port",
+        str(port),
+    ]
+    process = subprocess.Popen(
+        command,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        stdout=sys.stderr,
+        stderr=sys.stderr,
+    )
     try:
         deadline = time.monotonic() + 30
         while True:
@@ -115,6 +144,51 @@ def isolated_dictionary_worker():
             process.wait(timeout=10)
 
 
+# { 責務: [_pyannote_embedding: 公式のstyle_gen.pyと同じ話者埋め込み(256次元)を計算する関数を作る] }
+def _pyannote_embedding():
+    import torch
+    from pyannote.audio import Inference, Model
+
+    model = Model.from_pretrained("pyannote/wespeaker-voxceleb-resnet34-LM")
+    inference = Inference(model, window="whole")
+    inference.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    return lambda path: inference(path)
+
+
+# {
+#   責務: [append_timbre_style: 歌唱由来の声質参照を、学習済みモデルの新しいスタイルとして追加する(経路T1)]
+#   処理: [1: 参照音声の埋め込みを計算する 2: 使えないものを理由付きで除く 3: 平均をスタイルとして追記し、報告を残す]
+#   エラー: [参照が無い・使える埋め込みが1件も無い・追記できない場合に失敗する(黙って省略しない)]
+# }
+def append_timbre_style(
+    output: Path, references: Path, style_name: str, model_dir: Path, embed_factory=None
+) -> dict:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "style_bert_vits2_timbre", Path(__file__).with_name("style_bert_vits2_timbre.py")
+    )
+    timbre = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(timbre)
+    wavs = sorted(references.glob("*.wav"))
+    if not wavs:
+        raise ValueError("声質参照の音声がありません。")
+    vectors, skipped = timbre.compute_reference_vectors(
+        [str(path) for path in wavs], (embed_factory or _pyannote_embedding)()
+    )
+    if vectors.shape[0] == 0:
+        raise RuntimeError(
+            "使える声質参照の埋め込みが1件もありません: "
+            + "; ".join(f"{Path(p).name}: {r}" for p, r in skipped)
+        )
+    report = timbre.append_reference_style(model_dir, style_name, vectors)
+    report["skipped"] = [dict(file=Path(path).name, reason=reason) for path, reason in skipped]
+    (output / "timbre_style_report.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return report
+
+
 # {
 #   責務: [main: 専用Pythonから許可した公式工程だけを起動する]
 #   処理: [1: 公式ソースの版を確認する 2: 辞書の書込先を分離する 3: 工程を起動する]
@@ -123,17 +197,32 @@ def isolated_dictionary_worker():
 def main() -> None:
     trainer, output = (Path(argument).resolve() for argument in sys.argv[1:3])
     stage = sys.argv[3]
-    allowed = {"initialize", "resample.py", "preprocess_text.py", "bert_gen.py", "style_gen.py", "train_ms.py"}
+    allowed = {
+        "initialize",
+        "resample.py",
+        "preprocess_text.py",
+        "bert_gen.py",
+        "style_gen.py",
+        "train_ms.py",
+        "timbre_style",
+    }
     if stage not in allowed or Path.cwd().resolve() != output:
         raise ValueError("ジョブ専用環境の許可された工程のみ起動できます。")
     sys.path.insert(0, str(trainer))
     from style_bert_vits2 import constants
+
     if constants.VERSION != "2.7.0" or Path(constants.__file__).resolve().parent.parent != trainer:
         raise RuntimeError("同梱のStyle-Bert-VITS2 2.7.0ソースが必要です。")
     # user_dictモジュールのimportより前に指定し、同梱辞書の共有書込みを防ぐ。
     constants.DEFAULT_USER_DICT_DIR = output / "dict_data"
     if stage == "initialize":
         initialize(trainer, output)
+        return
+    if stage == "timbre_style":
+        references, style_name, model_dir = sys.argv[4], sys.argv[5], sys.argv[6]
+        append_timbre_style(
+            output, Path(references).resolve(), style_name, Path(model_dir).resolve()
+        )
         return
     sys.argv = [str(trainer / stage), *sys.argv[4:]]
     if stage in {"preprocess_text.py", "bert_gen.py"}:
