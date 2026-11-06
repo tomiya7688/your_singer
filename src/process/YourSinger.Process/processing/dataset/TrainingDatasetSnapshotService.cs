@@ -24,6 +24,9 @@ public sealed class TrainingDatasetSnapshotService(UniversalVoiceDatasetReposito
         if (dataset.Segments.Select(x => x.SegmentId).Distinct(StringComparer.Ordinal).Count() != dataset.Segments.Count)
             throw new InvalidDataException("共通音声データに重複した区間IDがあります。");
 
+        if (speakers is not null)
+            dataset.Segments.RemoveAll(x => speakers.ExcludedSegmentIds.Contains(x.SegmentId));
+
         foreach (var segment in dataset.Segments)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -49,9 +52,6 @@ public sealed class TrainingDatasetSnapshotService(UniversalVoiceDatasetReposito
                 segment.ContentType = typeBySegment.TryGetValue(segment.SegmentId, out var item)
                     ? item.ContentType : SegmentContentType.Ambiguous;
         }
-        if (speakers is not null)
-            dataset.Segments.RemoveAll(x => speakers.ExcludedSegmentIds.Contains(x.SegmentId));
-
         return dataset;
     }
 

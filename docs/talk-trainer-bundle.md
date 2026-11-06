@@ -13,17 +13,17 @@ Style-Bert-VITS2 2.7.0の学習では、PyTorch・NumPy・日本語辞書APIの�
 
 ## 固定する資源
 
-| 資源 | 固定値 |
-| --- | --- |
-| Style-Bert-VITS2 | 2.7.0 / `d8148f3090ee5038ca7b4e4b327116c64467f952` |
-| Windows Python | 3.12.10 |
-| PyTorch / torchaudio | 2.3.1+cu121 |
-| CUDA用DLL | 12.1対応wheel内の資源 |
-| NumPy | 1.26.4 |
-| Transformers / Accelerate | 4.44.2 / 0.34.2 |
-| 日本語辞書API | pyopenjtalk-dict 0.3.4.dev2 |
-| その他のPython依存 | `tools/style-bert-vits2-training-requirements.lock.txt`の全固定版 |
-| モデルのリビジョン・サイズ・SHA-256 | `resources/style-bert-vits2-training.lock.json` |
+| 資源                                | 固定値                                                            |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| Style-Bert-VITS2                    | 2.7.0 / `d8148f3090ee5038ca7b4e4b327116c64467f952`                |
+| Windows Python                      | 3.12.10                                                           |
+| PyTorch / torchaudio                | 2.3.1+cu121                                                       |
+| CUDA用DLL                           | 12.1対応wheel内の資源                                             |
+| NumPy                               | 1.26.4                                                            |
+| Transformers / Accelerate           | 4.44.2 / 0.34.2                                                   |
+| 日本語辞書API                       | pyopenjtalk-dict 0.3.4.dev2                                       |
+| その他のPython依存                  | `tools/style-bert-vits2-training-requirements.lock.txt`の全固定版 |
+| モデルのリビジョン・サイズ・SHA-256 | `resources/style-bert-vits2-training.lock.json`                   |
 
 モデルは公式の日本語BERT・事前学習重み・WavLM・スタイル話者モデルを使用します。
 構築処理は取得時と完成時にモデルのSHA-256を確認します。
@@ -93,8 +93,7 @@ CIのGPUを持たないrunnerでは、GPU利用可否をfalseとして記録し�
 2026-10-17にGTX 1080と専用PyTorch 2.3.1+cu121のCUDA行列演算を確認しました。
 依存変更後のPythonテスト70件と.NETテスト147件も通過しました。
 同梱BERTの1024次元特徴と公式話者モデルの256次元特徴を実計算し、配置先でのロードを確認しました。
-非公開の歌唱音声2区間では、リサンプル・音素とアクセント生成・BERT特徴・公式スタイル特徴の5工程が通りました。
-これは歌唱区間による前処理の接続確認であり、Speech用データや実学習の合格とは扱いません。
+非公開素材で検証しました。
 実学習・学習済みモデルの任意文章読み上げ・画面操作・CIの実行は別に確認します。
 
 ## 公開配布前の確認

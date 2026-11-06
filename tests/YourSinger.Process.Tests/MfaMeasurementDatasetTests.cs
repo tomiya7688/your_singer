@@ -54,6 +54,19 @@ public sealed class MfaMeasurementDatasetTests
         await Assert.ThrowsAsync<InvalidDataException>(() => MfaMeasurementFiles.ReadSingingDatasetAsync(p.Workspace, "size-check.json", Token));
     }
 
+    // { 責務: [ExcludedMeasurementIsNotValidated: 除外した区間の欠落が他の入力を妨げない] }
+    [Fact]
+    public async Task ExcludedMeasurementIsNotValidated()
+    {
+        using var p = new TestProject();
+        var excluded = p.Segment("exclude", type: SegmentContentType.Singing);
+        await p.SeedAsync(p.Segment("keep", type: SegmentContentType.Singing), excluded);
+        await new YourSinger.Process.Processing.Speaker.SpeakerOverrideService(p.Speakers)
+            .ExcludeSegmentAsync(p.Workspace, "exclude", true, Token);
+        File.Delete(Path.Combine(p.Workspace.RootPath, excluded.AlignmentMeasurement!.Path));
+        var view = await new TrainingDatasetSnapshotService(p.DatasetRepository).LoadAsync(p.Workspace, Token);
+        Assert.Equal("keep", Assert.Single(view.Segments).SegmentId);
+    }
     // { 責務: [ReferenceRoundTripsToSingingDataset: 参照が保存され歌唱入力まで届くことを確認する] }
     [Fact]
     public async Task ReferenceRoundTripsToSingingDataset()
