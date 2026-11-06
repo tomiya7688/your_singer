@@ -56,6 +56,8 @@ public sealed class TrainingJobRecord
     // 共有話者特徴(トーク・歌唱の相互利用)をBackendが受け入れたかの記録。null は未評価。
     // 未対応の特徴は Used=false と理由を残し、相互学習済みと表示しない根拠にする。
     public List<SharedFeatureUsageEntry>? SharedFeatureUsage { get; set; }
+    // 計画時に選んだ学習戦略・プリセット・棚卸しの参照(登録の追加・削除があっても再現できる)。null は未選択(旧ジョブ含む)。
+    public TrainingStrategyReference? Strategy { get; set; }
     // 学習方式の契約を持たない旧ジョブか。
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsLegacyWithoutTrainingContract => RequestedTrainingMode is null;

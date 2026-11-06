@@ -124,11 +124,11 @@ Issue 本文と設計正本の食い違いは「要決定」に記録します�
 - 完了条件: 会話優勢/歌唱優勢/混在/多量/少量で候補と理由が変わる。ユーザーの target/texture を Profile から上書きしない。登録・削除しても旧 Job の内容を保持する。
 - テスト: 自動(クラス名は Issue になし): stage DAG(循環・存在しない依存)、manifest 無効、priority 衝突、Tag 組合せ、同じ素材でも別質感、別素材でも同一目標、登録・削除時の旧 Job 保持、provider 違い、重複 ID、schema 違い、未知 operation、`unknown` を 0 にしない。
 - 非目標: 新しい学習アルゴリズム自体の実装、独自 worker の起動(#138)。
-- 要決定: 「priority 衝突」。strategy schema に `priority` 項目は無く、選定順位は §7.1 の辞書式(最後は文字列順)。Issue のテスト項目を、どの定義で書くか。
-- 要決定: 「provider 違い」の保持場所。strategy manifest は provider を持たず、operation が Provider に紐づく(provider の `operations[].operation_id`)。Registry のキーは `(id, version)`、衝突は hash で判定(§2)。
-- 要決定: `OperationRegistry` の初期 Operation 一覧と、組み込み strategy の定義。examples の Operation ID は実在しない。D-03 の読み替えのとおり、#133・#134 が組み込み戦略を提供する案。
-- 要決定: `TrainingStrategyDescriptor` を Data に置く(#137)か、`ProviderDescriptor` を Process に置く(#138)かの整合。両者の関係(Descriptor が manifest の読込結果か、保存 record か)。
-- 要決定: 品質/多様性を判定に使う方法。`metric` 列挙に無い(#132 の要決定と共通)。
+- ~~要決定: 「priority 衝突」。strategy schema に `priority` 項目は無く、選定順位は §7.1 の辞書式(最後は文字列順)。Issue のテスト項目を、どの定義で書くか。~~ → 暫定(#137): `priority` 項目は作らない。順位は決定的に、成立(met)が先、次に対象プリセットに特化した戦略、strategy_id の文字列順、新しい version の順とし、同順位は生じない。§7.1 の完全な辞書式の定義が確定したら置き換える
+- ~~要決定: 「provider 違い」の保持場所。strategy manifest は provider を持たず、operation が Provider に紐づく(provider の `operations[].operation_id`)。Registry のキーは `(id, version)`、衝突は hash で判定(§2)。~~ → 暫定(#137): Registry のキーは `(id, version)` で、衝突は hash で判定する。ジョブには `TrainingStrategyReference`（戦略 ID・version・hash・provider ID・プリセット・棚卸し revision）を保存する。provider の実体は #138
+- ~~要決定: `OperationRegistry` の初期 Operation 一覧と、組み込み strategy の定義。examples の Operation ID は実在しない。D-03 の読み替えのとおり、#133・#134 が組み込み戦略を提供する案。~~ → 暫定(#137): `OperationRegistry` は空で始め、operation と組み込み戦略は #133・#134 などが登録する(`RegisterBuiltIn`)。未登録の operation を含む戦略は `unknown_operation` で拒否する
+- ~~要決定: `TrainingStrategyDescriptor` を Data に置く(#137)か、`ProviderDescriptor` を Process に置く(#138)かの整合。両者の関係(Descriptor が manifest の読込結果か、保存 record か)。~~ → 暫定(#137): `TrainingStrategyDescriptor` は manifest の読込結果として `YourSinger.Data/models/` に置く。保存するのはジョブ側の `TrainingStrategyReference`。`ProviderDescriptor` は #138 で別に定義する
+- ~~要決定: 品質/多様性を判定に使う方法。`metric` 列挙に無い(#132 の要決定と共通)。~~ → 暫定(#137): `metric` 列挙にある指標だけを判定に使う(品質・多様性は使わない。#132 と共通)
 
 ### #138 A41 第三者学習 Worker Provider の IPC 契約・登録・実行を実装する
 
