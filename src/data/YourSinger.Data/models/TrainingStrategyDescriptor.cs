@@ -48,6 +48,9 @@ public sealed class TrainingStrategyReference
     public required string Version { get; init; }
     public required string Hash { get; init; }
     public string? ProviderId { get; init; }
+    // 第三者Providerを使う戦略では、その版と内容のhash(旧ジョブを別の内容へ黙って再解決しないための固定)。
+    public string? ProviderVersion { get; init; }
+    public string? ProviderHash { get; init; }
     public string? PresetId { get; init; }
     public string? PresetVersion { get; init; }
     // 計画に使った棚卸し(SpeakerDataInventory.InventoryRevision)。
