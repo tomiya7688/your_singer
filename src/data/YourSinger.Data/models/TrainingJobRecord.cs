@@ -58,9 +58,39 @@ public sealed class TrainingJobRecord
     public List<SharedFeatureUsageEntry>? SharedFeatureUsage { get; set; }
     // 計画時に選んだ学習戦略・プリセット・棚卸しの参照(登録の追加・削除があっても再現できる)。null は未選択(旧ジョブ含む)。
     public TrainingStrategyReference? Strategy { get; set; }
+    // Preflight(実行前の解決)の結果。null は未実施。実行できる状態(Executable)かつ棚卸しが最新のときだけ学習を始められる。
+    public TrainingResolvedPlanRecord? ResolvedPlan { get; set; }
     // 学習方式の契約を持たない旧ジョブか。
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsLegacyWithoutTrainingContract => RequestedTrainingMode is null;
+}
+
+// 実行前に解決した計画の保存形。worker は再解決せず、この内容のとおりに実行する(正本: training-modes-and-backends.md §3)。
+public sealed class TrainingResolvedPlanRecord
+{
+    public required string ManifestHash { get; init; }
+    public required string InventoryRevision { get; init; }
+    public required bool Executable { get; init; }
+    public string? StrategyId { get; init; }
+    public string? StrategyVersion { get; init; }
+    public string? Variant { get; init; }
+    // 単一Trainer工程に対する互換記録(fine_tune / from_scratch)。工程が無ければ null。
+    public string? ResolvedTrainingMode { get; init; }
+    public List<TrainingResolvedStageRecord> Stages { get; init; } = [];
+    public List<string> Warnings { get; init; } = [];
+    // 実行できないときの理由(候補ごとの停止理由を平らにしたもの)。
+    public List<string> StopReasons { get; init; } = [];
+    public DateTimeOffset ResolvedAt { get; init; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class TrainingResolvedStageRecord
+{
+    public required string StageId { get; init; }
+    public required string OperationId { get; init; }
+    public required string Mode { get; init; }
+    public string? Backend { get; init; }
+    public string? BackendRevision { get; init; }
+    public TrainingInitialization? Initialization { get; init; }
 }
 
 public sealed class TrainingArtifactRecord

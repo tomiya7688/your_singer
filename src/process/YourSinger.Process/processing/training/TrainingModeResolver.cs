@@ -141,7 +141,7 @@ public static class TrainingModeResolver
         var mode = request.Mode switch
         {
             TrainingMode.FineTune => ResolveFineTune(stage, support, problems, stopReasons),
-            TrainingMode.FromScratch => ResolveFromScratch(stage, support, request.Checkpoints.Count, stopReasons),
+            TrainingMode.FromScratch => ResolveFromScratch(stage, support, stopReasons),
             _ => ResolveAuto(stage, support, problems, stopReasons, warnings)
         };
         // この工程が停止理由を増やした場合、候補は不採用になる。初期化情報は作らない。
@@ -204,12 +204,12 @@ public static class TrainingModeResolver
         return ResolvedStageMode.FineTune;
     }
 
-    private static string? ResolveFromScratch(ResolverStage stage, BackendModeSupport support, int suppliedCheckpoints, List<string> stopReasons)
+    // from_scratch の計画は初期重みを持たない(Initialization は random_initialization で components 空)。
+    // 環境に存在する事前学習重みは「使える候補」であって指定ではないため、あっても拒否しない。ジョブ作成時に from_scratch への重み指定は検証済み。
+    private static string? ResolveFromScratch(ResolverStage stage, BackendModeSupport support, List<string> stopReasons)
     {
         if (!support.FromScratch)
             stopReasons.Add($"Stage {stage.StageId}: {support.Backend} の固定版は最初からの新規学習(from_scratch)に対応していません。");
-        if (suppliedCheckpoints > 0)
-            stopReasons.Add($"Stage {stage.StageId}: from_scratch では初期重みを指定できません(指定は {suppliedCheckpoints} 件)。");
         return ResolvedStageMode.FromScratch;
     }
 
