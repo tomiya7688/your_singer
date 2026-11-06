@@ -17,8 +17,13 @@ public sealed class TrainingUtilityTests
     {
         var s = new UniversalVoiceSegment
         {
-            SegmentId = id, SourceId = "src", AudioPath = $"{id}.wav", CacheKey = id,
-            AlignmentMethod = method, AlignmentConfidence = 0.9, PitchReliability = reliability,
+            SegmentId = id,
+            SourceId = "src",
+            AudioPath = $"{id}.wav",
+            CacheKey = id,
+            AlignmentMethod = method,
+            AlignmentConfidence = 0.9,
+            PitchReliability = reliability,
             AlignmentConfidenceStatus = ConfidenceStatus.Measured,
             AlignmentMeasurement = new() { Path = $"measurements/{id}.json", Sha256 = new string('a', 64), AudioSha256 = new string('b', 64) }
         };

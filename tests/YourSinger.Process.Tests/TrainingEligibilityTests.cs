@@ -14,8 +14,14 @@ public sealed class TrainingEligibilityTests
     {
         var s = new UniversalVoiceSegment
         {
-            SegmentId = id, SourceId = "src", AudioPath = $"{id}.wav", CacheKey = id,
-            SpeakerId = speaker, ContentType = type, VoicedRatio = voiced, VoicingFeaturePath = $"{id}-voicing.json"
+            SegmentId = id,
+            SourceId = "src",
+            AudioPath = $"{id}.wav",
+            CacheKey = id,
+            SpeakerId = speaker,
+            ContentType = type,
+            VoicedRatio = voiced,
+            VoicingFeaturePath = $"{id}-voicing.json"
         };
         if (aligned)
         {
@@ -30,12 +36,13 @@ public sealed class TrainingEligibilityTests
     private static TrainingEligibilityInput Input(
         string target = "talk", string[]? excluded = null, string[]? wrong = null,
         Func<UniversalVoiceSegment, bool>? readable = null) => new()
-    {
-        SpeakerId = "spk_a", Target = target,
-        UserExcludedSegmentIds = new HashSet<string>(excluded ?? []),
-        ConfirmedWrongSpeakerSegmentIds = new HashSet<string>(wrong ?? []),
-        IsAudioReadable = readable
-    };
+        {
+            SpeakerId = "spk_a",
+            Target = target,
+            UserExcludedSegmentIds = new HashSet<string>(excluded ?? []),
+            ConfirmedWrongSpeakerSegmentIds = new HashSet<string>(wrong ?? []),
+            IsAudioReadable = readable
+        };
 
     private static TrainingEligibilityDecision One(
         UniversalVoiceSegment seg, TrainingEligibilityInput input) =>

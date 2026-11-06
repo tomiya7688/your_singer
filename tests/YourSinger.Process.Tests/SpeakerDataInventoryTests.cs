@@ -20,12 +20,21 @@ public sealed class SpeakerDataInventoryTests
     {
         var s = new UniversalVoiceSegment
         {
-            SegmentId = id, SourceId = source, AudioPath = $"{id}.wav", CacheKey = cache ?? id, SpeakerId = speaker,
-            VoicedRatio = 0.8, VoicingFeaturePath = $"{id}-voicing.json", Transcript = "あ",
-            AsrConfidence = 0.9, AsrConfidenceStatus = ConfidenceStatus.Measured,
-            PitchReliability = 0.9, AlignmentMethod = aligned
+            SegmentId = id,
+            SourceId = source,
+            AudioPath = $"{id}.wav",
+            CacheKey = cache ?? id,
+            SpeakerId = speaker,
+            VoicedRatio = 0.8,
+            VoicingFeaturePath = $"{id}-voicing.json",
+            Transcript = "あ",
+            AsrConfidence = 0.9,
+            AsrConfidenceStatus = ConfidenceStatus.Measured,
+            PitchReliability = 0.9,
+            AlignmentMethod = aligned
                 ? UniversalVoiceSegment.RequiredSingingTrainingAlignmentMethod : "legacy-uniform-placeholder",
-            AlignmentConfidence = 0.9, AlignmentConfidenceStatus = ConfidenceStatus.Measured,
+            AlignmentConfidence = 0.9,
+            AlignmentConfidenceStatus = ConfidenceStatus.Measured,
             AlignmentMeasurement = new() { Path = $"measurements/{id}.json", Sha256 = new string('a', 64), AudioSha256 = new string('b', 64) }
         };
         if (embedding) s.SpeakerEmbedding.AddRange([1.0, 0.0]);
@@ -59,17 +68,18 @@ public sealed class SpeakerDataInventoryTests
         string[]? excluded,
         string fingerprint,
         string speaker) => Service.Build(segments, new SpeakerDataInventoryInput
-    {
-        SpeakerId = speaker, DatasetFingerprint = fingerprint,
-        Classification = new ContentClassificationRecord
         {
-            StageVersion = "t",
-            Classifications = [.. types.Select(x => new SegmentContentClassification { SegmentId = x.Key, ContentType = x.Value, Confidence = 0.8 })]
-        },
-        UserExcludedSegmentIds = new HashSet<string>(excluded ?? []),
-        DurationSeconds = duration ?? (_ => 10.0),
-        F0Provider = _ => [110.0, 220.0, 440.0]
-    });
+            SpeakerId = speaker,
+            DatasetFingerprint = fingerprint,
+            Classification = new ContentClassificationRecord
+            {
+                StageVersion = "t",
+                Classifications = [.. types.Select(x => new SegmentContentClassification { SegmentId = x.Key, ContentType = x.Value, Confidence = 0.8 })]
+            },
+            UserExcludedSegmentIds = new HashSet<string>(excluded ?? []),
+            DurationSeconds = duration ?? (_ => 10.0),
+            F0Provider = _ => [110.0, 220.0, 440.0]
+        });
 
     [Fact]
     public void SingingOnly50Minutes_StillHasIdentityReference()
@@ -197,7 +207,10 @@ public sealed class SpeakerDataInventoryTests
         Assert.Null(WavDurationReader.Read(project.Workspace, project.Segment("missing")));
         Assert.Null(WavDurationReader.Read(project.Workspace, new UniversalVoiceSegment
         {
-            SegmentId = "x", SourceId = "s", CacheKey = "c", AudioPath = "../../outside.wav"
+            SegmentId = "x",
+            SourceId = "s",
+            CacheKey = "c",
+            AudioPath = "../../outside.wav"
         }));
     }
 }
