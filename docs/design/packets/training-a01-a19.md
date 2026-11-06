@@ -214,7 +214,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: SharedSpeakerFeatureTests: SpeechOnly / SingingOnly / Mixed / WrongSpeaker_NotMerged / UserExcluded_NotMerged / NoEmbedding_ReportsUnavailable
 - テスト（自動化できない確認）: なし。
 - 非目標: Trainer への実 conditioning（後続Issue）。
-- 要決定: 重み付き集約の重み（品質・confidence のどれをどう使うか。設計は「別途weightを付ける」のみ）
+- ~~要決定: 重み付き集約の重み（品質・confidence のどれをどう使うか。設計は「別途weightを付ける」のみ）~~ → 暫定(#87): 重みは使わず、測定できた区間の等重み平均にする(Q の v1 初期実装と同じ方針)。F0 の標準偏差は区間内分散と区間平均の分散を合成。品質・信頼度による重み付けはノイズ・BGM 区間の扱いが決まってから。対象は routing が対象話者のその用途の primary とした区間だけで、別話者・話者不明・除外・確認待ちは混ぜず、使わなかった区間と理由を `Skipped` に残す。保存はせず都度導出（`SharedSpeakerFeatureService`）
 - 解消(D-08): 「対応外を報告する契約」は #98 に一本化する。#87 は区間側の共有特徴の参照と来歴だけを保存し、対応可否は判断しない。
 
 ### #88 A09 目的・質感・素材量に応じた学習計画の確定とPreflight
