@@ -198,8 +198,8 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動化できない確認）: なし。
 - 非目標: 分類モデル自体の全面刷新。目的決定とTrainer選択（分類器は行わない）。
 - 解消(D-04): 2つは別の軸で、対応表は持たない。`role=feature_only` の区間は教師データの採否(eligibility)の対象にしない。
-- 要決定: classification_confidence の status 語彙（既存 Confidence は double で未計測の区別がない。設計の status 5値を使うか）
-- 要決定: RoutingDecision の保存先とファイル名（設計・Issue とも未記載）。および feature_only 量を #132〜#134 へ渡す型
+- ~~要決定: classification_confidence の status 語彙（既存 Confidence は double で未計測の区別がない。設計の status 5値を使うか）~~ → 暫定(#86): 設計の status 語彙（measured / legacy_unknown / unavailable / invalid）を使う。自動分類の信頼度は 0 を legacy_unknown（値は null）、0 超 1 以下を measured、非有限・範囲外を invalid とし、手動修正は信頼度が無いので unavailable。0 を理由に別人扱いや削除はしない
+- ~~要決定: RoutingDecision の保存先とファイル名（設計・Issue とも未記載）。および feature_only 量を #132〜#134 へ渡す型~~ → 暫定(#86): RoutingDecision は保存せず、分類と話者から都度導出する派生データとする（`UsageRoutingService.Route`）。feature_only の量は `UsageRoutingResult.Count(target, role)` で渡す。保存が必要になった時点で保存先を決める。routing 専用の理由コード（speaker_reference / ambiguous_content / user_excluded / speaker_unconfirmed / classification_missing）は評価の reason_codes とは別の語彙
 
 ### #87 A08 同一話者のトーク・歌唱特徴参照を来歴付きで統合する
 
