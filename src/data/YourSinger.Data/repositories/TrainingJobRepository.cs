@@ -104,5 +104,16 @@ public sealed class TrainingJobRepository
                 job.Target is not (TrainingTarget.Talk or TrainingTarget.Singing or TrainingTarget.Both)) ||
             batch.Jobs.Select(job => job.JobId).Distinct(StringComparer.Ordinal).Count() != batch.Jobs.Count)
             throw new InvalidDataException("学習ジョブの保存データが不正です。元ファイルを確認してください。");
+        foreach (var job in batch.Jobs)
+        {
+            try
+            {
+                TrainingJobSettingsValidator.ValidateJob(job);
+            }
+            catch (InvalidDataException exception)
+            {
+                throw new InvalidDataException($"学習ジョブの学習方式が不正です: {exception.Message}", exception);
+            }
+        }
     }
 }
