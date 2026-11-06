@@ -400,7 +400,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動化できない確認）: なし（調査と契約の固定）。
 - 非目標: 実際のfeature conditioning と学習反映。
 - 解消(implementation-plan A09、§10): #88 の直接の依存には加えない。#98 は #133/#134 の先行で、#88 はそれらに依存する。
-- 要決定: yes/no 判定の根拠となる固定commit（SBV2 d8148f3 / DiffSinger 323a569）のコード調査の記録先（docs の節か別文書か）
+- ~~要決定: yes/no 判定の根拠となる固定commit（SBV2 d8148f3 / DiffSinger 323a569）のコード調査の記録先（docs の節か別文書か）~~ → 暫定(#98): `routing-and-cross-domain.md` の「固定版Backendの共有特徴 受入能力表（v1）」の節に、根拠のファイルと行番号を記録する。判定は、コードで確認できた範囲だけ。v1では直接conditioningできる共有特徴は無く、全て unsupported。別経路は未実装・評価条件つきとして記録
 
 ## 要決定一覧
 
