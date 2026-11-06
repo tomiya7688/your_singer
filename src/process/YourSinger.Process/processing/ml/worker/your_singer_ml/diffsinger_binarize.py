@@ -17,6 +17,21 @@ VALID_FRACTION = 0.1
 MAX_VALID = 5
 
 
+VOCODER_RELATIVE = Path("models") / "vocoder" / "nsf_hifigan" / "model.ckpt"
+
+
+# {
+#   責務: [vocoder_lines: bundle の models/vocoder/nsf_hifigan/model.ckpt があれば、その絶対パスを vocoder_ckpt として指定する設定行を返す]
+#   補足: [
+#     公式の既定は作業ディレクトリ基準の相対パスで、同梱bundleには学習済みモデルが無い。置き場所をbundle内に固定し、
+#     存在するときだけ絶対パスで指定する(無ければ公式の既定のまま、学習の前提確認で理由付きに停止する)。
+#   ]
+# }
+def vocoder_lines(trainer_root: Path) -> list[str]:
+    path = trainer_root / VOCODER_RELATIVE
+    return [f"vocoder_ckpt: {_yaml_text(str(path))}"] if path.is_file() else []
+
+
 # {
 #   責務: [read_clip_names: transcriptions.csv をCSVとして読み、クリップ名の一覧を返す]
 #   エラー: [name列が無い、名前が空、または重複しているとき ValueError(検証分割と件数照合を狂わせない)]
@@ -81,6 +96,7 @@ def write_training_config(
         f"binary_data_dir: {_yaml_text(str(binary_dir))}",
         # 呼吸・声質・テンション埋め込みは使わない設定のため、外部のVocal Removerモデル(vr)を要求しない方式にする。
         "hnsep: world",
+        *vocoder_lines(source.parent),
         # 重みmanifestは元のクリップ1件ごとに持つため、増幅した別名のitemを作らない。
         "augmentation_args:",
         "  random_pitch_shifting:",

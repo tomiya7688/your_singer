@@ -108,6 +108,23 @@ class DiffSingerBinarizeTests(unittest.TestCase):
             binarize.binarize_diffsinger(self.payload)
         self.assertFalse((self.job / "acoustic-training.yaml").exists())
 
+    def test_the_vocoder_checkpoint_is_specified_only_when_it_is_in_the_bundle(self):
+        with patch(
+            "your_singer_ml.diffsinger_binarize.run_reclaiming", side_effect=self.fake_run()
+        ):
+            result = binarize.binarize_diffsinger(self.payload)
+        self.assertNotIn("vocoder_ckpt", Path(result["config_path"]).read_text(encoding="utf-8"))
+        model = self.bundle / binarize.VOCODER_RELATIVE
+        model.parent.mkdir(parents=True)
+        model.write_bytes(b"x")
+        Path(result["config_path"]).unlink()
+        (self.job / "binary" / sampler.NAMES_FILE).unlink()
+        with patch(
+            "your_singer_ml.diffsinger_binarize.run_reclaiming", side_effect=self.fake_run()
+        ):
+            result = binarize.binarize_diffsinger(self.payload)
+        self.assertIn("vocoder_ckpt", Path(result["config_path"]).read_text(encoding="utf-8"))
+
     def test_an_existing_config_is_not_overwritten(self):
         (self.job / "acoustic-training.yaml").write_text("keep", encoding="utf-8")
         with self.assertRaises(FileExistsError):
