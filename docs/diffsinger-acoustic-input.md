@@ -66,6 +66,7 @@ worker の `binarize_diffsinger` が、音響学習入力から学習設定を�
 - 実行は子孫ごと回収できる形(`run_reclaiming`)で行い、タイムアウト・失敗は `run_failure.json` に残します。item 名の記録が無い、または件数が「入力 − 検証用」と合わないときは失敗にします。
 - 公式の音素カバレッジ検査は辞書の `AP`・`SP` が学習データに現れることも要求しますが、本アプリは未測定区間へ `AP`・`SP` を付けません。そのため入口で、不足が `AP`・`SP` だけの場合に限り検査を通します(他の音素の不足は従来どおり失敗)。
 - 呼吸・声質・テンションの埋め込みは使わないため、外部モデルを要求する `hnsep: vr` ではなく `hnsep: world` を指定します。`--exp_name` は渡しません(公式が `checkpoints/<名前>/config.yaml` を読み書きし、同梱bundleを汚すため)。
+- vocoder の取り扱い(2026-11-07 決定。Codex による一次情報の調査に基づく。再配布条件の最終確認は未了): 配布元は OpenVPI vocoders の `pc-nsf-hifigan-44.1k-hop512-128bin-2025.02` リリース(`pc_nsf_hifigan_44.1k_hop512_128bin_2025.02.zip`)で、ライセンスは CC BY-NC-SA 4.0(帰属表示・同条件での共有が必要で、商用利用不可)です。アーカイブ内 notice の追加条件、サイズ、公式のSHA-256は未確認・未公開です。このため**本アプリは同梱せず**、利用者が公式配布元から取得して `models/vocoder/nsf_hifigan/model.ckpt` に置く方式を既定とします(同梱する場合は、非商用の範囲・表示・同一条件共有をライセンス方針に反映したうえで改めて判断します)。取得後のSHA-256は利用者側の記録として保存します。
 - 要確認(実GPUでの音響モデル学習): 同梱 bundle で `train_diffsinger` を実際に起動したところ、設定の読み込みまでは通りましたが、`AcousticTask` が NSF-HiFiGAN vocoder の学習済みモデル(`vocoder_ckpt`)を要求して停止しました。このモデルは bundle に含まれず、本アプリはまだ取得・配布していません(音響学習の前提資源。配布・ライセンスの判断が必要です)。取得するまで、歌唱の音響モデル学習は実機で完走できません。Duration の学習は vocoder を使わないため完走を確認済みです。
 
 - 確認済み(2026-11-07): `python tools/smoke_diffsinger_binarize.py <bundle> <作業領域>` で、構築済み bundle の実際の公式 binarization を合成音声4件で実行し、学習3件・検証1件、`train.names.json` と件数の照合が成功しました。実素材・実GPU・実学習は未検証です。
