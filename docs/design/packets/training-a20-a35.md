@@ -116,7 +116,8 @@
 - 要決定: 孫プロセス回収の方式(Windows の Job Object か、別の方式か)。
 - 要決定: PR #56 の知見の取り込み範囲。
 - 実装済み(#102 worker 側): `process_tree.py` の `run_reclaiming` が Trainer を新しいプロセスグループ/セッションで起動し、タイムアウト(`stage_timeout_seconds`)・例外・中断のいずれでも子孫ごと終了する(Windows は `taskkill /T /F`、POSIX は `killpg`)。失敗は `run_failure.json`(kind: canceled / timeout / failed)に残し、`result.json` は書かない(成功として公開しない)。C# の `MlWorkerClient` は既にキャンセル時に `Kill(entireProcessTree: true)` でワーカーごと停止する。tests/worker `test_process_tree.py` で孫プロセスの回収を実プロセスで確認済み。
-- 未実装: TrainingJobState の Failed/Canceled を `TrainingJobPlanningService` へ記録する呼出し(学習実行のオーケストレーション・UI 接続は未着手)。実 Trainer での回収は実GPU手動確認が必要(未確認)。
+- 実装済み(#102 C#側): `TrainingJobRunner.RunAsync` が学習処理を挟み、Running → Succeeded / Failed / Canceled を保存する(取消済みトークンでも終了状態は保存。終了済みjobは再実行不可)。`TrainingJobRunnerTests`。
+- 未実装: Runner を呼ぶ画面・オーケストレーション(Preflight→Trainer→検証の連結)の接続。実 Trainer での回収は実GPU手動確認が必要(未確認)。
 
 ### #103 A24 トークモデルの本物の読み上げ推論と結果検証を実装する
 
