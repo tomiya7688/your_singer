@@ -55,7 +55,7 @@ public sealed class TrainingUtilityTests
     public void EmptyPhonemes_IsNeutralWithStatus()
     {
         var u = Service.Compute([Obs("a", [])], "talk")["a"];
-        Assert.Equal(0.5, u.Value);
+        Assert.Null(u.Value);
         Assert.Equal(ConfidenceStatus.Unavailable, u.Status);
     }
 
@@ -66,7 +66,7 @@ public sealed class TrainingUtilityTests
             [Obs("a", ["a"], method: "legacy-uniform-placeholder"), Obs("b", ["zzz"])],
             "talk");
         Assert.All(u.Values, x => Assert.Equal(ConfidenceStatus.Unavailable, x.Status));
-        Assert.All(u.Values, x => Assert.Equal(0.5, x.Value));
+        Assert.All(u.Values, x => Assert.Null(x.Value));
     }
 
     // 6半音=約1.4142倍。bin0は55Hz以上77.78Hz未満、bin-1は55Hz未満。
@@ -87,7 +87,7 @@ public sealed class TrainingUtilityTests
     public void InvalidF0_ZeroNegativeNaN_NoRangeBin()
     {
         var u = Service.Compute([Obs("a", [], [0, -5, double.NaN, double.PositiveInfinity])], "singing")["a"];
-        Assert.Equal(0.5, u.Value);
+        Assert.Null(u.Value);
         Assert.Equal(ConfidenceStatus.Unavailable, u.Status);
         var unreliable = Service.Compute([Obs("b", [], [220], reliability: 0)], "singing")["b"];
         Assert.Equal(ConfidenceStatus.Unavailable, unreliable.Status);

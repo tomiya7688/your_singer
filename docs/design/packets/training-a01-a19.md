@@ -141,8 +141,8 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動化できない確認）: なし。
 - 非目標: Trainer への反映（#91 / #92）。
 - 解消(D-05): 全項目が未計測のときは設計正本の `unavailable` を使う。Issue本文の `unknown` は `unavailable` と読み替える。
-- 要決定: audio品質の 0〜1 化（noise / music_leak / reverb / clipping の向きと変換式。設計は「AudioQualityAnalyzer とテストに合わせて確定」）
-- 要決定: clamp 後に平均が 1 でなくなることを許容するか（設計は clamp のみ記載。選択肢: 許容 / clamp 後に再正規化）
+- 要決定: audio品質の 0〜1 化（noise / music_leak / reverb / clipping の向きと変換式。設計は「AudioQualityAnalyzer とテストに合わせて確定」）→ 未着手(#83): 重み計算は計測状態付きの指標を受け取るだけで、audio品質の変換は行わない。変換は別途（要決定のまま）
+- ~~要決定: clamp 後に平均が 1 でなくなることを許容するか（設計は clamp のみ記載。選択肢: 許容 / clamp 後に再正規化）~~ → 暫定(#83): 許容する(設計どおり clamp のみ。再正規化しない)。unavailable の Utility は Value=null で保存し、評価上の0.5は重み計算内だけで使う(#82 の返り値を null に修正)
 
 ### #84 A05 出力目的・目標質感と学習モードのジョブ契約を保存する
 

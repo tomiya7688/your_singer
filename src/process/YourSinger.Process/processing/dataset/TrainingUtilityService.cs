@@ -13,8 +13,7 @@ public sealed class UtilityObservation
 // 正本: docs/design/v1-training/contracts-and-weighting.md「U算出」。
 public sealed class TrainingUtilityService
 {
-    public const double NeutralValue = 0.5;
-    private const double BaseHz = 55.0;
+        private const double BaseHz = 55.0;
     private const double BinSemitones = 6.0;
     private const string PlaceholderAlignment = "legacy-uniform-placeholder";
 
@@ -29,7 +28,7 @@ public sealed class TrainingUtilityService
     //   処理: [
     //     1: 確実に観測した音素と有効F0だけで、音素・音域binの出現数を数える
     //     2: 区間内の最大希少度を求め、歌唱は音素と音域の平均にする
-    //     3: 観測根拠がなければ中立0.5とunavailableを返す
+    //     3: 観測根拠がなければ value=null と unavailable を返す(評価上の中立0.5は重み計算側で使う)
     //   ]
     //   戻り値: [utilities: SegmentId→Utility。呼び出し側は同一話者・同一用途のeligibleだけを渡す]
     // }
@@ -69,7 +68,7 @@ public sealed class TrainingUtilityService
             result[item.Id] = scores.Length == 0
                 ? new TrainingUtilityAssessment
                 {
-                    Value = NeutralValue, Status = ConfidenceStatus.Unavailable, ReasonCodes = []
+                    Value = null, Status = ConfidenceStatus.Unavailable, ReasonCodes = []
                 }
                 : new TrainingUtilityAssessment
                 {
