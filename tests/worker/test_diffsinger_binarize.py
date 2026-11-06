@@ -77,6 +77,8 @@ class DiffSingerBinarizeTests(unittest.TestCase):
         self.assertIn("enabled: false", config)
         self.assertTrue(self.command[1].endswith("diffsinger_binarize_entry.py"))
         self.assertEqual(self.command[3:5], ["--config", result["config_path"]])
+        # --exp_name を渡すと公式が checkpoints/<名前>/config.yaml を読み書きし、同梱bundleを汚す・古い設定が優先されるため渡さない。
+        self.assertNotIn("--exp_name", self.command)
         self.assertEqual(result["item_count"], 12 - len(result["test_prefixes"]))
 
     def test_missing_name_record_or_nonzero_exit_fails_and_leaves_a_failure_marker(self):

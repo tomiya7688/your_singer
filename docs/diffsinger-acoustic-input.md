@@ -64,7 +64,9 @@ worker の `binarize_diffsinger` が、音響学習入力から学習設定を�
 - 検証用の区間は名前順で決定的に選びます(全体の1割、最大5件、学習用は必ず1件以上残します)。
 - 起動は `diffsinger_binarize_entry.py` 経由で、公式の item 書き込みを差し替え、学習 item 番号→名前を `binary/train.names.json` に残します。重み付きサンプラー(`weighted-ds-batch-v1`)がこの記録を使います。
 - 実行は子孫ごと回収できる形(`run_reclaiming`)で行い、タイムアウト・失敗は `run_failure.json` に残します。item 名の記録が無い、または件数が「入力 − 検証用」と合わないときは失敗にします。
-- 未検証: 実 GPU・実モデル(vocoder・ピッチ抽出器)での公式 binarization の実行。外部モデルの取得は含みません。
+- 公式の音素カバレッジ検査は辞書の `AP`・`SP` が学習データに現れることも要求しますが、本アプリは未測定区間へ `AP`・`SP` を付けません。そのため入口で、不足が `AP`・`SP` だけの場合に限り検査を通します(他の音素の不足は従来どおり失敗)。
+- 呼吸・声質・テンションの埋め込みは使わないため、外部モデルを要求する `hnsep: vr` ではなく `hnsep: world` を指定します。`--exp_name` は渡しません(公式が `checkpoints/<名前>/config.yaml` を読み書きし、同梱bundleを汚すため)。
+- 確認済み(2026-11-07): `python tools/smoke_diffsinger_binarize.py <bundle> <作業領域>` で、構築済み bundle の実際の公式 binarization を合成音声4件で実行し、学習3件・検証1件、`train.names.json` と件数の照合が成功しました。実素材・実GPU・実学習は未検証です。
 
 ## 歌唱Trainer専用runtimeの構築
 
