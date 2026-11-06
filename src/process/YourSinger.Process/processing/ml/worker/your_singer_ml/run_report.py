@@ -38,6 +38,7 @@ def build_run_report(
     artifacts: list[tuple[str, Path]],
     initialization_observed: dict | None = None,
     initialization_evidence: str | None = None,
+    weight_sampling: dict | None = None,
 ) -> dict:
     root = output_dir.resolve()
     entries = []
@@ -61,6 +62,8 @@ def build_run_report(
         initialization_observed=initialization_observed,
         # staged_before_launch: 起動前に置いた重みのhash確認。loaded: Trainerが読み込んだことの確認(現状は未実装)。
         initialization_evidence=initialization_evidence,
+        # 重み付きサンプラーが実際に使われた記録(無効・旧形式は None)。
+        weight_sampling=weight_sampling,
         artifacts=sorted(entries, key=lambda item: item["path"]),
     )
     (root / "run_manifest.json").write_text(

@@ -15,7 +15,23 @@ public sealed class TrainingRunReport
     public TrainingInitialization? InitializationObserved { get; init; }
     // 観測の根拠。staged_before_launch は起動前に置いた重みのhash確認、loaded は Trainer が読み込んだことの確認。
     public string? InitializationEvidence { get; init; }
+    // 重み付きサンプラーが実際に使われた記録。null は無効(旧形式の入力を含む)で、重み付き学習の成功としては扱わない。
+    public TrainingWeightSamplingRecord? WeightSampling { get; init; }
     public List<TrainingRunArtifact> Artifacts { get; init; } = [];
+}
+
+public sealed class TrainingWeightSamplingRecord
+{
+    public bool Applied { get; init; }
+    public string? SamplerVersion { get; init; }
+    public int? Seed { get; init; }
+    public int ItemCount { get; init; }
+    public double MinWeight { get; init; }
+    public double MaxWeight { get; init; }
+    public string? ManifestSha256 { get; init; }
+    // 学習中にサンプラーが反復された回数(0 なら使われていない)。
+    public int Iterations { get; init; }
+    public int? LastEpoch { get; init; }
 }
 
 public sealed class TrainingRunArtifact

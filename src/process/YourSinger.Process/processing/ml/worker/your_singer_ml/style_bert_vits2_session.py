@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 
 from .run_report import sha256_file
+from .style_bert_vits2_weighted_sampler import load_weight_manifest
 from .style_bert_vits2_bundle import StyleBertVits2Bundle
 
 PRETRAINED_NAMES = ("G_0.safetensors", "D_0.safetensors", "DUR_0.safetensors")
@@ -64,6 +65,8 @@ class StyleBertVits2TrainingSession:
         if self.resolved_mode not in (None, "fine_tune", "from_scratch"):
             raise ValueError(f"未対応の学習モードです: {self.resolved_mode}")
         self.initialization = payload.get("initialization")
+        # 学習入力の重みmanifest(ファイル名, sha256)。prepare() で検証して設定する。
+        self.weight_manifest = None
 
     # {
     #   責務: [prepare: 確定済み入力の複製を新しい作業先へ保存する]
@@ -91,6 +94,7 @@ class StyleBertVits2TrainingSession:
         StyleBertVits2Bundle(self.trainer).validate()
         self._verify_initialization_manifest()
         manifest = json.loads((self.dataset / "dataset.json").read_text(encoding="utf-8-sig"))
+        self.weight_manifest = self._load_weight_manifest(manifest)
         expected = {
             "job_id": self.payload["job_id"],
             "dataset_fingerprint": self.payload["dataset_fingerprint"],
@@ -108,12 +112,23 @@ class StyleBertVits2TrainingSession:
             audio = Path(item["audio_path"]).resolve()
             shutil.copyfile(audio, raw / audio.name)
         shutil.copyfile(self.dataset / "esd.list", self.data / "esd.list")
+        weight_request = None
+        if self.weight_manifest is not None:
+            shutil.copyfile(
+                self.dataset / self.weight_manifest[0], self.data / "train_weights.json"
+            )
+            weight_request = dict(
+                file="train_weights.json",
+                sha256=self.weight_manifest[1],
+                seed=self.payload.get("seed"),
+            )
         (self.output / "request.json").write_text(
             json.dumps(
                 dict(
                     model_name=self.model_name,
                     source_job=expected,
                     resolved_training_mode=self.resolved_mode,
+                    weight_manifest=weight_request,
                 ),
                 ensure_ascii=False,
                 indent=2,
@@ -121,6 +136,24 @@ class StyleBertVits2TrainingSession:
             encoding="utf-8",
         )
         self.copy_timbre_references()
+
+    # {
+    #   責務: [_load_weight_manifest: 学習入力が持つ重みmanifestを検証し、学習に使う全itemと1対1であることを起動前に確認する]
+    #   戻り値: [(ファイル名, sha256) 。manifestを持たない旧形式の入力は None(等重み。使用記録に applied=false で残る)]
+    #   エラー: [sha256不一致・ジョブ違い・重複・範囲外・学習itemとの過不足で失敗(等重みへ黙って落とさない)]
+    # }
+    def _load_weight_manifest(self, dataset_record: dict):
+        name = dataset_record.get("weight_manifest_file")
+        if name is None:
+            return None
+        digest = dataset_record.get("weight_manifest_sha256")
+        if not isinstance(digest, str) or Path(name).name != name:
+            raise ValueError("重みmanifestの記録が不正です。")
+        weights, actual = load_weight_manifest(self.dataset / name, digest, self.payload["job_id"])
+        trained = {Path(item["audio_path"]).name for item in dataset_record["items"]}
+        if set(weights) != trained:
+            raise ValueError("重みmanifestと学習itemが1対1で一致しません。")
+        return name, actual
 
     # {
     #   責務: [_verify_initialization_manifest: 計画の初期化方式が、同梱の事前学習重みと矛盾しないことを起動前に確認する]

@@ -282,6 +282,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: test_style_bert_vits2_training.py: seeded 2:8 の頻度比統計 / ddp_unsupported_preflight / train_val_split / tampered_manifest_rejected / patch_hash_matches。実GPU確認は #109。
 - テスト（自動化できない確認）: 実GPUでの重み反映確認は自動化できない（#109）。
 - 非目標: 初期化mode（#93）とGUI。
+- 実装済み(#91 の worker 契約): 固定ソース(`train_ms.py:220-267`・`data_utils.py:323-439`)を確認して実装。公式 `TextAudioSpeakerLoader` は読込時に並べ替え・フィルタするため、重みは train.list の行順ではなく、サンプラー構築時のデータセット実体の音声ファイル名で `train_weights.json` と1対1に照合し、欠落は失敗(等重みで続行しない)。固定ソースを書き換えず、`train_ms.py` の実行前に `data_utils.DistributedBucketSampler` を派生クラス(`weighted-bucket-v1`)へ差し替える。各エポックで (seed, epoch) 固定の乱数により各 bucket を重み比例に復元抽出し、bucket の大きさを変えずに公式の `__iter__`(シャッフル・バッチ化・DDP分割)へ渡す。起動前に dataset.json の sha256 と照合して改竄を拒否し、manifest と学習 item の過不足を拒否する。val.list は重みの対象外。学習後は使用記録(`weight_sampling.json`: 件数・最小/最大・manifest sha256・seed・反復回数)を実行記録に載せ、1度も反復されていなければ失敗。C# の検証は、評価つきのトークジョブで重み付きサンプラーの使用記録(applied・反復1以上・seed一致)を要求する。テスト: `test_style_bert_vits2_weighted_sampler.py`(重み比2〜4倍の頻度、重み反転で方向が逆転、seed・epoch の再現性)・`TrainingRunReportVerifierTests`。未検証: 実際の公式 `DistributedBucketSampler`・実GPU/DDP での動作と学習品質への効果、データセットの text 長フィルタで落ちた item の扱いの実機確認。
 - 要決定: 2/8 weight比の統計テストの許容誤差・試行回数（Issue 未記載）
 - 要決定: sampler patch を #93 の fallback 検出 patch と同じ overlay に入れるか分けるか（同一 train_ms.py を触る）
 
