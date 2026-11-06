@@ -29,6 +29,10 @@ COMMANDS = {
     "prepare_diffsinger_acoustic": ("diffsinger_acoustic_input", "prepare_diffsinger_acoustic"),
     "prepare_diffsinger_duration": ("diffsinger_duration_input", "prepare_diffsinger_duration"),
     "binarize_diffsinger": ("diffsinger_binarize", "binarize_diffsinger"),
+    "binarize_diffsinger_duration": (
+        "diffsinger_duration_binarize",
+        "binarize_diffsinger_duration",
+    ),
     "train_diffsinger": ("diffsinger_training", "train_diffsinger"),
     "train_style_bert_vits2": ("style_bert_vits2_training", "train_style_bert_vits2"),
     "generate_phoneme_candidate": ("phoneme_supplement", "generate_phoneme_candidate"),

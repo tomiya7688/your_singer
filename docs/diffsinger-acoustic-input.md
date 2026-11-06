@@ -64,7 +64,7 @@ VoiceProject/training/diffsinger/<job-id>/
 - 未知の音素、母音のない子音、非有限・ゼロ・負の音素長、音声長との不一致のクリップは、原因付きで `held` に保留します。素材は消しません。採用が0件なら出力を作りません。
 - 元音声・音響学習入力は変更せず、`duration-input/` は新規作成のみ(既存なら拒否)です。
 - 確認済み(2026-11-07, 合成音声4件): 構築済み bundle の公式 `variance_binarizer`(`predict_dur: true`、`predict_pitch: false`)が、この `duration-input` を受け付け、学習3件・検証1件の `train.data`/`valid.data` を作りました。公式の音素カバレッジ検査は `AP`・`SP` の出現を要求するため、#181 の起動入口(不足が `AP`・`SP` だけの場合に限り許可)を通して実行しています。実素材・実GPU学習は未検証です。
-- Duration の binarization を起動する worker/C# の呼出し(設定生成を含む)は未実装です。
+- worker の `binarize_diffsinger_duration` が、`duration-input` から variance 用の設定(`duration-training.yaml`。`predict_dur: true`、`predict_pitch: false`)を作り、#181 の起動入口で公式 binarization を実行します(`binary-duration/` に出力。`train.names.json` と件数を照合し、失敗は `run_failure.json` に残します)。C# 側の呼出しと Duration trainer の起動(#96)は未実装です。
 
 ## 公式binarizationの起動と学習設定
 
