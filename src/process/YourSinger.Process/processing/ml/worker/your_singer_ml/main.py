@@ -6,10 +6,15 @@ import json
 import sys
 import traceback
 
+
 def _configure_stdio() -> None:
     # PyInstaller化したWindows workerをPowerShell等から直接起動しても、
     # 日本語JSONとログが既定コードページへ落ちないよう明示的にUTF-8へ固定する。
-    for stream, errors in ((sys.stdin, "strict"), (sys.stdout, "strict"), (sys.stderr, "backslashreplace")):
+    for stream, errors in (
+        (sys.stdin, "strict"),
+        (sys.stdout, "strict"),
+        (sys.stderr, "backslashreplace"),
+    ):
         reconfigure = getattr(stream, "reconfigure", None)
         if callable(reconfigure):
             reconfigure(encoding="utf-8", errors=errors)
@@ -50,10 +55,18 @@ def main() -> None:
         with contextlib.redirect_stdout(sys.stderr):
             handler = getattr(importlib.import_module("." + module, __package__), function)
             result = handler(payload)
-        response = json.dumps(dict(request_id=request_id, status="ok", result=result, error=None), ensure_ascii=False, allow_nan=False)
+        response = json.dumps(
+            dict(request_id=request_id, status="ok", result=result, error=None),
+            ensure_ascii=False,
+            allow_nan=False,
+        )
     except Exception as exception:
         traceback.print_exc(file=sys.stderr)
-        response = json.dumps(dict(request_id=request_id, status="error", result=None, error=str(exception)), ensure_ascii=False, allow_nan=False)
+        response = json.dumps(
+            dict(request_id=request_id, status="error", result=None, error=str(exception)),
+            ensure_ascii=False,
+            allow_nan=False,
+        )
     sys.stdout.write(response + "\n")
     sys.stdout.flush()
 

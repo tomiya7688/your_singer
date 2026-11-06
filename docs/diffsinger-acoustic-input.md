@@ -56,6 +56,16 @@ VoiceProject/training/diffsinger/<job-id>/
 `dataset.json`は64 MiB以内、音声は1 GiB以内が必要です。上限を超える場合は学習対象を分割してください。音声の一時コピーを作業領域に作成し、処理後に削除します。
 現在は処理APIまでの実装であり、画面からこの段階だけを実行する操作は接続していません。
 
+## 公式binarizationの起動と学習設定
+
+worker の `binarize_diffsinger` が、音響学習入力から学習設定を作り、固定した公式 `scripts/binarize.py` を実行します。
+
+- 学習設定 `acoustic-training.yaml`(job 直下)は、固定ソースの `configs/acoustic.yaml` を `base_config` に取り、辞書・データセット・検証分割(`test_prefixes`)・`binary_data_dir` だけを指定します。データ増幅(augmentation)は、重みmanifestと1対1にするため無効にします。
+- 検証用の区間は名前順で決定的に選びます(全体の1割、最大5件、学習用は必ず1件以上残します)。
+- 起動は `diffsinger_binarize_entry.py` 経由で、公式の item 書き込みを差し替え、学習 item 番号→名前を `binary/train.names.json` に残します。重み付きサンプラー(`weighted-ds-batch-v1`)がこの記録を使います。
+- 実行は子孫ごと回収できる形(`run_reclaiming`)で行い、タイムアウト・失敗は `run_failure.json` に残します。item 名の記録が無い、または件数が「入力 − 検証用」と合わないときは失敗にします。
+- 未検証: 実 GPU・実モデル(vocoder・ピッチ抽出器)での公式 binarization の実行。外部モデルの取得は含みません。
+
 ## 歌唱Trainer専用runtimeの構築
 
 入力変換だけでなく、固定したDiffSinger acoustic Trainerを読み込む独立runtimeを構築できます。

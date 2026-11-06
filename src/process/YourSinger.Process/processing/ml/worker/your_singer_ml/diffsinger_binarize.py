@@ -37,12 +37,18 @@ def choose_test_prefixes(names: list[str]) -> list[str]:
 #   戻り値: [config_path, binary_dir, test_prefixes]
 #   エラー: [設定が既にある(上書きしない)、入力のCSV/辞書が無いときに失敗する]
 # }
-def write_training_config(job_dir: Path, source: Path, speaker_id: str) -> tuple[Path, Path, list[str]]:
+def write_training_config(
+    job_dir: Path, source: Path, speaker_id: str
+) -> tuple[Path, Path, list[str]]:
     acoustic = job_dir / "acoustic-input"
     csv_path, dictionary = acoustic / "transcriptions.csv", acoustic / "dictionary-ja.txt"
     if not csv_path.is_file() or not dictionary.is_file():
         raise FileNotFoundError("音響学習入力(transcriptions.csv・dictionary-ja.txt)がありません。")
-    names = [line.split(",", 1)[0] for line in csv_path.read_text(encoding="utf-8").splitlines()[1:] if line]
+    names = [
+        line.split(",", 1)[0]
+        for line in csv_path.read_text(encoding="utf-8").splitlines()[1:]
+        if line
+    ]
     prefixes = choose_test_prefixes(names)
     binary_dir = job_dir / "binary"
     config = job_dir / CONFIG_NAME
@@ -91,21 +97,47 @@ def binarize_diffsinger(payload: dict) -> dict:
     source = trainer_root / "source"
     if not python.is_file() or not (source / "scripts" / "binarize.py").is_file():
         raise FileNotFoundError("DiffSingerのbundle(runtime・binarize入口)がありません。")
-    job_dir = (Path(str(payload["project_root"])).resolve(strict=True) / "training/diffsinger" / job_id).resolve(strict=True)
-    config, binary_dir, prefixes = write_training_config(job_dir, source, str(payload["speaker_id"]))
+    job_dir = (
+        Path(str(payload["project_root"])).resolve(strict=True) / "training/diffsinger" / job_id
+    ).resolve(strict=True)
+    config, binary_dir, prefixes = write_training_config(
+        job_dir, source, str(payload["speaker_id"])
+    )
     try:
         completed = run_reclaiming(
-            [str(python), str(Path(__file__).with_name(ENTRY_NAME)), str(trainer_root), "--config", str(config), "--exp_name", job_id],
+            [
+                str(python),
+                str(Path(__file__).with_name(ENTRY_NAME)),
+                str(trainer_root),
+                "--config",
+                str(config),
+                "--exp_name",
+                job_id,
+            ],
             timeout=payload.get("stage_timeout_seconds"),
             cwd=str(source),
         )
         if completed.returncode != 0:
-            raise RuntimeError(f"DiffSingerのbinarizationが終了コード{completed.returncode}で失敗しました。")
+            raise RuntimeError(
+                f"DiffSingerのbinarizationが終了コード{completed.returncode}で失敗しました。"
+            )
         names = read_item_names(binary_dir)
-        rows = len((job_dir / "acoustic-input" / "transcriptions.csv").read_text(encoding="utf-8").splitlines()) - 1
+        rows = (
+            len(
+                (job_dir / "acoustic-input" / "transcriptions.csv")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            )
+            - 1
+        )
         if len(names) != rows - len(prefixes):
             raise RuntimeError("記録された学習itemの数が、入力から検証用を除いた数と一致しません。")
     except BaseException as error:
         record_failure(job_dir, classify(error), str(error))
         raise
-    return dict(config_path=str(config), binary_data_dir=str(binary_dir), test_prefixes=prefixes, item_count=len(names))
+    return dict(
+        config_path=str(config),
+        binary_data_dir=str(binary_dir),
+        test_prefixes=prefixes,
+        item_count=len(names),
+    )

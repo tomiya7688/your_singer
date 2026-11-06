@@ -33,7 +33,10 @@ class DiffSingerBinarizeTests(unittest.TestCase):
         )
         (acoustic / "dictionary-ja.txt").write_text("a\ta\n", encoding="utf-8")
         self.payload = dict(
-            trainer_root=str(self.bundle), project_root=str(self.project), job_id="job-1", speaker_id="spk_a"
+            trainer_root=str(self.bundle),
+            project_root=str(self.project),
+            job_id="job-1",
+            speaker_id="spk_a",
         )
 
     def fake_run(self, record_names=True, code=0):
@@ -44,20 +47,29 @@ class DiffSingerBinarizeTests(unittest.TestCase):
                 binary.mkdir(exist_ok=True)
                 held = set(binarize.choose_test_prefixes(self.names))
                 train = [n for n in self.names if n not in held]
-                (binary / sampler.NAMES_FILE).write_text(json.dumps(dict(names=train)), encoding="utf-8")
+                (binary / sampler.NAMES_FILE).write_text(
+                    json.dumps(dict(names=train)), encoding="utf-8"
+                )
             return SimpleNamespace(returncode=code)
 
         return run
 
     def test_validation_split_is_deterministic_and_keeps_training_items(self):
-        self.assertEqual(binarize.choose_test_prefixes(self.names), binarize.choose_test_prefixes(self.names[::-1]))
+        self.assertEqual(
+            binarize.choose_test_prefixes(self.names),
+            binarize.choose_test_prefixes(self.names[::-1]),
+        )
         self.assertEqual(binarize.choose_test_prefixes(["only"]), [])
         two = binarize.choose_test_prefixes(["a", "b"])
         self.assertEqual(len(two), 1)
-        self.assertLessEqual(len(binarize.choose_test_prefixes([str(i) for i in range(500)])), binarize.MAX_VALID)
+        self.assertLessEqual(
+            len(binarize.choose_test_prefixes([str(i) for i in range(500)])), binarize.MAX_VALID
+        )
 
     def test_config_and_official_entry_are_used_and_names_are_verified(self):
-        with patch("your_singer_ml.diffsinger_binarize.run_reclaiming", side_effect=self.fake_run()):
+        with patch(
+            "your_singer_ml.diffsinger_binarize.run_reclaiming", side_effect=self.fake_run()
+        ):
             result = binarize.binarize_diffsinger(self.payload)
         config = Path(result["config_path"]).read_text(encoding="utf-8")
         self.assertIn("acoustic.yaml", config)
@@ -68,13 +80,21 @@ class DiffSingerBinarizeTests(unittest.TestCase):
         self.assertEqual(result["item_count"], 12 - len(result["test_prefixes"]))
 
     def test_missing_name_record_or_nonzero_exit_fails_and_leaves_a_failure_marker(self):
-        with patch("your_singer_ml.diffsinger_binarize.run_reclaiming", side_effect=self.fake_run(record_names=False)):
+        with patch(
+            "your_singer_ml.diffsinger_binarize.run_reclaiming",
+            side_effect=self.fake_run(record_names=False),
+        ):
             with self.assertRaises(ValueError):
                 binarize.binarize_diffsinger(self.payload)
-        self.assertEqual(json.loads((self.job / "run_failure.json").read_text(encoding="utf-8"))["kind"], "failed")
+        self.assertEqual(
+            json.loads((self.job / "run_failure.json").read_text(encoding="utf-8"))["kind"],
+            "failed",
+        )
         (self.job / "acoustic-training.yaml").unlink()
         (self.job / "run_failure.json").unlink()
-        with patch("your_singer_ml.diffsinger_binarize.run_reclaiming", side_effect=self.fake_run(code=3)):
+        with patch(
+            "your_singer_ml.diffsinger_binarize.run_reclaiming", side_effect=self.fake_run(code=3)
+        ):
             with self.assertRaisesRegex(RuntimeError, "終了コード3"):
                 binarize.binarize_diffsinger(self.payload)
 
