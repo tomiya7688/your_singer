@@ -317,6 +317,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: test_style_bert_vits2_training.py: fine_tune_missing_checkpoint_fails / scratch_loaded_g0_fails / report_mismatch_fails / fake_trainer_initialization_report / official_trainer_preflight。実GPUでの学習は #109（Issue の A27 は本範囲外）。
 - テスト（自動化できない確認）: 実GPUでの学習完走は自動化できない（#109）。
 - 非目標: 学習結果の品質判定。
+- 実装済み(#93 の worker 契約): `train_style_bert_vits2` が `resolved_training_mode` と `initialization`(type・components の name/sha256)を受け取る。fine_tune は G_0/D_0/DUR_0 を過不足なく指定させ、同梱の重みの sha256 と照合して不一致・欠落を起動前に失敗にする(無言でscratchへ移行しない)。from_scratch は事前学習重みを要求せず、モデルフォルダへ置かない(重みの指定は失敗)。起動前の `initialize` 後に実際に置いた重みを hash で報告し(`staged_before_launch`)、from_scratch で重みが置かれていれば失敗。C# は計画の初期化方式を payload へ渡す。`staged` は Trainer が実際に読み込んだ確認(`loaded`)ではないため、検証結果は Unverified にとどまる。テスト: `test_style_bert_vits2_initialization.py`・`TrainingRunReportVerifierTests`。未実装・未検証: Trainer の実読込の観測(`loaded`。固定 train_ms.py のログ/呼出の限定パッチが必要)、SBV2 固定版での from_scratch の実GPU動作(Resolver は検証されるまで from_scratch を宣言しない)。
 - 要決定: from_scratch で prepare() の G_0 / D_0 / DUR_0 必須チェックをどう緩めるか。および「共有テキストEncoder等」に含める資源の定義（設計は「定義に沿って」とのみ記載で定義の所在なし）
 - 解消(D-01): Workerは1回の呼出しで1工程を受け取り、工程ごとの結果は `stage-runs/<stage-id>` に別記録する。
 

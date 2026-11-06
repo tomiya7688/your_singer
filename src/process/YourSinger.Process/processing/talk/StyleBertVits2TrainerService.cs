@@ -60,6 +60,7 @@ public sealed class StyleBertVits2TrainerService
             new
             {
                 resolved_training_mode = job.ResolvedPlan?.ResolvedTrainingMode,
+                initialization = InitializationPayload(job),
                 seed = job.Seed,
                 timbre_references = references,
                 timbre_style_name = TalkTimbreAdaptationInput.StyleName,
@@ -89,6 +90,20 @@ public sealed class StyleBertVits2TrainerService
         return logPath.GetString()
             ?? throw new InvalidOperationException(
                 "Style-Bert-VITS2 trainer log pathが空です。");
+    }
+
+    // {
+    //   責務: [InitializationPayload: 解決済み計画の初期化方式を、workerへ渡す形にする]
+    //   戻り値: [payload: type と components(name・sha256・path)。計画が無ければ null(旧形式の要求)]
+    // }
+    public static object? InitializationPayload(TrainingJobRecord job)
+    {
+        var initialization = job.ResolvedPlan?.Stages.FirstOrDefault(x => x.Initialization is not null)?.Initialization;
+        return initialization is null ? null : new
+        {
+            type = initialization.Type,
+            components = initialization.Components.Select(x => new { name = x.Name, sha256 = x.Sha256, path = x.Path })
+        };
     }
 
     // {

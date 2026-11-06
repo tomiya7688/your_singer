@@ -37,6 +37,7 @@ def build_run_report(
     output_dir: Path,
     artifacts: list[tuple[str, Path]],
     initialization_observed: dict | None = None,
+    initialization_evidence: str | None = None,
 ) -> dict:
     root = output_dir.resolve()
     entries = []
@@ -58,6 +59,8 @@ def build_run_report(
         seed=seed,
         trainer_exit_code=exit_code,
         initialization_observed=initialization_observed,
+        # staged_before_launch: 起動前に置いた重みのhash確認。loaded: Trainerが読み込んだことの確認(現状は未実装)。
+        initialization_evidence=initialization_evidence,
         artifacts=sorted(entries, key=lambda item: item["path"]),
     )
     (root / "run_manifest.json").write_text(

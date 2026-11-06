@@ -54,11 +54,15 @@ public static class TrainingRunReportVerifier
         VerifyMode(job, report, problems);
         VerifyArtifacts(report, outputDirectory, problems);
         if (problems.Count > 0) return Failed([.. problems]);
-        var unverified = job.ResolvedPlan?.ResolvedTrainingMode is not null && report.InitializationObserved is null;
+        // 起動前に置いた重みのhash確認(staged)は、Trainerが実際に読み込んだこと(loaded)の確認ではない。
+        var unverified = job.ResolvedPlan?.ResolvedTrainingMode is not null &&
+            (report.InitializationObserved is null || report.InitializationEvidence != TrainingInitializationEvidence.Loaded);
         return new TrainingRunVerificationRecord
         {
             Status = unverified ? TrainingRunVerificationStatus.Unverified : TrainingRunVerificationStatus.Verified,
-            Problems = unverified ? ["初期重みの実際の読込が観測できていないため、指定どおりの初期化は確認できていません。"] : []
+            Problems = !unverified ? [] : report.InitializationObserved is null
+                ? ["初期重みの実際の読込が観測できていないため、指定どおりの初期化は確認できていません。"]
+                : ["初期重みは起動前に置いた状態のhashまで確認しました。Trainerが実際に読み込んだことは未確認です。"]
         };
     }
 

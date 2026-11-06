@@ -43,9 +43,10 @@ public sealed class TrainingRunReportVerifierTests : IDisposable
     };
 
     private static TrainingRunReport Report(string? mode = "fine_tune", int? seed = 7, int exit = 0, string? path = "m.safetensors",
-        string? sha = null, TrainingInitialization? observed = null, string schema = "1", string jobId = "job-1") => new()
+        string? sha = null, TrainingInitialization? observed = null, string schema = "1", string jobId = "job-1",
+        string? evidence = TrainingInitializationEvidence.Loaded) => new()
     {
-        SchemaVersion = schema, JobId = jobId, ResolvedMode = mode, Seed = seed, TrainerExitCode = exit, InitializationObserved = observed,
+        SchemaVersion = schema, JobId = jobId, ResolvedMode = mode, Seed = seed, TrainerExitCode = exit, InitializationObserved = observed, InitializationEvidence = observed is null ? null : evidence,
         Artifacts = path is null ? [] : [new TrainingRunArtifact { Kind = "model_weights", Path = path, Sha256 = sha ?? Hash("weights") }]
     };
 
@@ -61,6 +62,15 @@ public sealed class TrainingRunReportVerifierTests : IDisposable
         var job = Job("fine_tune", 7, ("G", "aa"));
         var record = TrainingRunReportVerifier.Verify(job, Report(observed: Pretrained(("G", "AA"))), _output);
         Assert.Equal(TrainingRunVerificationStatus.Verified, record.Status);
+    }
+
+    [Fact]
+    public void StagedInitialization_WithMatchingHashes_IsUnverifiedBecauseLoadingWasNotObserved()
+    {
+        var record = TrainingRunReportVerifier.Verify(Job("fine_tune", 7, ("G", "aa")),
+            Report(observed: Pretrained(("G", "aa")), evidence: TrainingInitializationEvidence.StagedBeforeLaunch), _output);
+        Assert.Equal(TrainingRunVerificationStatus.Unverified, record.Status);
+        Assert.Contains(record.Problems, x => x.Contains("起動前"));
     }
 
     [Fact]
@@ -131,5 +141,16 @@ public sealed class TrainingRunReportVerifierTests : IDisposable
         Assert.Null(TrainingRunReportVerifier.Parse(null));
         using var bad = JsonDocument.Parse("""{"artifacts":"nope"}""");
         Assert.Null(TrainingRunReportVerifier.Parse(bad.RootElement));
+    }
+
+    [Fact]
+    public void TrainerPayload_CarriesThePlannedInitialization_AndIsNullWithoutAPlan()
+    {
+        var job = Job("fine_tune", 7, ("G_0.safetensors", "aa"));
+        var json = JsonSerializer.Serialize(YourSinger.Process.Processing.Talk.StyleBertVits2TrainerService.InitializationPayload(job));
+        Assert.Contains("pretrained_checkpoint", json);
+        Assert.Contains("G_0.safetensors", json);
+        job.ResolvedPlan = null;
+        Assert.Null(YourSinger.Process.Processing.Talk.StyleBertVits2TrainerService.InitializationPayload(job));
     }
 }
