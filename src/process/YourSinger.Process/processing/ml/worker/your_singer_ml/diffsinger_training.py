@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -116,6 +117,11 @@ def _run_training(
     # 学習モード(fine_tune / from_scratch)が指定されたときは、初期化方式を固定するoverlayのconfigで起動する。
     plan = prepare_initialization(payload, config_path, output_dir, exp_name)
     environment = _build_training_environment(output_dir)
+    # 公式の設定は base_config を作業ディレクトリ基準の相対パス(configs/base.yaml)で辿る。作業ディレクトリは
+    # 出力先(同梱bundleを汚さないため)なので、固定ソースの configs をそこへ複製して辿れるようにする。
+    configs = trainer_root / "source" / "configs"
+    if configs.is_dir():
+        shutil.copytree(configs, output_dir / "configs", dirs_exist_ok=True)
     # 重み付きサンプラーの使用記録は出力先へ書く(音響とDurationの学習で出力先が異なるため、入口へ明示する)。
     environment["YOURSINGER_WEIGHT_REPORT"] = str(output_dir / "weight_sampling.json")
     train_arguments = [
