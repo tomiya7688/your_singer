@@ -40,6 +40,9 @@ def main() -> None:
     train_script = source / "scripts" / "train.py"
     # 公式の scripts/train.py と同じく、固定ソースをimport元にする。
     os.environ["PYTHONPATH"] = str(source)
+    # 起動スクリプトのフォルダ(your_singer_ml)が先頭にあると、同名の preprocessing.py などが公式のパッケージを隠すため外す。
+    script_directory = str(Path(__file__).resolve().parent)
+    sys.path[:] = [p for p in sys.path if str(Path(p or ".").resolve()) != script_directory]
     sys.path.insert(0, str(source))
     sampler = load_sampler_module()
     weights, digest = sampler.load_name_weights(job_dir)

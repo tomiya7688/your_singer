@@ -79,6 +79,8 @@ def write_training_config(
         "    test_prefixes:" if prefixes else "    test_prefixes: []",
         *[f"      - {_yaml_text(name)}" for name in prefixes],
         f"binary_data_dir: {_yaml_text(str(binary_dir))}",
+        # 呼吸・声質・テンション埋め込みは使わない設定のため、外部のVocal Removerモデル(vr)を要求しない方式にする。
+        "hnsep: world",
         # 重みmanifestは元のクリップ1件ごとに持つため、増幅した別名のitemを作らない。
         "augmentation_args:",
         "  random_pitch_shifting:",
@@ -123,8 +125,6 @@ def binarize_diffsinger(payload: dict) -> dict:
                 str(trainer_root),
                 "--config",
                 str(config),
-                "--exp_name",
-                job_id,
             ],
             timeout=payload.get("stage_timeout_seconds"),
             cwd=str(source),
