@@ -244,7 +244,7 @@ class DiffSingerWeightedSamplerTests(unittest.TestCase):
             commands.append(command)
             return SimpleNamespace(returncode=0)
 
-        with patch("your_singer_ml.diffsinger_training.subprocess.run", side_effect=fake_run):
+        with patch("your_singer_ml.diffsinger_training.run_reclaiming", side_effect=fake_run):
             with self.assertRaises(RuntimeError):
                 diffsinger_training.train_diffsinger(payload)
         command = commands[0]
@@ -255,7 +255,7 @@ class DiffSingerWeightedSamplerTests(unittest.TestCase):
             json.dumps(dict(applied=True, iterations=2, sampler_version=sampler.SAMPLER_VERSION)),
             encoding="utf-8",
         )
-        with patch("your_singer_ml.diffsinger_training.subprocess.run", side_effect=fake_run):
+        with patch("your_singer_ml.diffsinger_training.run_reclaiming", side_effect=fake_run):
             result = diffsinger_training.train_diffsinger(payload)
         self.assertEqual(result["weight_sampling"]["iterations"], 2)
 
@@ -274,7 +274,7 @@ class DiffSingerWeightedSamplerTests(unittest.TestCase):
             commands.append(command)
             return SimpleNamespace(returncode=0)
 
-        with patch("your_singer_ml.diffsinger_training.subprocess.run", side_effect=fake_run):
+        with patch("your_singer_ml.diffsinger_training.run_reclaiming", side_effect=fake_run):
             result = diffsinger_training.train_diffsinger(payload)
         self.assertTrue(commands[0][1].endswith("train.py"))
         self.assertNotIn("weight_sampling", result)

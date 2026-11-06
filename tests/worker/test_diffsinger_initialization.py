@@ -167,7 +167,7 @@ class DiffSingerInitializationTests(unittest.TestCase):
             )
             return SimpleNamespace(returncode=0)
 
-        with patch("your_singer_ml.diffsinger_training.subprocess.run", side_effect=fake_run):
+        with patch("your_singer_ml.diffsinger_training.run_reclaiming", side_effect=fake_run):
             result = diffsinger_training.train_diffsinger(payload)
         report = result["run_report"]
         self.assertEqual(report["resolved_mode"], "fine_tune")
@@ -196,7 +196,7 @@ class DiffSingerInitializationTests(unittest.TestCase):
             self.dump_config("finetune_enabled: false\nfinetune_ckpt_path: null\n")
             return SimpleNamespace(returncode=0)
 
-        with patch("your_singer_ml.diffsinger_training.subprocess.run", side_effect=fake_run):
+        with patch("your_singer_ml.diffsinger_training.run_reclaiming", side_effect=fake_run):
             with self.assertRaises(FileNotFoundError):
                 diffsinger_training.train_diffsinger(payload)
 
