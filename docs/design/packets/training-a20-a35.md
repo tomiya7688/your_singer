@@ -72,6 +72,7 @@
 - 解消(D-10): 「A19」は #98。
 - 要決定: 「本人声質・目標 texture への適合」の測定指標と合格基準。
 - 解消(D-09): 未対応と根拠を記録し、UIとジョブに「未対応」と表示することで完了とする。この場合 v1 で「トーク/歌唱の相互利用」とは称さない。
+- 実装済み(#99 の部品): `SingingTimbreAdaptationService`(同一話者の発話区間を feature_only の補助条件として選ぶ。provenance(segment・source・cache key)と暫定の一律 weight 1.0、input hash を持つ。別話者・話者不明・除外・無音・歌唱区間は含めない。DiffSinger 固定版は話者エンコーダ条件を受け取れないため既定は Support=unsupported・Used=false で、D-09 のとおり「未対応」と根拠を記録。対応 Backend でも Adapter の消費記録(segment_id・用途・方式・input hash)が選んだ参照と一致するときだけ `Confirm` で Used=true にする)。テスト: `SingingTimbreAdaptationTests`。未実装: 話者エンコーダの限定パッチ(S1 本体。固定ソースへの再現可能な overlay が必要)、Adapter の消費記録の出力、実音声の ON/OFF 比較(未検証。「トーク/歌唱の相互利用」とは称さない)。
 
 ### #100 A21 歌唱主体素材から指定質感のトークモデルへ声質適応する
 
