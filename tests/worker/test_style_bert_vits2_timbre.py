@@ -66,8 +66,9 @@ class StyleBertVits2TimbreTests(unittest.TestCase):
                 (self.root / "config.json").read_bytes(),
             ),
         )
+        # 列挙順は環境で異なるため並べ替えて比較する(一時ファイルが残っていないことの確認)。
         self.assertEqual(
-            [p.name for p in self.root.iterdir()], ["config.json", "style_vectors.npy"]
+            sorted(p.name for p in self.root.iterdir()), ["config.json", "style_vectors.npy"]
         )
 
     def test_inconsistent_existing_files_are_rejected(self):
