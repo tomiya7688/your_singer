@@ -82,7 +82,7 @@ public sealed class TrainingUtilityService
     private static double Rarity(int count) => 1.0 / Math.Sqrt(Math.Max(1, count));
 
     // 確実に観測した音素(同一区間の重複は1回)。推定(placeholder)・未知語彙・不正時刻は数えない。
-    private static List<string> ObservedPhonemes(UniversalVoiceSegment segment, bool singing)
+    internal static List<string> ObservedPhonemes(UniversalVoiceSegment segment, bool singing)
     {
         if (string.IsNullOrEmpty(segment.AlignmentMethod) || segment.AlignmentMethod == PlaceholderAlignment)
             return [];
@@ -99,11 +99,13 @@ public sealed class TrainingUtilityService
     }
 
     // 音高の信頼性が正で、F0が有限の正値のときだけ6半音幅のbinにする。binは区間ごとに1回だけ数え、n(bin)を音素と同じ「区間数」にする(フレーム数の多い区間が有利にならない)。
-    private static List<int> ObservedBins(UtilityObservation obs)
+    private static List<int> ObservedBins(UtilityObservation obs) => ObservedBins(obs.Segment, obs.F0Hz);
+
+    internal static List<int> ObservedBins(UniversalVoiceSegment segment, IReadOnlyList<double> f0Hz)
     {
-        var reliability = obs.Segment.PitchReliability;
+        var reliability = segment.PitchReliability;
         if (!double.IsFinite(reliability) || reliability <= 0) return [];
-        return obs.F0Hz
+        return f0Hz
             .Where(f => double.IsFinite(f) && f > 0)
             .Select(f => (int)Math.Floor(12.0 * Math.Log2(f / BaseHz) / BinSemitones))
             .Distinct()

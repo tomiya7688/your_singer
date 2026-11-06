@@ -65,11 +65,11 @@ Issue 本文と設計正本の食い違いは「要決定」に記録します�
 - 完了条件: speech 0 秒・singing 50 分でも `timbre_reference` > 0、singing 0 秒・speech 主体でも `timbre_reference` > 0。測定不能を 0 秒の確定情報と混同しない。ソース・manual override・policy の変化で fingerprint が更新される。目標 target と texture を素材 Profile から勝手に変更しない。
 - テスト: 自動(クラス名は Issue になし): 上の 2 ケース、収録重複・区間除外・別話者・モデル未計測の区別、正常・空・破損・旧 record・キャッシュ再利用。実GPU検証は不要。
 - 非目標: 学習方式/Backend の決定、UI 表示、TTS/歌唱 Trainer の実行。
-- 要決定: 出力フィールド名の対応。Issue は `unique_utterances`・`unique_phrases`・`timbre_reference`・`inventory_version`、設計正本は `independent_utterances`・`independent_phrases`・`identity_reference`・`inventory_revision`(goal-texture-data-planner.md §2)。strategy の `requirements.metric`(`eligible_seconds`、`independent_utterances`、`independent_phrases`、`distinct_sources`、`phoneme_coverage_count`、`pitch_bins_observed`)と同じ名前に揃えないと照合できない。
-- 要決定: `phoneme_coverage`・`pitch_coverage` の型。Issue は名前のみで、設計正本の metric は件数(`phoneme_coverage_count`、`pitch_bins_observed`)。
-- 要決定: 「品質」「多様性」を `requirements` の metric にするか(#137 のヘッダは両方を Profile の軸と述べるが、strategy schema の `metric` 列挙に無い)。
-- 要決定: 棚卸し record と `SpeakerDataInventoryService` の置き場所。保存先は learning-system-design.md §8 の `metadata/speaker-data-inventory/<speaker-id>.json` が目標 schema(実パスへの一括移行はしない)。
-- 要決定: キャッシュ再利用の無効化条件。設計正本は「`source_fingerprint`、手動修正 revision、プロフィール計算 version を含める」とのみ(§4.2-8)。
+- ~~要決定: 出力フィールド名の対応。Issue は `unique_utterances`・`unique_phrases`・`timbre_reference`・`inventory_version`、設計正本は `independent_utterances`・`independent_phrases`・`identity_reference`・`inventory_revision`(goal-texture-data-planner.md §2)。strategy の `requirements.metric`(`eligible_seconds`、`independent_utterances`、`independent_phrases`、`distinct_sources`、`phoneme_coverage_count`、`pitch_bins_observed`)と同じ名前に揃えないと照合できない。~~ → 暫定(#132): 設計正本の名前を採用する(`independent_utterances` / `independent_phrases` / `identity_reference` / `inventory_revision`)。strategy の `requirements.metric` と同じ名前で照合できる。Issue の `unique_*` / `timbre_reference` / `inventory_version` は使わない
+- ~~要決定: `phoneme_coverage`・`pitch_coverage` の型。Issue は名前のみで、設計正本の metric は件数(`phoneme_coverage_count`、`pitch_bins_observed`)。~~ → 暫定(#132): 件数にする(`phoneme_coverage_count`、`pitch_bins_observed`)。音素は推定でない実測の語彙内音素の種類数、音域は6半音幅binのうち実測F0で観測した数
+- ~~要決定: 「品質」「多様性」を `requirements` の metric にするか(#137 のヘッダは両方を Profile の軸と述べるが、strategy schema の `metric` 列挙に無い)。~~ → 暫定(#132): metric にしない。棚卸しは秒数・独立数・カバレッジ・測定状況だけを持ち、品質と多様性は含めない(strategy schema の `metric` 列挙に無いため)
+- ~~要決定: 棚卸し record と `SpeakerDataInventoryService` の置き場所。保存先は learning-system-design.md §8 の `metadata/speaker-data-inventory/<speaker-id>.json` が目標 schema(実パスへの一括移行はしない)。~~ → 暫定(#132): record は `YourSinger.Data/models/SpeakerDataInventory.cs`、サービスは `processing/dataset/SpeakerDataInventoryService.cs`。保存せず都度導出する(`metadata/speaker-data-inventory/` への保存は後続)
+- ~~要決定: キャッシュ再利用の無効化条件。設計正本は「`source_fingerprint`、手動修正 revision、プロフィール計算 version を含める」とのみ(§4.2-8)。~~ → 暫定(#132): `inventory_revision` を素材の fingerprint・手動修正 revision・計算規則の版・集計結果から作る。保存・再利用の仕組みは後続
 
 ### #133 A37 ユーザー指定のトーク目的・質感と素材量から Talk 学習工程案を構成する
 
