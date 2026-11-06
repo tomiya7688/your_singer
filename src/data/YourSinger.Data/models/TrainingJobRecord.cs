@@ -60,6 +60,8 @@ public sealed class TrainingJobRecord
     public TrainingStrategyReference? Strategy { get; set; }
     // Preflight(実行前の解決)の結果。null は未実施。実行できる状態(Executable)かつ棚卸しが最新のときだけ学習を始められる。
     public TrainingResolvedPlanRecord? ResolvedPlan { get; set; }
+    // worker の実行記録を指定と照合した結果。null は未照合(旧ジョブを含む)。
+    public TrainingRunVerificationRecord? RunVerification { get; set; }
     // 学習方式の契約を持たない旧ジョブか。
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsLegacyWithoutTrainingContract => RequestedTrainingMode is null;

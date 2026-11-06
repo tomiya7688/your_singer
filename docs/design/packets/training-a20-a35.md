@@ -98,6 +98,7 @@
 - 完了条件: 指定 mode・weight と実行 report が違えば失敗。空成果物・不正 path は失敗。旧 worker 応答を新仕様の成功に読み替えない。失敗・未検証も履歴に残す。
 - テスト: 自動 `WorkerRunReportTests`(hash 改竄、missing report、mode fallback、bad relative path、exit 0 でも成果物欠損)。実GPU検証はなし(#109/#110 で実施)。
 - 非目標: 子プロセスの停止制御(#102)、品質評価 UI。
+- 実装済み(#101 の契約部): worker の `run_report.py`(`run_manifest.json`: schema_version・job_id・要求された解決済みモード・seed・Trainer終了コード・成果物の相対パスとsha256・観測した初期重み。成果物が欠損・空・出力先の外なら失敗)、C# の `TrainingRunReport` / `TrainingRunReportVerifier`(計画・seed・終了コード・モードfallback・from_scratch での初期重み読込・fine_tune の初期重み不一致・成果物の欠損/空/不正パス/hash改竄を検証。記録なし・旧形式は失敗。初期重みの実読込が未観測なら Verified にせず Unverified)。`StyleBertVits2TrainerService` は payload に `resolved_training_mode`・`seed` を渡し、返却の run_report を照合して `TrainingJobRecord.RunVerification` に残す(Failed は例外)。テスト: `test_run_report.py`・`TrainingRunReportVerifierTests`。未実装: 初期重みの実読込の観測(#93/#94 の worker 側)、DiffSinger 側の run_report 出力、weight manifest hash の照合。
 - 要決定: `run_manifest.json` のフィールド一覧と schema_version の初期値(設計正本は項目のみで型は未定)。
 - 要決定: 「weight manifest」と設計正本の `assessment.json`/`train_weights.json` の対応(同一物か別物か)。
 - 要決定: 「資源 revision」の表現(固定 commit hash か、lock ファイルの ID か)。

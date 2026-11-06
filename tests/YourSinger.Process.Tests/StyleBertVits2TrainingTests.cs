@@ -59,7 +59,13 @@ public sealed class StyleBertVits2TrainingTests
             for key in ['job_id','dataset_fingerprint','auto_correction_enabled']:
                 assert payload[key]==record[key]
             assert Path(payload['output_dir'])==dataset/'trainer'
-            print(json.dumps(dict(request_id=request['request_id'],status='ok',result=dict(log_path=str(dataset/'trainer'/'trainer.log')))))
+            assert payload['resolved_training_mode'] is None and payload['seed'] is None
+            import hashlib
+            trainer=dataset/'trainer'; trainer.mkdir(exist_ok=True)
+            (trainer/'model.safetensors').write_bytes(b'weights')
+            report=dict(schema_version='1',job_id=payload['job_id'],resolved_mode=None,seed=None,trainer_exit_code=0,initialization_observed=None,
+                        artifacts=[dict(kind='model_weights',path='model.safetensors',sha256=hashlib.sha256(b'weights').hexdigest())])
+            print(json.dumps(dict(request_id=request['request_id'],status='ok',result=dict(log_path=str(trainer/'trainer.log'),run_report=report))))
             """;
         var python = Environment.GetEnvironmentVariable("YOURSINGER_TEST_PYTHON") ?? "python";
         var service = new StyleBertVits2TrainerService(new MlWorkerClient(python, ["-u", "-c", code]));
@@ -67,6 +73,7 @@ public sealed class StyleBertVits2TrainingTests
         job.ResolvedPlan = new TrainingResolvedPlanRecord { ManifestHash = "h", InventoryRevision = "r", Executable = true };
         var log = await service.TrainAsync(project.Workspace, job, "話者モデル", TestProject.Token);
         Assert.EndsWith(Path.Combine(job.JobId, "trainer", "trainer.log"), log);
+        Assert.Equal(TrainingRunVerificationStatus.Verified, job.RunVerification!.Status);
     }
 
     // { 責務: [CreateJob: 補正OFFの合成トーク学習ジョブを作成する] }
