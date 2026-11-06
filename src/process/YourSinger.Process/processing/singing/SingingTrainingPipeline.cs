@@ -18,6 +18,19 @@ public sealed class SingingTrainingPipeline(
     Func<CancellationToken, Task<HardwareInfo>>? detectHardware = null,
     Func<CancellationToken, Task<IReadOnlyList<ResolverCheckpoint>>>? scanCheckpoints = null)
 {
+    public static readonly string VocoderRelativePath = Path.Combine("models", "vocoder", "nsf_hifigan", "model.ckpt");
+
+    // {
+    //   責務: [RequireVocoder: 音響モデルの学習に必須のvocoder学習済みモデルがbundleにあることを確認する]
+    //   エラー: [無いとき InvalidOperationException(置き場所と、本アプリはまだ取得・同梱していない旨を示す)]
+    // }
+    public static void RequireVocoder(string trainerRoot)
+    {
+        if (!File.Exists(Path.Combine(trainerRoot, VocoderRelativePath)))
+            throw new InvalidOperationException(
+                $"音響モデルの学習にはvocoderの学習済みモデルが必要です。{VocoderRelativePath} に置いてください(本アプリはまだ取得・同梱していません)。");
+    }
+
     // {
     //   責務: [RunAsync: Pendingの歌唱jobを学習し、結果を保存する]
     //   引数: [workspace: 作業領域, batchId/jobId: 対象job, trainerRoot: 同梱DiffSingerのフォルダ, checkpointDirectory: 歌唱の初期重みの置き場]
@@ -41,6 +54,8 @@ public sealed class SingingTrainingPipeline(
             new PreflightEnvironment(hardware, checkpoints), async (fixedJob, token) =>
             {
                 // 実行可能と確定した後にだけ入力を作る。どの段階の失敗もFailedとして記録される。
+                // 音響モデルの学習はvocoderの学習済みモデルを必須とする。入力作成の前に確認し、無ければ理由付きで失敗にする。
+                RequireVocoder(trainerRoot);
                 await datasetBuilder.BuildAsync(workspace, fixedJob, token);
                 await acousticInput.PrepareAsync(workspace, fixedJob, token);
                 var configPath = await binarize.BinarizeAsync(workspace, fixedJob, trainerRoot, token);

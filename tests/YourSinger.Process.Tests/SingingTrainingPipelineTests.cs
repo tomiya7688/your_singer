@@ -56,6 +56,18 @@ public sealed class SingingTrainingPipelineTests
     }
 
     [Fact]
+    public async Task TheVocoderModelIsRequiredAndItsExpectedLocationIsReported()
+    {
+        using var project = new TestProject();
+        var error = Assert.Throws<InvalidOperationException>(() => SingingTrainingPipeline.RequireVocoder(project.Workspace.RootPath));
+        Assert.Contains("model.ckpt", error.Message);
+        var model = Path.Combine(project.Workspace.RootPath, SingingTrainingPipeline.VocoderRelativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(model)!);
+        await File.WriteAllBytesAsync(model, [1], TestProject.Token);
+        SingingTrainingPipeline.RequireVocoder(project.Workspace.RootPath);
+    }
+
+    [Fact]
     public async Task BinarizeRefusesToRunWithoutAcousticInput()
     {
         using var project = new TestProject();
