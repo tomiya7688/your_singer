@@ -81,6 +81,7 @@ Issue 本文と設計正本の食い違いは「要決定」に記録します�
 - 完了条件: 歌唱のみ + talk + singing_like の計画を、対応 Backend があれば生成する(非対応は理由付き未対応)。発話豊富なら発話教師を使う候補を作る。texture が違えば計画と参考区間が変わる。モード暗黙 fallback なし。誤話者・空の声質参照・無効 Backend で明示的に失敗する。歌唱が優勢でも target=singing へ変更しない。歌唱音声を通常発話の正解音声・韻律教師として流用しない。参考区間の話者・hash・同一性を検証する。固定 SBV2 に声質条件付けの能力が無い場合は unsupported とし、対応 Backend の追加は別 Issue(#100 が Backend 採否を持つ)。
 - テスト: 自動(クラス名は Issue になし): 歌唱のみ+talk(Backend あり/なし)、発話豊富、texture 違い、別話者の参考区間、空の声質参照、無効 Backend、同一話者の talk と singing が別目標になる場合の独立。
 - 非目標: 歌唱プラン、GPU 資源の解決(#88)、Trainer 実装、UI。
+- 実装済み(#133): `BuiltInTalkStrategies`(発話教師 / 歌唱由来声質 T1 / 表現軸適応の3戦略と operation・能力。成立条件の数値は暫定で D-02/D-03 待ち。`style_conditioning` は未実装のため利用可能な能力に含めず unsupported と表示)、`TalkTrainingStrategyPlanner.Plan`(話者・棚卸し・質感・参考区間を検証し、候補/不成立の理由/警告を返す。歌唱優勢でも target は talk のまま、歌唱を発話教師にする宣言は候補にしない、発話教師案を歌唱由来案より先に並べる)。テスト: `TalkTrainingStrategyPlannerTests`。未実装: `TrainingStagePlan` への接続(#88)、Backend 能力表(#98)との照合、UI。実音声での品質評価は未実施。
 - 要決定: 依存方向。ヘッダは #132・#98 のみで、追補は #136・#137 を使う。#137 のヘッダは #133 に依存する(循環。D-03)。
 - 要決定: 「singing_like」はビルトイン preset の一覧(`classic_synthetic`、`clean_controlled`、`natural`、`expressive_complex`、`soft_breathy`、`powerful`、`characterized`、`reference_match`)に無い。goal-texture-data-planner.md §1 の例にだけ現れる。テストの入力を、どの preset(または `reference_match` + 参考区間)で表すか。
 - 要決定: Issue の role 名(speech teacher、singing timbre reference)と設計正本の role 名(`speech_teacher`、`identity_reference`)の対応。
