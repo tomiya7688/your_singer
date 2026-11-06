@@ -233,6 +233,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - 解消(D-01): `auto` は段階的な候補計画を比較して解決し、各工程が自分の `resolved_training_mode` を持つ。checkpointの有無だけでは決めない。
 - 要決定: GPU/VRAM の警告・停止閾値（設計・Issue とも数値なし）
 - 解消(implementation-plan A09、§10): 依存は #84、#132、#133、#134。#98 は #133/#134 経由で先行する。#137 は正本のどちらにも無いので依存に加えない。ただしIssue本文は #137 を前提にしており、Issue本文との食い違いは未修正(Issue側の確認が必要)。
+- 実装済み(#88 の解決部): `TrainingModeResolver.Resolve`(Talk/Singing プランナーの候補を順に検証し、最初に実行できる候補を確定する。Trainer 工程ごとに fine_tune / from_scratch / Auto を解決し、初期重みの欠損・hash 不一致・版の非互換・from_scratch への初期重み指定・CUDA 無し・VRAM 不足・教師データ空を学習開始前に日本語の理由つきで停止する。target と質感は変更せず、候補の target が違えば失敗。SBV2 の固定版は事前学習重み必須のため from_scratch を宣言せず、DiffSinger は両方を宣言(実GPUでは未検証)。計画内容から manifest hash を計算する)。テスト: `TrainingModeResolverTests`。未実装: ジョブ作成への接続(`TrainingJobRecord` の resolved plan 保存)、worker の run manifest との照合、必要 VRAM の実測、UI。
 
 ### #89 A10 Style-Bert-VITS2 Dataset Builderへ区間Weight manifestを出力する
 
