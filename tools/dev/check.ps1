@@ -52,6 +52,8 @@ if (-not $SkipSize) {
 
 Invoke-CheckStep '設計書・開発文書の照合 (リンク/決定記録/索引)' { python tools/dev/check_docs.py }
 
+Invoke-CheckStep '到達不能コードの検査 (Python/PowerShell)' { & (Join-Path $PSScriptRoot 'check_unreachable.ps1') }
+
 if (-not $SkipWorker) {
     $workerRoot = Join-Path $repositoryRoot 'src/process/YourSinger.Process/processing/ml/worker'
     $workerPython = Get-WorkerTestPython
