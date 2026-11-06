@@ -6,7 +6,10 @@ import re
 import shutil
 from pathlib import Path
 
+from .run_report import sha256_file
 from .style_bert_vits2_bundle import StyleBertVits2Bundle
+
+PRETRAINED_NAMES = ("G_0.safetensors", "D_0.safetensors", "DUR_0.safetensors")
 
 
 # {
@@ -56,6 +59,11 @@ class StyleBertVits2TrainingSession:
         self.timbre_references = references
         self.timbre_style_name = payload.get("timbre_style_name", "singing_reference")
         self.timbre_dir = self.output / "timbre_refs"
+        # 初期化方式(解決済み計画)。None は旧形式の要求で、従来どおり事前学習重みを使う。
+        self.resolved_mode = payload.get("resolved_training_mode")
+        if self.resolved_mode not in (None, "fine_tune", "from_scratch"):
+            raise ValueError(f"未対応の学習モードです: {self.resolved_mode}")
+        self.initialization = payload.get("initialization")
 
     # {
     #   責務: [prepare: 確定済み入力の複製を新しい作業先へ保存する]
@@ -74,15 +82,14 @@ class StyleBertVits2TrainingSession:
             "style_bert_vits2/constants.py",
         )
         required = [self.python, self.entry, *(self.trainer / script for script in scripts)]
-        required += [
-            self.trainer / "pretrained" / name
-            for name in ("G_0.safetensors", "D_0.safetensors", "DUR_0.safetensors")
-        ]
+        if self.resolved_mode != "from_scratch":
+            required += [self.trainer / "pretrained" / name for name in PRETRAINED_NAMES]
         if not all(path.is_file() and path.stat().st_size for path in required):
             raise FileNotFoundError(
                 "Style-Bert-VITS2 2.7.0の公式ソース・専用Python・事前学習重みが同梱されていません。"
             )
         StyleBertVits2Bundle(self.trainer).validate()
+        self._verify_initialization_manifest()
         manifest = json.loads((self.dataset / "dataset.json").read_text(encoding="utf-8-sig"))
         expected = {
             "job_id": self.payload["job_id"],
@@ -103,11 +110,73 @@ class StyleBertVits2TrainingSession:
         shutil.copyfile(self.dataset / "esd.list", self.data / "esd.list")
         (self.output / "request.json").write_text(
             json.dumps(
-                dict(model_name=self.model_name, source_job=expected), ensure_ascii=False, indent=2
+                dict(
+                    model_name=self.model_name,
+                    source_job=expected,
+                    resolved_training_mode=self.resolved_mode,
+                ),
+                ensure_ascii=False,
+                indent=2,
             ),
             encoding="utf-8",
         )
         self.copy_timbre_references()
+
+    # {
+    #   責務: [_verify_initialization_manifest: 計画の初期化方式が、同梱の事前学習重みと矛盾しないことを起動前に確認する]
+    #   エラー: [from_scratch で重みが指定された、fine_tune で重みの欠落・名前違い・sha256不一致のとき失敗(無言でscratchへ移行しない)]
+    # }
+    def _verify_initialization_manifest(self) -> None:
+        if self.resolved_mode is None or self.initialization is None:
+            return
+        components = self.initialization.get("components") or []
+        if self.resolved_mode == "from_scratch":
+            if self.initialization.get("type") != "random_initialization" or components:
+                raise ValueError("from_scratch では初期重みを指定できません。")
+            return
+        if self.initialization.get("type") != "pretrained_checkpoint":
+            raise ValueError("fine_tune には pretrained_checkpoint の初期化情報が必要です。")
+        by_name = {item.get("name"): item for item in components}
+        if set(by_name) != set(PRETRAINED_NAMES):
+            raise ValueError(
+                f"fine_tune の初期重みは {', '.join(PRETRAINED_NAMES)} を過不足なく指定してください。"
+            )
+        for name in PRETRAINED_NAMES:
+            actual = sha256_file(self.trainer / "pretrained" / name)
+            if str(by_name[name].get("sha256", "")).lower() != actual:
+                raise ValueError(
+                    f"初期重み {name} のsha256が計画と一致しません(同梱の重みと違います)。"
+                )
+
+    # {
+    #   責務: [stage_report: 起動直前にモデルフォルダへ置かれた初期重みを、実ファイルで報告する]
+    #   戻り値: [report: type と components(name・sha256)。from_scratch は components 空]
+    #   エラー: [from_scratch なのに初期重みが置かれている、fine_tune なのに欠けているとき失敗]
+    #   補足: [置いた(staged)ことの確認であり、Trainerが読み込んだことの確認ではない]
+    # }
+    def stage_report(self) -> dict | None:
+        if self.resolved_mode is None:
+            return None
+        models = self.data / "models"
+        present = (
+            sorted(path.name for path in models.glob("*.safetensors")) if models.is_dir() else []
+        )
+        if self.resolved_mode == "from_scratch":
+            if present:
+                raise RuntimeError(
+                    f"from_scratch なのに初期重みが置かれています: {', '.join(present)}"
+                )
+            return dict(type="random_initialization", components=[])
+        missing = [name for name in PRETRAINED_NAMES if name not in present]
+        if missing:
+            raise RuntimeError(f"fine_tune の初期重みが置かれていません: {', '.join(missing)}")
+        return dict(
+            type="pretrained_checkpoint",
+            components=[
+                dict(name=name, sha256=sha256_file(models / name), path=f"data/models/{name}")
+                for name in PRETRAINED_NAMES
+            ],
+        )
 
     # {
     #   責務: [copy_timbre_references: 声質参照の音声をジョブ内へ複製し、専用Pythonが入力外を読まないようにする]

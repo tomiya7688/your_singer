@@ -18,6 +18,7 @@ def train_style_bert_vits2(payload: dict) -> dict:
     session = StyleBertVits2TrainingSession(payload)
     session.prepare()
     log_path = session.output / "trainer.log"
+    staged = None
     with log_path.open("x", encoding="utf-8") as log:
         for stage in (
             "initialize",
@@ -44,6 +45,9 @@ def train_style_bert_vits2(payload: dict) -> dict:
                 raise RuntimeError(
                     f"Style-Bert-VITS2の{stage}が終了コード{completed.returncode}で失敗しました。 log={log_path}"
                 )
+            if stage == "initialize":
+                # 初期化方式が計画どおりに置かれたことを、学習の前に実ファイルで確認する。
+                staged = session.stage_report()
     artifacts = session.require_artifacts()
     result = dict(
         exit_code=0,
@@ -85,6 +89,8 @@ def train_style_bert_vits2(payload: dict) -> dict:
         0,
         session.output,
         artifacts,
+        staged,
+        "staged_before_launch" if staged is not None else None,
     )
     # 結果の参照も非公開Voice Project内に残し、Exporterへ渡せるようにする。
     (session.output / "result.json").write_text(

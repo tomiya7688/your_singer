@@ -13,6 +13,8 @@ public sealed class TrainingRunReport
     public int? TrainerExitCode { get; init; }
     // 実際に読み込んだ(または初期化した)重み。null は未観測で、指定どおりに初期化したとは主張できない。
     public TrainingInitialization? InitializationObserved { get; init; }
+    // 観測の根拠。staged_before_launch は起動前に置いた重みのhash確認、loaded は Trainer が読み込んだことの確認。
+    public string? InitializationEvidence { get; init; }
     public List<TrainingRunArtifact> Artifacts { get; init; } = [];
 }
 
@@ -22,6 +24,12 @@ public sealed class TrainingRunArtifact
     // 学習出力ディレクトリからの相対パス。
     public required string Path { get; init; }
     public required string Sha256 { get; init; }
+}
+
+public static class TrainingInitializationEvidence
+{
+    public const string StagedBeforeLaunch = "staged_before_launch";
+    public const string Loaded = "loaded";
 }
 
 public static class TrainingRunVerificationStatus

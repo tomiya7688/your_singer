@@ -82,7 +82,11 @@ def initialize(trainer: Path, output: Path) -> None:
     (data / "config.json").write_text(
         json.dumps(hyperparameters, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    shutil.copytree(trainer / "pretrained", data / "models")
+    if request.get("resolved_training_mode") == "from_scratch":
+        # 最初から新規学習: 話者モデルの初期重みを置かない(暗黙の事前学習重みを使わない)。
+        (data / "models").mkdir()
+    else:
+        shutil.copytree(trainer / "pretrained", data / "models")
     dictionary = output / "dict_data"
     if (trainer / "dict_data").is_dir():
         shutil.copytree(trainer / "dict_data", dictionary)
