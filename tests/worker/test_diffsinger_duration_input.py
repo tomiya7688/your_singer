@@ -105,6 +105,23 @@ class DiffSingerDurationInputTests(unittest.TestCase):
         )
         self.assertTrue(all(h["reason"] for h in record["held"]))
 
+    def test_duplicate_names_are_rejected_and_a_zero_sample_rate_wav_is_held(self):
+        self.build({"a": (["a"], [1.0], 1.0)})
+        source = self.job / "acoustic-input"
+        with (source / "transcriptions.csv").open("a", encoding="utf-8", newline="") as stream:
+            stream.write("a,a,1.0\n")
+        with self.assertRaises(ValueError):
+            duration.prepare_diffsinger_duration(self.payload)
+        self.assertFalse((self.job / "duration-input").exists())
+        # 先頭のWAVヘッダのサンプルレートを0にした不正な音声は、処理全体を止めずに保留する。
+        self.build({"ok": (["a"], [1.0], 1.0), "zero": (["a"], [1.0], 1.0)})
+        wav = source / "wavs" / "zero.wav"
+        data = bytearray(wav.read_bytes())
+        data[24:28] = (0).to_bytes(4, "little")
+        wav.write_bytes(bytes(data))
+        result = duration.prepare_diffsinger_duration(self.payload)
+        self.assertEqual((result["item_count"], result["held_count"]), (1, 1))
+
     def test_job_mismatch_existing_output_and_no_usable_clip_fail_without_output(self):
         self.build({"bad": (["x"], [1.0], 1.0)})
         with self.assertRaises(ValueError):

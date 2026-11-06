@@ -64,6 +64,8 @@ def _wav_seconds(path: Path) -> float:
         with wave.open(str(path), "rb") as stream:
             if stream.getnchannels() != 1 or stream.getsampwidth() != 2:
                 raise ValueError("音声がPCM16モノラルではありません。")
+            if stream.getframerate() <= 0:
+                raise ValueError("音声のサンプルレートが不正です。")
             return stream.getnframes() / stream.getframerate()
     except wave.Error as error:
         raise ValueError(f"音声を読めません: {error}") from error
@@ -106,7 +108,14 @@ def prepare_diffsinger_duration(payload: dict) -> dict:
     ):
         raise ValueError("音響学習入力が、要求のjobまたはfingerprintと一致しません。")
     with (source / "transcriptions.csv").open(encoding="utf-8", newline="") as stream:
-        rows = {row["name"]: row for row in csv.DictReader(stream)}
+        listed = list(csv.DictReader(stream))
+    names = [row["name"] for row in listed]
+    if len(set(names)) != len(names):
+        raise ValueError("transcriptions.csv のクリップ名が重複しています。")
+    rows = {row["name"]: row for row in listed}
+    provenance_names = [record["name"] for record in provenance["items"]]
+    if len(set(provenance_names)) != len(provenance_names):
+        raise ValueError("来歴のクリップ名が重複しています。")
     staging = Path(tempfile.mkdtemp(prefix=".duration-", dir=dataset_root))
     try:
         (staging / "wavs").mkdir()
