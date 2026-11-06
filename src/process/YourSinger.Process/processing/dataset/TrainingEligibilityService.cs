@@ -97,9 +97,15 @@ public sealed class TrainingEligibilityService
         };
     }
 
-    // 有声率が有限で正であることだけを見る。低SNRや低品質は理由にしない。
-    private static bool HasUsableVoice(UniversalVoiceSegment segment) =>
-        double.IsFinite(segment.VoicedRatio) && segment.VoicedRatio > 0;
+    // 有声率が非有限・負なら不正、正なら使える。0 は「有声判定を実測して無かった」ときだけ使えない扱いにする
+    // (有声特徴ファイルがあるとき)。ファイルがなければ未測定(補完生成区間など)で、除外の根拠にしない。
+    // 低SNRや低品質は理由にしない。
+    private static bool HasUsableVoice(UniversalVoiceSegment segment)
+    {
+        var ratio = segment.VoicedRatio;
+        if (!double.IsFinite(ratio) || ratio < 0) return false;
+        return ratio > 0 || string.IsNullOrWhiteSpace(segment.VoicingFeaturePath);
+    }
 
     private static bool MatchesTarget(SegmentContentType type, string target) =>
         (target == "talk" && type == SegmentContentType.Speech) ||
