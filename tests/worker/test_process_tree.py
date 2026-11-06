@@ -49,6 +49,25 @@ class ProcessTreeTests(unittest.TestCase):
                 time.sleep(0.1)
             self.assertFalse(alive(child), "孫プロセスが残っています")
 
+    def test_a_grandchild_left_after_the_parent_exits_normally_is_reclaimed(self):
+        # 親が孫を残したまま正常終了しても、孫は残らない(Windows: Job Object、POSIX: killpg)。
+        leaving_parent = (
+            "import subprocess,sys;"
+            "c=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);"
+            "open(sys.argv[1],'w').write(str(c.pid))"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            pid_file = Path(directory) / "child.pid"
+            result = process_tree.run_reclaiming(
+                [sys.executable, "-c", leaving_parent, str(pid_file)], timeout=30
+            )
+            self.assertEqual(result.returncode, 0)
+            child = int(pid_file.read_text())
+            deadline = time.monotonic() + 5
+            while alive(child) and time.monotonic() < deadline:
+                time.sleep(0.1)
+            self.assertFalse(alive(child), "親の正常終了後に孫プロセスが残っています")
+
     def test_normal_exit_returns_the_exit_code(self):
         result = process_tree.run_reclaiming(
             [sys.executable, "-c", "raise SystemExit(3)"], timeout=30

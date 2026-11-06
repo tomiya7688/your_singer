@@ -12,6 +12,77 @@ KILL_GRACE_SECONDS = 5
 
 
 # {
+#   責務: [_WindowsJob: Windowsで起動したTrainerをJob Objectへ入れ、閉じた時点で子孫を含め全員を終了させる]
+#   補足: [親が先に終了してもJobに属する孫は閉じるときに終了する。作成・登録に失敗したときは None を返し、従来のtaskkillだけで回収する]
+# }
+class _WindowsJob:
+    def __init__(self, handle):
+        self.handle = handle
+
+    @classmethod
+    def attach(cls, process: subprocess.Popen) -> "_WindowsJob | None":
+        if os.name != "nt":
+            return None
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.CreateJobObjectW.restype = wintypes.HANDLE
+            handle = kernel.CreateJobObjectW(None, None)
+            if not handle:
+                return None
+
+            class BasicLimits(ctypes.Structure):
+                _fields_ = [
+                    ("PerProcessUserTimeLimit", ctypes.c_int64),
+                    ("PerJobUserTimeLimit", ctypes.c_int64),
+                    ("LimitFlags", wintypes.DWORD),
+                    ("MinimumWorkingSetSize", ctypes.c_size_t),
+                    ("MaximumWorkingSetSize", ctypes.c_size_t),
+                    ("ActiveProcessLimit", wintypes.DWORD),
+                    ("Affinity", ctypes.c_size_t),
+                    ("PriorityClass", wintypes.DWORD),
+                    ("SchedulingClass", wintypes.DWORD),
+                ]
+
+            class IoCounters(ctypes.Structure):
+                _fields_ = [(name, ctypes.c_uint64) for name in ("a", "b", "c", "d", "e", "f")]
+
+            class ExtendedLimits(ctypes.Structure):
+                _fields_ = [
+                    ("BasicLimitInformation", BasicLimits),
+                    ("IoInfo", IoCounters),
+                    ("ProcessMemoryLimit", ctypes.c_size_t),
+                    ("JobMemoryLimit", ctypes.c_size_t),
+                    ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                    ("PeakJobMemoryUsed", ctypes.c_size_t),
+                ]
+
+            limits = ExtendedLimits()
+            limits.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            ok = kernel.SetInformationJobObject(
+                wintypes.HANDLE(handle), 9, ctypes.byref(limits), ctypes.sizeof(limits)
+            )
+            ok = ok and kernel.AssignProcessToJobObject(
+                wintypes.HANDLE(handle), wintypes.HANDLE(int(process._handle))
+            )
+            if not ok:
+                kernel.CloseHandle(wintypes.HANDLE(handle))
+                return None
+            return cls(handle)
+        except (OSError, AttributeError, ValueError):
+            return None
+
+    def close(self) -> None:
+        # 閉じるとKILL_ON_JOB_CLOSEにより、Jobに残る孫プロセスも終了する。
+        import ctypes
+        from ctypes import wintypes
+
+        ctypes.WinDLL("kernel32").CloseHandle(wintypes.HANDLE(self.handle))
+
+
+# {
 #   責務: [kill_tree: 指定プロセスとその子・孫プロセスをすべて終了する]
 #   処理: [Windows は taskkill /T /F、POSIX はプロセスグループへ SIGTERM、猶予後に SIGKILL]
 #   引数: [process: 起動したTrainerのPopen, grace_seconds: SIGTERMから強制終了までの猶予]
@@ -72,6 +143,7 @@ def run_reclaiming(
     else:
         popen_arguments["start_new_session"] = True
     process = subprocess.Popen(command, **popen_arguments)
+    job = _WindowsJob.attach(process)
     try:
         returncode = process.wait(timeout=timeout)
     except subprocess.TimeoutExpired as error:
@@ -82,6 +154,10 @@ def run_reclaiming(
     except BaseException:
         kill_tree(process)
         raise
+    finally:
+        # 正常終了・失敗のいずれでも、Windowsは親が先に終了した孫もここで終了させる。
+        if job is not None:
+            job.close()
     if os.name != "nt":
         # 正常終了したTrainerが残した子孫を回収する(グループが無ければ何もしない)。
         try:
