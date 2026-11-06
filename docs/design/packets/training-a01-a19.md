@@ -160,7 +160,8 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - 非目標: 実Trainer の起動。
 - 解消(implementation-plan A05、`goal-texture-data-planner.md` §10): #84 は先行なしで並行可、#136 が #84 に依存する。したがって #136 を先行にせず、preset は文字列IDで保存し、語彙の検証は #136 側に置く。
 - 解消(D-01): `requested_training_mode` は1ジョブの初期化方式。複数工程の計画は別に `TrainingStagePlan` で持ち、各工程が `resolved_training_mode` を持つ。
-- 要決定: VoiceModelGoal と既存 TrainingTarget(Talk/Singing/Both, Flags) の関係。選択肢: 併存 / TrainingTarget を置換
+- ~~要決定: VoiceModelGoal と既存 TrainingTarget(Talk/Singing/Both, Flags) の関係。選択肢: 併存 / TrainingTarget を置換~~ → 暫定(#84): VoiceModelGoal の型は新設しない。ジョブの `Target`(Talk/Singing の1つ)が出力目的であり、選択の Both は用途ごとの2ジョブに展開する。用途ごとの質感・モード・シードは `SpeakerTrainingSelection.TalkOptions/SingingOptions` で独立に指定する
+- #84 A05: 明示モード(fine_tune/from_scratch)は作成時に resolved=requested と初期化情報を保存し、auto は解決(preflight)まで resolved=null・initialization=null のまま保存する。質感の既定は preset `natural`(語彙の検証は #136)。backend / backend_revision / model_profile / assessment_manifest / training_config は #85・#88 で追加
 
 ### #85 A06 Weight/学習方式を含む学習入力Fingerprintと旧ジョブ再作成を接続する
 

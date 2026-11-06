@@ -12,7 +12,7 @@ namespace YourSinger.Process.Processing.Training;
 // }
 public sealed class TrainingJobPlanningService
 {
-    public const string StageVersion = "v1-09.4";
+    public const string StageVersion = "v1-09.5";
     public const string CurrentInputVersion = StageVersion + "/" + AutoCorrectionService.StageVersion;
     private readonly UniversalVoiceDatasetRepository _datasetRepository;
     private readonly AutoCorrectionService _autoCorrectionService;
@@ -82,6 +82,12 @@ public sealed class TrainingJobPlanningService
             if (string.IsNullOrWhiteSpace(selection.SpeakerId) ||
                 selection.Target is not (TrainingTarget.Talk or TrainingTarget.Singing or TrainingTarget.Both))
                 throw new ArgumentException("話者または学習用途の指定が不正です。", nameof(selections));
+        // 用途ごとの学習方式・質感の指定を先に検証し、不正なら何も保存しない。
+        foreach (var selection in selections)
+        {
+            TrainingJobSettingsValidator.ValidateOptions(selection.TalkOptions);
+            TrainingJobSettingsValidator.ValidateOptions(selection.SingingOptions);
+        }
         if (selections.Select(x => x.SpeakerId).Distinct(StringComparer.Ordinal).Count() != selections.Count)
             throw new ArgumentException("同じ話者が重複して選択されています。", nameof(selections));
     }
@@ -127,12 +133,25 @@ public sealed class TrainingJobPlanningService
         if (target == TrainingTarget.Singing)
             EnsureSingingAlignment(view.Segments, segmentIds);
 
+        var options = (target == TrainingTarget.Talk ? selection.TalkOptions : selection.SingingOptions) ?? new TrainingJobOptions();
+        var explicitMode = options.Mode != TrainingMode.Auto;
         batch.Jobs.Add(new TrainingJobRecord
         {
             JobId = $"job-{Guid.NewGuid():N}", SpeakerId = selection.SpeakerId, Target = target,
             AutoCorrectionEnabled = selection.AutoCorrectionEnabled,
             DatasetFingerprint = TrainingDatasetSnapshotService.CreateJobFingerprint(view.Fingerprint, selection.SpeakerId, target, segmentIds),
-            SegmentIds = segmentIds
+            SegmentIds = segmentIds,
+            RequestedTexture = options.Texture ?? new TrainingTextureRequest { Preset = TrainingJobVocabulary.DefaultTexturePreset },
+            RequestedTrainingMode = options.Mode,
+            // 明示したモードはそのまま解決済み。autoは計画の解決(preflight)まで未解決のまま保存する。
+            ResolvedTrainingMode = explicitMode ? options.Mode : null,
+            Initialization = !explicitMode ? null : options.Mode == TrainingMode.FromScratch
+                ? new TrainingInitialization { Type = TrainingJobVocabulary.RandomInitialization }
+                : new TrainingInitialization
+                {
+                    Type = TrainingJobVocabulary.PretrainedCheckpoint, Components = [.. options.BaseCheckpoints]
+                },
+            Seed = options.Seed
         });
     }
 
@@ -171,7 +190,9 @@ public sealed class TrainingJobPlanningService
             .Select(group => new SpeakerTrainingSelection
             {
                 SpeakerId = group.Key.SpeakerId, AutoCorrectionEnabled = group.Key.AutoCorrectionEnabled,
-                Target = group.Aggregate(TrainingTarget.None, (target, job) => target | job.Target)
+                Target = group.Aggregate(TrainingTarget.None, (target, job) => target | job.Target),
+                TalkOptions = OptionsOf(group, TrainingTarget.Talk),
+                SingingOptions = OptionsOf(group, TrainingTarget.Singing)
             }).ToArray();
         if (selections.Select(x => x.SpeakerId).Distinct(StringComparer.Ordinal).Count() != selections.Length)
             throw new InvalidOperationException("同じ話者に異なる補完設定が混在しています。話者・用途を選び直して新しいジョブを作成してください。");
@@ -201,6 +222,19 @@ public sealed class TrainingJobPlanningService
             job.Artifacts.AddRange(artifacts);
         }
         await _jobRepository.SaveBatchAsync(workspace, batch, cancellationToken);
+    }
+
+    // 再作成では元ジョブの質感・モード・シード・初期重みを引き継ぐ。旧ジョブ(学習方式なし)は既定(auto・natural)になる。
+    private static TrainingJobOptions? OptionsOf(IEnumerable<TrainingJobRecord> jobs, TrainingTarget target)
+    {
+        var job = jobs.FirstOrDefault(x => x.Target == target);
+        if (job is null || job.IsLegacyWithoutTrainingContract) return null;
+        return new TrainingJobOptions
+        {
+            Texture = job.RequestedTexture, Mode = job.RequestedTrainingMode!.Value, Seed = job.Seed,
+            BaseCheckpoints = job.RequestedTrainingMode == TrainingMode.FineTune
+                ? [.. job.Initialization?.Components ?? []] : []
+        };
     }
 
     private static bool CanTransition(TrainingJobState from, TrainingJobState to) => from switch
