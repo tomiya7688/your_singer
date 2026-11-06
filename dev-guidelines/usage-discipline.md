@@ -24,12 +24,13 @@
 
 同じ手順を3回やったらスクリプトにし、次からはそれを呼ぶ。手順を毎回考え直し、毎回ツール呼び出しを重ねるのが最大の浪費である。
 
-| 作業                                   | 使うもの                                                                   |
-| -------------------------------------- | -------------------------------------------------------------------------- |
-| 変更ファイルの整形・整形確認           | `pwsh tools/dev/format_changed.ps1 [-Check]`                               |
-| 設計書の照合（リンク・決定記録・索引） | `python tools/dev/check_docs.py`（`check.ps1` に含む）                     |
-| CI完了待ち→マージ                      | `pwsh tools/dev/finish_pr.ps1 -Pr <番号>`（バックグラウンドで1回だけ実行） |
-| 検証一式                               | `pwsh tools/dev/check.ps1`                                                 |
+| 作業                                       | 使うもの                                                                                                                          |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| 変更ファイルの整形・整形確認               | `pwsh tools/dev/format_changed.ps1 [-Check]`                                                                                      |
+| 設計書の照合（リンク・決定記録・索引）     | `python tools/dev/check_docs.py`（`check.ps1` に含む）                                                                            |
+| 到達不能コードの検査（Python・PowerShell） | `pwsh tools/dev/check_unreachable.ps1 [-SelfTest]`（`check.ps1` に含む。C# は警告エラー CS0162、条件による到達不能・JS は対象外） |
+| CI完了待ち→マージ                          | `pwsh tools/dev/finish_pr.ps1 -Pr <番号>`（バックグラウンドで1回だけ実行）                                                        |
+| 検証一式                                   | `pwsh tools/dev/check.ps1`                                                                                                        |
 
 新しい繰り返しを見つけたら、このtableに足す。設計書に関わる変更は、実装前に[着手前チェック](implementation-ready.md)と[決定記録](../docs/design/decisions.md)・[パケット](../docs/design/README.md)で照合し、食い違いはIssueに書く。
 
