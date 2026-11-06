@@ -53,6 +53,9 @@ public sealed class TrainingJobRecord
     public string? InputFingerprint { get; set; }
     public string? Backend { get; set; }
     public string? BackendRevision { get; set; }
+    // 共有話者特徴(トーク・歌唱の相互利用)をBackendが受け入れたかの記録。null は未評価。
+    // 未対応の特徴は Used=false と理由を残し、相互学習済みと表示しない根拠にする。
+    public List<SharedFeatureUsageEntry>? SharedFeatureUsage { get; set; }
     // 学習方式の契約を持たない旧ジョブか。
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsLegacyWithoutTrainingContract => RequestedTrainingMode is null;

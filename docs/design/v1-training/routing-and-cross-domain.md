@@ -50,6 +50,24 @@ DiffSinger / Style-Bert-VITS2の指定固定版が直接受け入れない特徴
 
 相互利用のv1受け入れ条件は (a) 共有特徴の抽出・保存・来歴管理、(b) 許容されるモデル経路での実入力反映、(c) 実音声での声質類似性の評価。後段のAdapterで活用できない構成なら「未対応」と表示する。v1.0.0で「相互利用ができる」と称する場合は、最低1つの歌唱・トーク双方への実接続を検証する。実接続先が無い場合、対応する追加Issueで提供するまで完了扱いにしない。
 
+## 固定版Backendの共有特徴 受入能力表（v1）
+
+固定版のソースを読んで確認した「外部から条件として入力できるか」の判定。`BackendCapabilities`（コード）とこの表は同じ内容で、テストで一致を確認する。**コードで確認できたものだけを判定し、v1では直接conditioningできる共有特徴は無い**。直接受け入れられない特徴を、無理にcheckpointへ注入しない。
+
+| Backend          | 特徴              | 受入        | 根拠（固定版のソース）                                                 |
+| ---------------- | ----------------- | ----------- | ---------------------------------------------------------------------- |
+| diffsinger       | speaker_embedding | unsupported | modules/fastspeech/acoustic_encoder.py:60-62,102-108（話者IDの表のみ） |
+| diffsinger       | f0_distribution   | unsupported | modules/fastspeech/acoustic_encoder.py:83,110-112（F0はフレーム列）    |
+| diffsinger       | style_prosody     | unsupported | modules/fastspeech/acoustic_encoder.py:32-58（フレーム列。要約は不可） |
+| style-bert-vits2 | speaker_embedding | unsupported | models_jp_extra.py:1006-1007,1033-1034（話者IDの表。styleは別の特徴）  |
+| style-bert-vits2 | f0_distribution   | unsupported | models_jp_extra.py（F0の入力引数なし）                                 |
+| style-bert-vits2 | style_prosody     | unsupported | models.py:1063-1067（推論時の係数のみ）                                |
+
+- 調査の対象は DiffSinger v2.5.1（`323a5693245b827caba0ab1a7371fe5ca885b061`）と Style-Bert-VITS2 2.7.0（`d8148f3090ee5038ca7b4e4b327116c64467f952`）。調査の記録先はこの節とする。品質の信頼度を入力として受ける引数は両Backendで確認できなかった。
+- 別経路（未実装・評価条件つき）: Style-Bert-VITS2 は推論時に参照音声からスタイルベクトルを作れる（`tts_model.py` の `get_style_vector_from_audio`）。DiffSinger は連続の話者ベクトルを入れるにはコードの改造が必要で、改造は未検証。どちらも実音声での声質類似性の評価（v1の受け入れ条件 (c)）を満たすまで「相互利用できる」と表示しない。
+- 共有特徴は `SharedFeatureAdapterRequest`（Backend・revision・用途・話者・共有特徴の参照）で渡す。**音声や教師ラベルは含めない**ため、feature_only の区間を別用途の教師音声として投入できない。Backend・revision・用途・話者が一致しない要求は拒否する。
+- 未対応の特徴は `SharedFeatureUsageEntry`（`Used=false` と日本語の理由）としてジョブに記録する。実利用が無い間は「相互学習済み」と表示しない。
+
 ## 失敗時の動作
 
 - 全区間ambiguous → 自動学習の素材不足として診断を表示し、ユーザー修正もしくは再解析導線を案内する。データを任意に歌唱／発話へ偽分類しない。
