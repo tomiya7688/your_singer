@@ -31,6 +31,17 @@ public sealed class DiffSingerDurationBinarizeServiceTests
             service.BinarizeAsync(project.Workspace, Job(TrainingTarget.Talk), "trainer", TestProject.Token));
     }
 
+    [Fact]
+    public async Task DurationTrainingRefusesAJobWithoutAResolvedPlanBeforeCallingTheWorker()
+    {
+        using var project = new TestProject();
+        var trainer = new DiffSingerTrainerService(new MlWorkerClient("worker-that-must-not-start", []));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            trainer.TrainDurationAsync(project.Workspace, Job(), "config.yaml", TestProject.Token));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            trainer.TrainDurationAsync(project.Workspace, Job(TrainingTarget.Talk), "config.yaml", TestProject.Token));
+    }
+
     [PythonWorkerFact]
     public async Task ASettingPathOutsideTheJobAreaIsRejected()
     {

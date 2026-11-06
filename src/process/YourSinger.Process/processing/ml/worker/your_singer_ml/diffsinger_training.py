@@ -116,6 +116,8 @@ def _run_training(
     # 学習モード(fine_tune / from_scratch)が指定されたときは、初期化方式を固定するoverlayのconfigで起動する。
     plan = prepare_initialization(payload, config_path, output_dir, exp_name)
     environment = _build_training_environment(output_dir)
+    # 重み付きサンプラーの使用記録は出力先へ書く(音響とDurationの学習で出力先が異なるため、入口へ明示する)。
+    environment["YOURSINGER_WEIGHT_REPORT"] = str(output_dir / "weight_sampling.json")
     train_arguments = [
         "--config",
         str(plan.overlay_path if plan else config_path),

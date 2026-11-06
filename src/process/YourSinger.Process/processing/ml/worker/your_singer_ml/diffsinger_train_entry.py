@@ -48,9 +48,10 @@ def main() -> None:
     weights, digest = sampler.load_name_weights(job_dir)
     import basics.base_task as base_task
 
-    sampler.install_sampler(
-        base_task, weights, seed, digest, job_dir / "trainer" / "weight_sampling.json"
+    report = os.environ.get("YOURSINGER_WEIGHT_REPORT") or str(
+        job_dir / "trainer" / "weight_sampling.json"
     )
+    sampler.install_sampler(base_task, weights, seed, digest, Path(report))
     sys.argv = [str(train_script), *train_arguments]
     runpy.run_path(str(train_script), run_name="__main__")
 

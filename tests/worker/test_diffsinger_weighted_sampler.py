@@ -259,6 +259,36 @@ class DiffSingerWeightedSamplerTests(unittest.TestCase):
             result = diffsinger_training.train_diffsinger(payload)
         self.assertEqual(result["weight_sampling"]["iterations"], 2)
 
+    def test_the_usage_report_location_follows_the_output_directory_for_duration_training(self):
+        self.write_job([0.5, 2.0])
+        root, config = self.trainer_layout()
+        output = self.job / "trainer-duration"
+        payload = dict(
+            trainer_root=str(root),
+            config_path=str(config),
+            exp_name="job-1-duration",
+            output_dir=str(output),
+            seed=4,
+        )
+        seen = {}
+
+        def fake_run(command, **kwargs):
+            seen["env"] = kwargs["env"]
+            output.joinpath("weight_sampling.json").write_text(
+                json.dumps(
+                    dict(applied=True, iterations=1, sampler_version=sampler.SAMPLER_VERSION)
+                ),
+                encoding="utf-8",
+            )
+            return SimpleNamespace(returncode=0)
+
+        with patch("your_singer_ml.diffsinger_training.run_reclaiming", side_effect=fake_run):
+            result = diffsinger_training.train_diffsinger(payload)
+        self.assertEqual(
+            seen["env"]["YOURSINGER_WEIGHT_REPORT"], str(output / "weight_sampling.json")
+        )
+        self.assertEqual(result["weight_sampling"]["iterations"], 1)
+
     def test_training_without_a_manifest_keeps_the_official_entry(self):
         root, config = self.trainer_layout()
         output = Path(self.temporary.name) / "plain" / "trainer"
