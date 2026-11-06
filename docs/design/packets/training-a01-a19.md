@@ -357,6 +357,8 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - 非目標: duration trainer 起動（#96）とOpenUtau出力構築。
 - 要決定: 長音・促音など MFA が対応できない音素の扱い（implementation-v1-10.md は「未対応表現は実測成功にしない」。保留理由コードを何と呼ぶか）
 - 要決定: duration 入力 schema のファイル名と形式（Issue 未記載。公式 binarizer 要件の確認が前提）
+- 実装済み(#95 worker側): `diffsinger_duration_input.py` の `prepare_diffsinger_duration`。公式 v2.5.1 `variance_binarizer.py`(predict_dur=true)が要求する列 `name, ph_seq, ph_dur, ph_num` を `duration-input/transcriptions.csv` に出力。語境界は測定値ではなく拍(子音+母音、N・cl・長音・SPは単独)で導出し、provenance に `word_grouping: mora-v1, measured: false` と残す。未知音素・母音のない子音・非有限/ゼロ/負の音素長・音声長との不一致は原因付きで `held` に保留(破棄しない)。tests/worker `test_diffsinger_duration_input.py`。
+- 未実装: C# 側の呼出しサービス(DurationDatasetBuilder 相当)、公式 binarizer の実行確認(#110)、長音・促音を測定値として扱う方式の決定。
 
 ### #96 A17 DiffSinger Durationモデルを学習しOpenUtau用成果物へ接続する
 

@@ -56,6 +56,15 @@ VoiceProject/training/diffsinger/<job-id>/
 `dataset.json`は64 MiB以内、音声は1 GiB以内が必要です。上限を超える場合は学習対象を分割してください。音声の一時コピーを作業領域に作成し、処理後に削除します。
 現在は処理APIまでの実装であり、画面からこの段階だけを実行する操作は接続していません。
 
+## Duration入力(variance binarizer用)
+
+音響学習入力の生成後、worker の `prepare_diffsinger_duration` が `duration-input/` を作ります。公式 v2.5.1 の `variance_binarizer.py` は、duration 予測(`predict_dur=true`)で `name, ph_seq, ph_dur, ph_num` を要求し、`ph_num` の合計が音素数と一致することを検査します(`wavs/<name>.wav` も必要)。
+
+- `ph_num`(語ごとの音素数)は測定値がないため、拍(子音+母音、`N`・`cl`・長音・`SP`は単独)から導出します。導出方式は `provenance.json` の `word_grouping`(`mora-v1`、`measured: false`)に残します。
+- 未知の音素、母音のない子音、非有限・ゼロ・負の音素長、音声長との不一致のクリップは、原因付きで `held` に保留します。素材は消しません。採用が0件なら出力を作りません。
+- 元音声・音響学習入力は変更せず、`duration-input/` は新規作成のみ(既存なら拒否)です。
+- 公式 binarizer の実行確認と、C# 側の呼出しサービスは未実装です。
+
 ## 歌唱Trainer専用runtimeの構築
 
 入力変換だけでなく、固定したDiffSinger acoustic Trainerを読み込む独立runtimeを構築できます。
