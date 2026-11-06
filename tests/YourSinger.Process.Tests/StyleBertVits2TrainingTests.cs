@@ -63,6 +63,8 @@ public sealed class StyleBertVits2TrainingTests
             """;
         var python = Environment.GetEnvironmentVariable("YOURSINGER_TEST_PYTHON") ?? "python";
         var service = new StyleBertVits2TrainerService(new MlWorkerClient(python, ["-u", "-c", code]));
+        // 起動前の計画解決(Preflight)済みのジョブとして扱う。解決の内容自体は TrainingPreflightServiceTests で確認する。
+        job.ResolvedPlan = new TrainingResolvedPlanRecord { ManifestHash = "h", InventoryRevision = "r", Executable = true };
         var log = await service.TrainAsync(project.Workspace, job, "話者モデル", TestProject.Token);
         Assert.EndsWith(Path.Combine(job.JobId, "trainer", "trainer.log"), log);
     }

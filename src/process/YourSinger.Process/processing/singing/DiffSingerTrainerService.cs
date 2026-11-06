@@ -22,6 +22,8 @@ public sealed class DiffSingerTrainerService
     {
         if (job.Target != TrainingTarget.Singing)
             throw new InvalidOperationException("歌唱学習ジョブのみDiffSinger trainerを実行できます。");
+        // 学習前に、解決済みで実行可能な計画を要求する(未解決・実行不可は起動しない)。
+        YourSinger.Process.Processing.Training.TrainingPreflightService.RequireResolvedPlan(job);
 
         var trainerRoot = Path.Combine(AppContext.BaseDirectory, "workers", "diffsinger");
         var outputDirectory = Path.Combine(

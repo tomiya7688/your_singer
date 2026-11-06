@@ -66,6 +66,26 @@ public sealed class TrainingPreflightService(
             throw new InvalidOperationException("素材の棚卸しが計画の解決後に変わりました。Preflightをやり直してください。");
     }
 
+    // {
+    //   責務: [RequireResolvedPlan: Trainer 起動の直前に、ジョブが実行できる解決済み計画を持ち、ジョブ自体と矛盾しないことを確認する]
+    //   処理: [1: 計画の有無と実行可否 2: ジョブのBackend・解決済みモードとの一致]
+    //   エラー: [未解決・実行不可・Backendまたはモードの不一致で InvalidOperationException(日本語の理由つき)]
+    //   補足: [棚卸しの版の照合は呼び出し側が RequireExecutable で行う(Trainer は棚卸しを持たない)]
+    // }
+    public static void RequireResolvedPlan(TrainingJobRecord job)
+    {
+        var plan = job.ResolvedPlan
+            ?? throw new InvalidOperationException("学習計画がまだ解決されていません。学習の前にPreflightを行ってください。");
+        if (!plan.Executable)
+            throw new InvalidOperationException("学習を始められません: " + string.Join(" / ", plan.StopReasons));
+        var foreignBackend = plan.Stages.FirstOrDefault(x => x.Backend is not null && x.Backend != job.Backend);
+        if (foreignBackend is not null)
+            throw new InvalidOperationException($"解決済み計画のBackend({foreignBackend.Backend})がジョブのBackend({job.Backend})と違います。Preflightをやり直してください。");
+        if (job.ResolvedTrainingMode is { } jobMode && plan.ResolvedTrainingMode is { } planMode &&
+            planMode != (jobMode == TrainingMode.FineTune ? "fine_tune" : "from_scratch"))
+            throw new InvalidOperationException("解決済み計画の学習モードがジョブの指定と違います。Preflightをやり直してください。");
+    }
+
     private (ResolverCandidate[] Candidates, string[] Reasons) TalkCandidates(
         TrainingJobRecord job, TrainingTextureRequest texture, SpeakerDataInventory inventory)
     {
