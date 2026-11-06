@@ -266,6 +266,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: DiffSingerAcousticInputTests に追加: NonZeroStartClip / MfaSuccessAndFailure / IndexMatch / HashMismatch_Fails / LowQualityRareRange_PositiveWeight / UncalibratedScore
 - テスト（自動化できない確認）: なし。
 - 非目標: DiffSingerのsampler改造（#92）と音響学習の完走。
+- 実装済み(#90): `DiffSingerDatasetBuilder` は評価(assessment)の eligible な区間だけを学習itemにし、`train_weights.json`(segment_id・audio_filename・weight、skipped は理由つき)を別ファイルに出力して sha256 を `dataset.json`(stage `v1-10.6-weight-manifest`)に記録する。旧形式(評価なし)のジョブは拒否。推定時刻の素材が混ざるジョブは評価の有無に関係なく拒否(従来どおり)。worker(`diffsinger_acoustic_input.py`)は manifest の sha256・ジョブID・weight 範囲(0.25〜2.0)・学習itemとの1対1を起動前に検証し、切り出した各クリップの `training_weight` と manifest hash を provenance に残す(既存の CSV・wav の形式は変えない)。テスト: `DiffSingerWeightManifestTests`・`test_diffsinger_acoustic_input.py`。依存: #61/PR #68 の上に積む(DiffSingerDatasetBuilder の MFA 測定照合を維持)。未実装: 公式 binarization 後の item index との対応と sampler(#92)。
 - 要決定: manifest のファイル名とスキーマ（Issue 未記載）。#89 と共通の形式にするか
 - 解消(D-12): PR #68(#61) が未統合の間は実装に着手しない。契約の設計までは進めてよい。
 

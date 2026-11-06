@@ -22,7 +22,8 @@ commitは`323a5693245b827caba0ab1a7371fe5ca885b061`です。
 
 ```text
 VoiceProject/training/diffsinger/<job-id>/
-├─ dataset.json                 # v1-10.5-mfa-measurement: 元音声内の実測開始・終了時刻を含む
+├─ train_weights.json           # 区間Weight manifest(学習itemと1対1。sha256は dataset.json に記録)
+├─ dataset.json                 # v1-10.6-weight-manifest: 元音声内の実測開始・終了時刻を含む
 └─ acoustic-input/
    ├─ transcriptions.csv        # name,ph_seq,ph_dur
    ├─ wavs/segment_<hash>.wav    # 実測範囲に対応するPCM16モノラル音声
@@ -44,7 +45,7 @@ VoiceProject/training/diffsinger/<job-id>/
 
 ## 必要な入力と失敗時の対応
 
-歌唱jobと、それに対応する`v1-10.5-mfa-measurement`の`dataset.json`を用意してください。
+歌唱jobと、それに対応する`v1-10.6-weight-manifest`の`dataset.json`を用意してください。
 実測方法は`mfa-japanese-phone-forced-alignment-v1`、音声はPCM16モノラルWAVです。
 音素列・開始時刻・終了時刻・音素長は同じ個数で、有限な数値を持つ必要があります。
 音声と特徴量は同じVoice Project内に保存してください。領域外の参照やリンク先は拒否します。
