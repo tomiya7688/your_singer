@@ -23,7 +23,8 @@ public sealed class TrainingInputFingerprintTests
             SegmentId = id, SourceId = "src", AudioPath = $"{id}.wav", CacheKey = id, SpeakerId = speaker,
             ContentType = type, VoicedRatio = 0.8, AsrConfidence = asr, AsrConfidenceStatus = asrStatus,
             AlignmentMethod = UniversalVoiceSegment.RequiredSingingTrainingAlignmentMethod,
-            AlignmentConfidence = 0.8, AlignmentConfidenceStatus = ConfidenceStatus.Measured, PitchReliability = 0.9
+            AlignmentConfidence = 0.8, AlignmentConfidenceStatus = ConfidenceStatus.Measured, PitchReliability = 0.9,
+            AlignmentMeasurement = new() { Path = $"measurements/{id}.json", Sha256 = new string('a', 64), AudioSha256 = new string('b', 64) }
         };
         double t = 0;
         foreach (var p in phonemes ?? ["a"])

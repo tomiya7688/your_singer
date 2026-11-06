@@ -25,7 +25,8 @@ public sealed class SpeakerDataInventoryTests
             AsrConfidence = 0.9, AsrConfidenceStatus = ConfidenceStatus.Measured,
             PitchReliability = 0.9, AlignmentMethod = aligned
                 ? UniversalVoiceSegment.RequiredSingingTrainingAlignmentMethod : "legacy-uniform-placeholder",
-            AlignmentConfidence = 0.9, AlignmentConfidenceStatus = ConfidenceStatus.Measured
+            AlignmentConfidence = 0.9, AlignmentConfidenceStatus = ConfidenceStatus.Measured,
+            AlignmentMeasurement = new() { Path = $"measurements/{id}.json", Sha256 = new string('a', 64), AudioSha256 = new string('b', 64) }
         };
         if (embedding) s.SpeakerEmbedding.AddRange([1.0, 0.0]);
         double t = 0;

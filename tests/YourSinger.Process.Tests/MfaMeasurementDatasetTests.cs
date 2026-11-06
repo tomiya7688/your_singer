@@ -214,7 +214,7 @@ public sealed class MfaMeasurementDatasetTests
             await Assert.ThrowsAsync<FileNotFoundException>(() => new DiffSingerDatasetBuilder(p.DatasetRepository).BuildAsync(p.Workspace, job, Token));
         else
             await Assert.ThrowsAsync<InvalidDataException>(() => new DiffSingerDatasetBuilder(p.DatasetRepository).BuildAsync(p.Workspace, job, Token));
-        Assert.False(Directory.Exists(Path.Combine(p.Workspace.RootPath, "training")));
+        TestProject.AssertNoTrainingInputPublished(p.Workspace);
     }
 
     // { 責務: [MissingLegacyReferenceCannotPlanSinging: 旧キャッシュは実測済みとして利用しない] }

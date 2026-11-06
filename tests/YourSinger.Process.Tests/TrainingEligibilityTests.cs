@@ -21,6 +21,7 @@ public sealed class TrainingEligibilityTests
         {
             s.AlignmentMethod = UniversalVoiceSegment.RequiredSingingTrainingAlignmentMethod;
             s.AlignmentConfidence = 0.9;
+            s.AlignmentMeasurement = new() { Path = $"measurements/{id}.json", Sha256 = new string('a', 64), AudioSha256 = new string('b', 64) };
             s.Phonemes.Add(new PhonemeTimingRecord { Phoneme = "a", StartSec = 0, EndSec = 0.2, Confidence = 0.9 });
         }
         return s;
