@@ -98,6 +98,17 @@ class DiffSingerBinarizeTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "終了コード3"):
                 binarize.binarize_diffsinger(self.payload)
 
+    def test_duplicate_clip_names_are_rejected_before_anything_is_written(self):
+        (self.job / "acoustic-input" / "transcriptions.csv").write_text(
+            "name,ph_seq,ph_dur
+segment_0,a,1.0
+segment_0,a,1.0
+", encoding="utf-8"
+        )
+        with self.assertRaises(ValueError):
+            binarize.binarize_diffsinger(self.payload)
+        self.assertFalse((self.job / "acoustic-training.yaml").exists())
+
     def test_an_existing_config_is_not_overwritten(self):
         (self.job / "acoustic-training.yaml").write_text("keep", encoding="utf-8")
         with self.assertRaises(FileExistsError):
