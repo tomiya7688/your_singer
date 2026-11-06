@@ -79,11 +79,11 @@ public static class TrainingRunReportVerifier
         };
     }
 
-    // SBV2(トーク)の評価付きジョブでは、重み付きサンプラーが学習中に実際に使われたことを要求する。
+    // 評価付きのジョブ(トークも歌唱も)では、重み付きサンプラーが学習中に実際に使われたことを要求する。
     // 無効・欠落を等重みの成功として扱わない。
     private static void VerifyWeightSampling(TrainingJobRecord job, TrainingRunReport report, List<string> problems)
     {
-        if (job.Target != TrainingTarget.Talk || job.InputFingerprint is null) return;
+        if (job.InputFingerprint is null) return;
         var sampling = report.WeightSampling;
         if (sampling is not { Applied: true } || sampling.Iterations < 1 || string.IsNullOrEmpty(sampling.SamplerVersion))
         {

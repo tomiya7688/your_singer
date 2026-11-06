@@ -301,6 +301,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: test_diffsinger_training.py: binarization_index_mismatch / weight_swap_changes_selection_rate / val_not_weighted / epoch_seed_reproducible / uncalibrated_mfa / rerun
 - テスト（自動化できない確認）: 実GPUでの重み反映確認は自動化できない（#110）。
 - 非目標: 新規・追加学習モードとサブモデル生成。
+- 実装済み(#92 の worker 契約): 固定ソースを確認して実装(`basics/base_task.py:329-350` の学習用 `DsBatchSampler`、`utils/training_utils.py:74-193` の `sub_indices`・`set_epoch`、`basics/base_binarizer.py:354-357` が学習データの名前を捨てる点)。(1) binarization 前に `install_name_recorder` が `IndexedDatasetBuilder` の item 追加をラップし、学習データの item番号→名前を `train.names.json` に保存する。(2) 学習は `diffsinger_train_entry.py` 経由で起動し、`basics.base_task.DsBatchSampler` を派生クラス(`weighted-ds-batch-v1`)へ差し替える。学習用(`shuffle_sample=True`)だけ、全 item が weight を持つことを名前で1対1に照合し(欠落は失敗)、各エポックで (seed, epoch) 固定の乱数により重み比例に復元抽出して公式の `sub_indices` に渡す(サイズ順・分割・DDP割当は公式のまま)。検証用は公式のまま。(3) 起動前に dataset.json の sha256・provenance の weight・範囲(0.25〜2.0)を照合。(4) 学習後は使用記録(`weight_sampling.json`)を実行記録に載せ、1度も抽出されなければ失敗。C# の検証は評価つきの歌唱ジョブでも使用記録を要求する。テスト: `test_diffsinger_weighted_sampler.py`・`TrainingRunReportVerifierTests`。未実装・未検証: binarization を名前記録つきで起動する工程(現状、公式 binarization の実行自体が未実装)、公式 `DsBatchSampler` 実物・実GPUでの動作と効果。依存: #90(PR #174)の上に積む。
 - 要決定: DiffSinger v2.5.1 の sampler 差し込み箇所（クラス名はIssue 未記載。固定 commit 323a569 のコード確認が必要）
 - 解消(D-12): #90 と同じ。PR #68(#61) 未統合の間は実装に着手しない。
 
