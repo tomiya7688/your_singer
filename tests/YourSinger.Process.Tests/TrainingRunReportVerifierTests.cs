@@ -153,4 +153,48 @@ public sealed class TrainingRunReportVerifierTests : IDisposable
         job.ResolvedPlan = null;
         Assert.Null(YourSinger.Process.Processing.Talk.StyleBertVits2TrainerService.InitializationPayload(job));
     }
+
+    [Fact]
+    public void DiffSingerPayload_ResolvesCheckpointsInsideTheWorkspaceOnly()
+    {
+        var workspace = new YourSinger.Data.Processing.ProjectWorkspace(_output);
+        var job = Job("fine_tune", 7, ("acoustic", "aa"));
+        var json = JsonSerializer.Serialize(YourSinger.Process.Processing.Singing.DiffSingerTrainerService.InitializationPayload(workspace, job));
+        Assert.Contains(Path.GetFullPath(_output).Replace("\\", "\\\\"), json);
+        job.ResolvedPlan!.Stages[0].Initialization!.Components[0] = new TrainingInitializationComponent { Name = "acoustic", Sha256 = "aa", Path = "../escape.ckpt" };
+        Assert.Throws<InvalidOperationException>(() =>
+            YourSinger.Process.Processing.Singing.DiffSingerTrainerService.InitializationPayload(workspace, job));
+        job.ResolvedPlan = null;
+        Assert.Null(YourSinger.Process.Processing.Singing.DiffSingerTrainerService.InitializationPayload(workspace, job));
+    }
+
+    [Fact]
+    public async Task DiffSingerTrainer_SendsThePlanAndRecordsTheVerification()
+    {
+        using var project = new TestProject();
+        var output = Path.Combine(project.Workspace.RootPath, "training", "diffsinger", "job-1", "trainer");
+        Directory.CreateDirectory(Path.Combine(output, "checkpoints", "job-1"));
+        File.WriteAllText(Path.Combine(output, "checkpoints", "job-1", "model_ckpt_steps_1.ckpt"), "trained");
+        var sha = Hash("trained");
+        var code = $$"""
+            import json,sys
+            request=json.loads(sys.stdin.readline()); payload=request['payload']
+            assert payload['resolved_training_mode']=='from_scratch' and payload['job_id']=='job-1' and payload['seed']==7
+            assert payload['initialization']['type']=='random_initialization'
+            report=dict(schema_version='1',job_id='job-1',resolved_mode='from_scratch',seed=7,trainer_exit_code=0,
+                        initialization_observed=dict(type='random_initialization',components=[]),initialization_evidence='staged_before_launch',
+                        artifacts=[dict(kind='checkpoint',path='checkpoints/job-1/model_ckpt_steps_1.ckpt',sha256='{{sha}}')])
+            print(json.dumps(dict(request_id=request['request_id'],status='ok',result=dict(log_path='x.log',run_report=report))))
+            """;
+        var python = Environment.GetEnvironmentVariable("YOURSINGER_TEST_PYTHON") ?? "python";
+        var service = new YourSinger.Process.Processing.Singing.DiffSingerTrainerService(
+            new YourSinger.Process.Processing.Ml.Bridge.MlWorkerClient(python, ["-u", "-c", code]));
+        var job = Job("from_scratch", 7);
+        var typed = new TrainingJobRecord
+        {
+            JobId = "job-1", SpeakerId = "spk_a", Target = TrainingTarget.Singing, DatasetFingerprint = "fp", Seed = 7, ResolvedPlan = job.ResolvedPlan
+        };
+        await service.TrainAsync(project.Workspace, typed, "config.yaml", TestProject.Token);
+        Assert.Equal(TrainingRunVerificationStatus.Unverified, typed.RunVerification!.Status);
+    }
 }

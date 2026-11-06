@@ -335,6 +335,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: test_diffsinger_training.py: config_typo / base_checkpoint_missing / hash_mismatch / mode_report_mismatch / output_overwrite_rejected / official_entry_compat。実GPU確認は #110。
 - テスト（自動化できない確認）: 実GPUでの学習は自動化できない（#110）。
 - 非目標: duration / pitch / variance とOpenUtau実レンダリング。
+- 実装済み(#94 の worker 契約): 固定ソース(utils/hparams.py:96-110・basics/base_task.py:130-177)を確認して実装。`--hparams` では `finetune_ckpt_path`(既定 null)へ文字列を渡せないため、元の config を `base_config` に取り `finetune_*` だけを上書きする overlay(`init-overlay.yaml`)で起動する。fine_tune は acoustic の重み1件を起動前に存在と sha256 で照合(欠損・不一致は失敗)、from_scratch は重みの指定を拒否し `finetune_enabled: false`。固定版は作業先に ckpt があると自動再開して初期化が無視されるため、既存 ckpt がある作業先は拒否する。学習後は Trainer が保存した config の `finetune_enabled` / `finetune_ckpt_path` が計画と一致するか確認し(誤記・暗黙のfallbackを検出)、checkpoint(`model_ckpt_steps_*.ckpt`)を相対パスと sha256 で `run_manifest.json` に記録する。終了コード0でも checkpoint が無ければ失敗。C# は計画の初期化方式(重みはワークスペース内の絶対パス)・seed・job_id を渡し、返却の run_report を `TrainingRunReportVerifier.VerifyAndRecord` で照合する。テスト: `test_diffsinger_initialization.py`・`TrainingRunReportVerifierTests`。未検証: 実GPU・実際の重みの読込(`loaded` の観測は固定ソースの限定パッチが必要。現状は Unverified)、finetune 時に欠けた鍵が strict=False で無視される点(base_task.py:128)の互換検査。
 - 要決定: config 生成 module の特定（Issue は「該当Process/worker module」と記載）
 - 要決定: acoustic 以外のサブモデルの初期化は #96 / #97 が持つ。resolved mode を#94 で共通フィールドにするかサブモデル別にするか
 
