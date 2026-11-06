@@ -13,7 +13,9 @@ public sealed class DiffSingerDurationInputServiceTests
 {
     private static readonly SpeakerTrainingSelection Singing = new()
     {
-        SpeakerId = "spk_a", Target = TrainingTarget.Singing, AutoCorrectionEnabled = false
+        SpeakerId = "spk_a",
+        Target = TrainingTarget.Singing,
+        AutoCorrectionEnabled = false
     };
 
     private static async Task<(TestProject, TrainingJobRecord)> ProjectAsync()
