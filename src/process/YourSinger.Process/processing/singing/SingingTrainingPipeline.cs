@@ -28,7 +28,7 @@ public sealed class SingingTrainingPipeline(
     {
         if (!File.Exists(Path.Combine(trainerRoot, VocoderRelativePath)))
             throw new InvalidOperationException(
-                $"音響モデルの学習にはvocoderの学習済みモデルが必要です。{VocoderRelativePath} に置いてください(本アプリはまだ取得・同梱していません)。");
+                $"音響モデルの学習にはvocoderの学習済みモデルが必要です。{VocoderRelativePath} に置いてください(CC BY-NC-SA 4.0・非商用のため本アプリは同梱しません。OpenVPI vocoders の pc-nsf-hifigan-44.1k-hop512-128bin-2025.02 リリースから取得してください)。");
     }
 
     // {
