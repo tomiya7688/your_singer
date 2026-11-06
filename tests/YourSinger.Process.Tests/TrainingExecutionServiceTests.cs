@@ -109,3 +109,32 @@ public sealed class TrainingExecutionServiceTests
         Assert.Contains("終了コード7", (await LoadAsync(project)).ErrorMessage);
     }
 }
+
+// {
+//   責務: [TrainerExecutionBindingTests: 各TrainerServiceの実行処理が、計画の無いjobを学習前に止めることを確認する]
+// }
+public sealed class TrainerExecutionBindingTests
+{
+    [Fact]
+    public async Task BothTrainersRefuseAJobWithoutAResolvedPlanBeforeCallingTheWorker()
+    {
+        using var project = new TestProject();
+        var worker = new YourSinger.Process.Processing.Ml.Bridge.MlWorkerClient("worker-that-must-not-start", []);
+        var singing = new TrainingJobRecord
+        {
+            JobId = "j", SpeakerId = "spk_a", Target = TrainingTarget.Singing, DatasetFingerprint = "fp", SegmentIds = ["s"],
+            Backend = TrainingBackendCatalog.SingingBackend, BackendRevision = TrainingBackendCatalog.SingingRevision
+        };
+        var talk = new TrainingJobRecord
+        {
+            JobId = "j", SpeakerId = "spk_a", Target = TrainingTarget.Talk, DatasetFingerprint = "fp", SegmentIds = ["s"],
+            Backend = TrainingBackendCatalog.TalkBackend, BackendRevision = TrainingBackendCatalog.TalkRevision
+        };
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new YourSinger.Process.Processing.Singing.DiffSingerTrainerService(worker)
+                .AsExecution(project.Workspace, "config.yaml")(singing, TestProject.Token));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new YourSinger.Process.Processing.Talk.StyleBertVits2TrainerService(worker)
+                .AsExecution(project.Workspace, "model")(talk, TestProject.Token));
+    }
+}

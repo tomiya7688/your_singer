@@ -118,7 +118,8 @@
 - 実装済み(#102 worker 側): `process_tree.py` の `run_reclaiming` が Trainer を新しいプロセスグループ/セッションで起動し、タイムアウト(`stage_timeout_seconds`)・例外・中断のいずれでも子孫ごと終了する(Windows は `taskkill /T /F`、POSIX は `killpg`)。失敗は `run_failure.json`(kind: canceled / timeout / failed)に残し、`result.json` は書かない(成功として公開しない)。C# の `MlWorkerClient` は既にキャンセル時に `Kill(entireProcessTree: true)` でワーカーごと停止する。tests/worker `test_process_tree.py` で孫プロセスの回収を実プロセスで確認済み。
 - 実装済み(#102 C#側): `TrainingJobRunner.RunAsync` が学習処理を挟み、Running → Succeeded / Failed / Canceled を保存する(取消済みトークンでも終了状態は保存。終了済みjobは再実行不可)。`TrainingJobRunnerTests`。
 - 実装済み(連結): `TrainingExecutionService.ExecuteAsync` が Preflight → 実行可否 → 棚卸し版の照合 → Trainer 実行 → 終了状態の記録を連結する。実行不可は Trainer を起動せず Pending のまま理由を返す(Failed にしない)。`TrainingExecutionServiceTests`。
-- 未実装: 画面からの呼出し(UI接続)と、Trainer 実行デリゲートへ各 TrainerService を渡す配線。実 Trainer での回収は実GPU手動確認が必要(未確認)。
+- 実装済み(配線): `DiffSingerTrainerService.AsExecution` と `StyleBertVits2TrainerService.AsExecution` が実行デリゲートを返す(計画の無いjobは worker 起動前に拒否。`TrainerExecutionBindingTests`)。
+- 未実装: 画面からの呼出し(UI接続)。実 Trainer での回収は実GPU手動確認が必要(未確認)。
 
 ### #103 A24 トークモデルの本物の読み上げ推論と結果検証を実装する
 
