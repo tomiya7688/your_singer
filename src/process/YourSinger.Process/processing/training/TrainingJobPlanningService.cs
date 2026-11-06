@@ -12,18 +12,22 @@ namespace YourSinger.Process.Processing.Training;
 // }
 public sealed class TrainingJobPlanningService
 {
-    public const string StageVersion = "v1-09.4";
+    public const string StageVersion = "v1-09.6";
     public const string CurrentInputVersion = StageVersion + "/" + AutoCorrectionService.StageVersion;
     private readonly UniversalVoiceDatasetRepository _datasetRepository;
     private readonly AutoCorrectionService _autoCorrectionService;
     private readonly TrainingJobRepository _jobRepository;
+    private readonly TrainingAssessmentRepository _assessmentRepository;
+    private readonly TrainingAssessmentBuilder _assessmentBuilder = new();
 
     public TrainingJobPlanningService(UniversalVoiceDatasetRepository datasetRepository,
-        AutoCorrectionService autoCorrectionService, TrainingJobRepository jobRepository)
+        AutoCorrectionService autoCorrectionService, TrainingJobRepository jobRepository,
+        TrainingAssessmentRepository? assessmentRepository = null)
     {
         _datasetRepository = datasetRepository;
         _autoCorrectionService = autoCorrectionService;
         _jobRepository = jobRepository;
+        _assessmentRepository = assessmentRepository ?? new TrainingAssessmentRepository();
     }
 
     public static bool RequiresRecreation(TrainingJobBatch batch) =>
@@ -60,10 +64,19 @@ public sealed class TrainingJobPlanningService
             RecreatedFromBatchId = recreatedFromBatchId
         };
         var views = new Dictionary<bool, CorrectedDatasetView>();
-        foreach (var selection in selections)
-            await AppendSelectionJobsAsync(workspace, selection, batch, views, cancellationToken);
-        // 新しいバッチだけを公開し、同じIDの既存ファイルは上書きしない。
-        await _jobRepository.CreateBatchAsync(workspace, batch, cancellationToken);
+        try
+        {
+            foreach (var selection in selections)
+                await AppendSelectionJobsAsync(workspace, selection, batch, views, cancellationToken);
+            // 新しいバッチだけを公開し、同じIDの既存ファイルは上書きしない。
+            await _jobRepository.CreateBatchAsync(workspace, batch, cancellationToken);
+        }
+        catch
+        {
+            // 失敗・取消では、このバッチ用に書いたAssessmentを残さない(既存の保存済みデータは触らない)。
+            foreach (var job in batch.Jobs) _assessmentRepository.Delete(workspace, job.JobId);
+            throw;
+        }
         return batch;
     }
 
@@ -82,6 +95,12 @@ public sealed class TrainingJobPlanningService
             if (string.IsNullOrWhiteSpace(selection.SpeakerId) ||
                 selection.Target is not (TrainingTarget.Talk or TrainingTarget.Singing or TrainingTarget.Both))
                 throw new ArgumentException("話者または学習用途の指定が不正です。", nameof(selections));
+        // 用途ごとの学習方式・質感の指定を先に検証し、不正なら何も保存しない。
+        foreach (var selection in selections)
+        {
+            TrainingJobSettingsValidator.ValidateOptions(selection.TalkOptions);
+            TrainingJobSettingsValidator.ValidateOptions(selection.SingingOptions);
+        }
         if (selections.Select(x => x.SpeakerId).Distinct(StringComparer.Ordinal).Count() != selections.Count)
             throw new ArgumentException("同じ話者が重複して選択されています。", nameof(selections));
     }
@@ -106,17 +125,19 @@ public sealed class TrainingJobPlanningService
         foreach (var target in ExpandTargets(selection.Target))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            AddTargetJob(batch, selection, target, view);
+            var job = BuildJob(selection, target, view);
+            await AttachAssessmentAsync(workspace, job, view, cancellationToken);
+            batch.Jobs.Add(job);
         }
     }
 
     // {
-    //   責務: [AddTargetJob: 用途別segmentを選び、検証済みjobをバッチに追加する]
+    //   責務: [BuildJob: 用途別segmentを選び、検証済みjobを作る(バッチへの追加は評価の保存後)]
     //   処理: [1: 対象segmentを抽出し、歌唱用途ならforced alignmentを検証する]
-    //   引数: [batch: job追加先, selection: 話者設定, target: 学習用途, view: 補完・補正済みデータ]
+    //   引数: [selection: 話者設定, target: 学習用途, view: 補完・補正済みデータ]
     //   エラー: [対象素材がない場合またはalignment不正時にInvalidOperationExceptionを送出する]
     // }
-    private static void AddTargetJob(TrainingJobBatch batch, SpeakerTrainingSelection selection,
+    private static TrainingJobRecord BuildJob(SpeakerTrainingSelection selection,
         TrainingTarget target, CorrectedDatasetView view)
     {
         var contentType = target == TrainingTarget.Talk ? SegmentContentType.Speech : SegmentContentType.Singing;
@@ -127,12 +148,67 @@ public sealed class TrainingJobPlanningService
         if (target == TrainingTarget.Singing)
             EnsureSingingAlignment(view.Segments, segmentIds);
 
-        batch.Jobs.Add(new TrainingJobRecord
+        var options = (target == TrainingTarget.Talk ? selection.TalkOptions : selection.SingingOptions) ?? new TrainingJobOptions();
+        var explicitMode = options.Mode != TrainingMode.Auto;
+        var (backend, revision) = TrainingBackendCatalog.For(target);
+        return new TrainingJobRecord
         {
+            Backend = backend, BackendRevision = revision,
             JobId = $"job-{Guid.NewGuid():N}", SpeakerId = selection.SpeakerId, Target = target,
             AutoCorrectionEnabled = selection.AutoCorrectionEnabled,
             DatasetFingerprint = TrainingDatasetSnapshotService.CreateJobFingerprint(view.Fingerprint, selection.SpeakerId, target, segmentIds),
-            SegmentIds = segmentIds
+            SegmentIds = segmentIds,
+            RequestedTexture = options.Texture ?? new TrainingTextureRequest { Preset = TrainingJobVocabulary.DefaultTexturePreset },
+            RequestedTrainingMode = options.Mode,
+            // 明示したモードはそのまま解決済み。autoは計画の解決(preflight)まで未解決のまま保存する。
+            ResolvedTrainingMode = explicitMode ? options.Mode : null,
+            Initialization = !explicitMode ? null : options.Mode == TrainingMode.FromScratch
+                ? new TrainingInitialization { Type = TrainingJobVocabulary.RandomInitialization }
+                : new TrainingInitialization
+                {
+                    Type = TrainingJobVocabulary.PretrainedCheckpoint, Components = [.. options.BaseCheckpoints]
+                },
+            Seed = options.Seed
+        };
+    }
+
+    // {
+    //   責務: [AttachAssessmentAsync: ジョブの区間評価を組み立てて保存し、学習入力fingerprintを記録する]
+    //   処理: [
+    //     1: 適格性・Utility・重みを組み立てる(音声ファイルの存在とF0特徴を作業領域内から読む)
+    //     2: Assessmentを検証付きで保存する
+    //     3: 素材・学習方式・backend・評価からfingerprintを計算してジョブに記録する
+    //   ]
+    //   エラー: [利用可能(eligible)な区間が0件のとき InvalidOperationException]
+    // }
+    private async Task AttachAssessmentAsync(ProjectWorkspace workspace, TrainingJobRecord job,
+        CorrectedDatasetView view, CancellationToken cancellationToken)
+    {
+        var ids = job.SegmentIds.ToHashSet(StringComparer.Ordinal);
+        var segments = view.Segments.Where(x => ids.Contains(x.SegmentId)).ToArray();
+        var targetName = job.Target == TrainingTarget.Talk ? "talk" : "singing";
+        TrainingAssessmentRecord record;
+        try
+        {
+            record = _assessmentBuilder.Build(segments, new TrainingAssessmentBuildInput
+            {
+                JobId = job.JobId, SpeakerId = job.SpeakerId, Target = targetName,
+                SourceDatasetFingerprint = job.DatasetFingerprint,
+                IsAudioReadable = segment => File.Exists(Path.Combine(workspace.RootPath, segment.AudioPath)),
+                F0Provider = segment => TrainingF0Reader.Read(workspace, segment)
+            });
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new InvalidOperationException(
+                $"話者 {job.SpeakerId} の{(job.Target == TrainingTarget.Talk ? "トーク" : "歌唱")}用に利用可能な区間がありません: {exception.Message}");
+        }
+        await _assessmentRepository.SaveAsync(workspace, record, cancellationToken);
+        job.InputFingerprint = TrainingInputFingerprint.Compute(new TrainingInputFingerprintInput
+        {
+            DatasetFingerprint = job.DatasetFingerprint,
+            ContractFingerprint = TrainingJobContractFingerprint.Compute(job),
+            Backend = job.Backend!, BackendRevision = job.BackendRevision!, Assessment = record
         });
     }
 
@@ -171,7 +247,9 @@ public sealed class TrainingJobPlanningService
             .Select(group => new SpeakerTrainingSelection
             {
                 SpeakerId = group.Key.SpeakerId, AutoCorrectionEnabled = group.Key.AutoCorrectionEnabled,
-                Target = group.Aggregate(TrainingTarget.None, (target, job) => target | job.Target)
+                Target = group.Aggregate(TrainingTarget.None, (target, job) => target | job.Target),
+                TalkOptions = OptionsOf(group, TrainingTarget.Talk),
+                SingingOptions = OptionsOf(group, TrainingTarget.Singing)
             }).ToArray();
         if (selections.Select(x => x.SpeakerId).Distinct(StringComparer.Ordinal).Count() != selections.Length)
             throw new InvalidOperationException("同じ話者に異なる補完設定が混在しています。話者・用途を選び直して新しいジョブを作成してください。");
@@ -201,6 +279,19 @@ public sealed class TrainingJobPlanningService
             job.Artifacts.AddRange(artifacts);
         }
         await _jobRepository.SaveBatchAsync(workspace, batch, cancellationToken);
+    }
+
+    // 再作成では元ジョブの質感・モード・シード・初期重みを引き継ぐ。旧ジョブ(学習方式なし)は既定(auto・natural)になる。
+    private static TrainingJobOptions? OptionsOf(IEnumerable<TrainingJobRecord> jobs, TrainingTarget target)
+    {
+        var job = jobs.FirstOrDefault(x => x.Target == target);
+        if (job is null || job.IsLegacyWithoutTrainingContract) return null;
+        return new TrainingJobOptions
+        {
+            Texture = job.RequestedTexture, Mode = job.RequestedTrainingMode!.Value, Seed = job.Seed,
+            BaseCheckpoints = job.RequestedTrainingMode == TrainingMode.FineTune
+                ? [.. job.Initialization?.Components ?? []] : []
+        };
     }
 
     private static bool CanTransition(TrainingJobState from, TrainingJobState to) => from switch

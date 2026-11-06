@@ -39,23 +39,41 @@
 - 証明書は、初回だけ `-CreateCertificate` を付けて、現在のユーザーの証明書ストア(`Cert:\CurrentUser\My`)に作ります。秘密鍵をPFXとして書き出したり、リポジトリへ置いたりしません。
 - 署名後に `tools/update_distribution_manifest.ps1` で `distribution-manifest.json` のhashを更新し、`verify_distribution_signing.ps1 -AllowSelfSigned` で署名者とtimestampを検証します。
 - 自己署名は信頼されたチェーンを持たないため、Windowsの発行元は「不明」のままです。公開配布の最終解にはしません。
-- CIの構築ワークフローでは署名しません(秘密鍵をCIへ渡さないため)。
+- 手元の署名では、秘密鍵をPFXとして書き出しません。通常のビルド(PRや手動実行)のCIでは署名しません。
+- SignPathの承認が下りるまでの間は、**リリース(タグ実行)に限り**、別に作ったリリース用の自己署名証明書(同じSubject)でCIが署名します。後述の「承認までの自己署名リリース」を参照してください。
 
 ## 公開リリースの署名とゲート(#62)
 
-公開リリースでは、SignPath Foundation(OSS向けの無料コード署名)で署名します。
+公開リリースでは、SignPath Foundation(OSS向けの無料コード署名)で署名します。承認が下りるまでは、自己署名のプレリリースを作ります。
 
 ### 流れ
 
 タグ `v*` を push すると `package-worker.yml` が動き、次の順に進みます。どれか1つでも失敗すると、その時点で止まりGitHub Releaseは作られません。
 
-1. 前提の確認: `SIGNPATH_API_TOKEN`(secret)と、`SIGNPATH_ORGANIZATION_ID`・`SIGNPATH_PROJECT_SLUG`(variables)の設定、タグのコミットが `main` に含まれること。構築(約25分)の前に確認します。
+1. 前提の確認: タグのコミットが `main` に含まれることと、署名方式の決定。`SIGNPATH_API_TOKEN`(secret)と `SIGNPATH_ORGANIZATION_ID`・`SIGNPATH_PROJECT_SLUG`(variables)が揃っていれば **SignPath**、無ければ `SELF_SIGN_PFX_BASE64`・`SELF_SIGN_PFX_PASSWORD`(secrets)による**自己署名**、どちらも無ければ失敗します。構築(約25分)の前に確認します。
 2. 配布物を構築し、起動確認を行います。
-3. `tools/stage_signing_files.ps1 -Mode Collect` で自社製のexe/dllだけを取り出し、`actions/upload-artifact` でSignPathへ渡します(配布物全体は数GBのため送りません)。
-4. `signpath/github-action-submit-signing-request` で署名します。署名済みファイルは `stage_signing_files.ps1 -Mode Restore` が、取り出したものと同じ集合であることを確認して書き戻し、`update_distribution_manifest.ps1` でmanifestを更新します。
-5. ZIPと`SHA256SUMS`を作り、`verify_distribution_signing.ps1 -RequireAuthenticode -ExpectedSignerSubject "SignPath Foundation" -RequireRfc3161` を必須のゲートにします。`-AllowSelfSigned` は使いません。
+3. 【SignPath】`tools/stage_signing_files.ps1 -Mode Collect` で自社製のexe/dllだけを取り出し、`actions/upload-artifact` でSignPathへ渡します(配布物全体は数GBのため送りません)。
+4. 【SignPath】`signpath/github-action-submit-signing-request` で署名します。署名済みファイルは `stage_signing_files.ps1 -Mode Restore` が、取り出したものと同じ集合であることを確認して書き戻し、`update_distribution_manifest.ps1` でmanifestを更新します。【自己署名】secretの証明書を読み込み、`sign_distribution_self_signed.ps1` で署名します(PFXは読み込み後に削除します)。
+5. ZIPと`SHA256SUMS`を作り、署名方式ごとのゲートを必須にします。SignPathは `verify_distribution_signing.ps1 -RequireAuthenticode -ExpectedSignerSubject "SignPath Foundation" -RequireRfc3161`(`-AllowSelfSigned` は使いません)。自己署名は `-ExpectedSignerSubject "CN=Tomiya7688" -ExpectedSignerThumbprint <変数SELF_SIGN_THUMBPRINT> -AllowSelfSigned` です。
 6. Artifact Attestationを作って検証します。
-7. 別ジョブ `release-draft`(`contents: write` と読み取り専用の `attestations: read` だけを持つ)が、SHA-256とattestationを再確認し、Releaseの**下書き**を作ります。公開は人が行います。ZIPが2GiBを超える場合はReleaseへ添付できないため、このジョブは失敗します。
+7. 別ジョブ `release-draft`(`contents: write` と読み取り専用の `attestations: read` だけを持つ)が、SHA-256とattestationを再確認し、Releaseの**下書き**を作ります。自己署名の場合はプレリリースとし、説明に署名者のthumbprintを書きます。公開は人が行います。ZIPが2GiBを超える場合はReleaseへ添付できないため、このジョブは失敗します(分割は #72 で対応します)。
+
+### 承認までの自己署名リリース
+
+SignPath Foundationの承認を待たずにリリースを作れるよう、リポジトリオーナーが次を1回だけ行います。
+
+```powershell
+gh auth login   # 初回のみ
+pwsh tools/new_release_self_signed_cert.ps1 -Repository tomiya7688/your_singer
+```
+
+このスクリプトは、リリース用の自己署名証明書(`CN=Tomiya7688`)を作り、Environment `release` を作成して保護(必須レビュアーは実行した本人、デプロイできるのはタグ `v*` だけ)を設定し、secret `SELF_SIGN_PFX_BASE64`・`SELF_SIGN_PFX_PASSWORD` と、variable `SELF_SIGN_THUMBPRINT` を登録します。秘密鍵とパスワードはファイルへ書かず、画面にも表示しません。`-DryRun` を付けると、何も登録せずに作成と確認だけを行います。
+
+- 手元の開発用の証明書とは別の証明書です。秘密鍵はGitHubのEnvironment secretとして保存されるため、Environmentの保護が前提です。再実行すると証明書が作り直され、thumbprintが変わります。
+- 一部だけ設定されている(SignPathの3項目の一部など)場合や、thumbprintの変数が空の場合は、ワークフローが失敗します。署名者は証明書のthumbprintまで固定して検証します。
+- Environmentの保護の設定(GitHub APIの呼び出し)は、実際のGitHubでは未検証です。実行後に、リポジトリの Settings → Environments → release で、必須レビュアーとタグの制限を確認してください。
+- 自己署名は信頼チェーンを持たないため、利用者のWindowsは発行元を「不明」と表示します。timestampは従来方式で、RFC 3161は要求しません(SignPathのリリースだけ要求します)。
+- SignPathの設定(secret・variables)が揃うと、自動でSignPathの署名に切り替わります。切り替えたら、Environmentから `SELF_SIGN_*` を削除してください。
 
 ### オーナーが行う設定(未了)
 

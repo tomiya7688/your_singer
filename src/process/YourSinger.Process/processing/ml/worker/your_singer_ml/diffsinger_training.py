@@ -5,6 +5,13 @@ import re
 import subprocess
 from pathlib import Path
 
+from .diffsinger_initialization import (
+    collect_checkpoints,
+    prepare_initialization,
+    verify_dumped_config,
+)
+from .run_report import build_run_report
+
 
 # {
 #   責務: [_resolve_training_paths: 同梱bundleとジョブ別出力先を検証する]
@@ -75,12 +82,14 @@ def train_diffsinger(payload: dict) -> dict:
         _resolve_training_paths(payload)
     )
     output_dir.mkdir(parents=True, exist_ok=True)
+    # 学習モード(fine_tune / from_scratch)が指定されたときは、初期化方式を固定するoverlayのconfigで起動する。
+    plan = prepare_initialization(payload, config_path, output_dir, exp_name)
     environment = _build_training_environment(output_dir)
     command = [
         str(trainer_python),
         str(trainer_entry),
         "--config",
-        str(config_path),
+        str(plan.overlay_path if plan else config_path),
         "--exp_name",
         exp_name,
         "--reset",
@@ -103,14 +112,28 @@ def train_diffsinger(payload: dict) -> dict:
 
     if completed.returncode != 0:
         raise RuntimeError(
-            f"DiffSinger trainerが終了コード{completed.returncode}で失敗しました。"
-            f" log={log_path}"
+            f"DiffSinger trainerが終了コード{completed.returncode}で失敗しました。 log={log_path}"
         )
 
-    return {
+    result = {
         "exit_code": completed.returncode,
         "log_path": str(log_path),
         "trainer_root": str(trainer_root),
         "config_path": str(config_path),
         "exp_name": exp_name,
     }
+    if plan is not None:
+        # Trainerが実際に使った設定と、出力されたcheckpointを計画と照合して記録する。
+        verify_dumped_config(plan, output_dir, exp_name)
+        checkpoints = collect_checkpoints(output_dir, exp_name)
+        result["run_report"] = build_run_report(
+            str(payload.get("job_id", exp_name)),
+            plan.mode,
+            payload.get("seed"),
+            completed.returncode,
+            output_dir,
+            [("checkpoint", path) for path in checkpoints],
+            plan.staged,
+            "staged_before_launch",
+        )
+    return result

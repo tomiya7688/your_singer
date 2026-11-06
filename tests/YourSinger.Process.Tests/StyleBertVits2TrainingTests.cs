@@ -37,7 +37,7 @@ public sealed class StyleBertVits2TrainingTests
         var job = await CreateJob(project);
         await Assert.ThrowsAsync<InvalidDataException>(() => new StyleBertVits2DatasetBuilder(project.DatasetRepository)
             .BuildAsync(project.Workspace, job, speakerName, TestProject.Token));
-        Assert.False(Directory.Exists(Path.Combine(project.Workspace.RootPath, "training")));
+        TestProject.AssertNoTrainingInputPublished(project.Workspace);
     }
 
     // { 責務: [TrainerReceivesThePreparedDatasetAndJobIdentity: ワーカーへ入力と補正設定が渡ることを確認する] }
@@ -59,12 +59,22 @@ public sealed class StyleBertVits2TrainingTests
             for key in ['job_id','dataset_fingerprint','auto_correction_enabled']:
                 assert payload[key]==record[key]
             assert Path(payload['output_dir'])==dataset/'trainer'
-            print(json.dumps(dict(request_id=request['request_id'],status='ok',result=dict(log_path=str(dataset/'trainer'/'trainer.log')))))
+            assert payload['resolved_training_mode'] is None and payload['seed'] is None
+            import hashlib
+            trainer=dataset/'trainer'; trainer.mkdir(exist_ok=True)
+            (trainer/'model.safetensors').write_bytes(b'weights')
+            report=dict(schema_version='1',job_id=payload['job_id'],resolved_mode=None,seed=None,trainer_exit_code=0,initialization_observed=None,
+                        artifacts=[dict(kind='model_weights',path='model.safetensors',sha256=hashlib.sha256(b'weights').hexdigest())],
+                        weight_sampling=dict(applied=True,sampler_version='weighted-bucket-v1',seed=None,item_count=1,min_weight=1.0,max_weight=1.0,manifest_sha256='x',iterations=1,last_epoch=0))
+            print(json.dumps(dict(request_id=request['request_id'],status='ok',result=dict(log_path=str(trainer/'trainer.log'),run_report=report))))
             """;
         var python = Environment.GetEnvironmentVariable("YOURSINGER_TEST_PYTHON") ?? "python";
         var service = new StyleBertVits2TrainerService(new MlWorkerClient(python, ["-u", "-c", code]));
+        // 起動前の計画解決(Preflight)済みのジョブとして扱う。解決の内容自体は TrainingPreflightServiceTests で確認する。
+        job.ResolvedPlan = new TrainingResolvedPlanRecord { ManifestHash = "h", InventoryRevision = "r", Executable = true };
         var log = await service.TrainAsync(project.Workspace, job, "話者モデル", TestProject.Token);
         Assert.EndsWith(Path.Combine(job.JobId, "trainer", "trainer.log"), log);
+        Assert.Equal(TrainingRunVerificationStatus.Verified, job.RunVerification!.Status);
     }
 
     // { 責務: [CreateJob: 補正OFFの合成トーク学習ジョブを作成する] }

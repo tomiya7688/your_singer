@@ -2,6 +2,7 @@ using System.Text.Json;
 using YourSinger.Data.Models;
 using YourSinger.Data.Processing;
 using YourSinger.Process.Processing.Ml.Bridge;
+using YourSinger.Process.Processing.Training;
 
 namespace YourSinger.Process.Processing.Singing;
 
@@ -22,6 +23,8 @@ public sealed class DiffSingerTrainerService
     {
         if (job.Target != TrainingTarget.Singing)
             throw new InvalidOperationException("歌唱学習ジョブのみDiffSinger trainerを実行できます。");
+        // 学習前に、解決済みで実行可能な計画を要求する(未解決・実行不可は起動しない)。
+        YourSinger.Process.Processing.Training.TrainingPreflightService.RequireResolvedPlan(job);
 
         var trainerRoot = Path.Combine(AppContext.BaseDirectory, "workers", "diffsinger");
         var outputDirectory = Path.Combine(
@@ -38,14 +41,45 @@ public sealed class DiffSingerTrainerService
                 trainer_root = trainerRoot,
                 config_path = configPath,
                 exp_name = job.JobId,
-                output_dir = outputDirectory
+                output_dir = outputDirectory,
+                job_id = job.JobId,
+                seed = job.Seed,
+                resolved_training_mode = job.ResolvedPlan?.ResolvedTrainingMode,
+                initialization = InitializationPayload(workspace, job)
             },
             cancellationToken);
 
         if (!result.TryGetProperty("log_path", out JsonElement logPath))
             throw new InvalidOperationException("DiffSinger trainer結果にlog_pathがありません。");
 
+        // worker の実行記録を、計画と実ファイルに照合する。矛盾・欠損は失敗にし、成功として残さない。
+        TrainingRunReportVerifier.VerifyAndRecord(job, result, outputDirectory);
+
         return logPath.GetString()
             ?? throw new InvalidOperationException("DiffSinger trainer log pathが空です。");
+    }
+
+    // {
+    //   責務: [InitializationPayload: 解決済み計画の初期化方式を、workerへ渡す形にする(重みのパスはワークスペース内の絶対パス)]
+    //   戻り値: [payload: type と components(name・sha256・絶対path)。計画が無ければ null(旧形式の要求)]
+    //   エラー: [初期重みのパスがワークスペース外を指すとき InvalidOperationException]
+    // }
+    public static object? InitializationPayload(ProjectWorkspace workspace, TrainingJobRecord job)
+    {
+        var initialization = job.ResolvedPlan?.Stages.FirstOrDefault(x => x.Initialization is not null)?.Initialization;
+        if (initialization is null) return null;
+        var root = Path.GetFullPath(workspace.RootPath);
+        var prefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
+        return new
+        {
+            type = initialization.Type,
+            components = initialization.Components.Select(x =>
+            {
+                var full = Path.GetFullPath(x.Path, root);
+                if (!full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException($"初期重みがワークスペース外を指しています: {x.Name}");
+                return new { name = x.Name, sha256 = x.Sha256, path = full };
+            }).ToArray()
+        };
     }
 }

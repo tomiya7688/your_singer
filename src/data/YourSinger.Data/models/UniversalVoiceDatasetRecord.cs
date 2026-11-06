@@ -37,6 +37,30 @@ public sealed class UniversalVoiceSegment
         Phonemes.Zip(Phonemes.Skip(1), (previous, current) =>
             current.StartSec >= previous.EndSec - 1e-6).All(x => x);
 
+    // {
+    //   責務: [IsAsrConfidenceMeasured: ASR信頼度が実測値で、低信頼の判定に使えるか返す]
+    //   処理: [1: 状態が実測なら使う 2: 未校正・算出不可なら使わない 3: 旧形式は0を判別不可として使わない]
+    //   戻り値: [isMeasured: 判定に使える実測値ならtrue]
+    // }
+    public bool IsAsrConfidenceMeasured() => AsrConfidenceStatus switch
+    {
+        ConfidenceStatus.Measured => true,
+        ConfidenceStatus.Uncalibrated or ConfidenceStatus.Unavailable or ConfidenceStatus.Invalid => false,
+        _ => AsrConfidence > 0
+    };
+
+    // {
+    //   責務: [IsAlignmentConfidenceMeasured: 音素境界の信頼度が実測値で、低信頼の判定に使えるか返す]
+    //   処理: [1: 状態が実測なら使う 2: 未校正・算出不可なら使わない 3: 旧形式はMFA実測方式の0だけを未校正として使わない]
+    //   戻り値: [isMeasured: 判定に使える実測値ならtrue]
+    // }
+    public bool IsAlignmentConfidenceMeasured() => AlignmentConfidenceStatus switch
+    {
+        ConfidenceStatus.Measured => true,
+        ConfidenceStatus.Uncalibrated or ConfidenceStatus.Unavailable or ConfidenceStatus.Invalid => false,
+        _ => !(AlignmentMethod == RequiredSingingTrainingAlignmentMethod && AlignmentConfidence == 0)
+    };
+
     public required string SegmentId { get; init; }
     public required string SourceId { get; init; }
     public string? SpeakerId { get; set; }
@@ -46,9 +70,12 @@ public sealed class UniversalVoiceSegment
 
     public string Transcript { get; set; } = string.Empty;
     public double AsrConfidence { get; set; }
+    // 信頼度の意味。measured=実測、uncalibrated=未校正、unavailable=算出不可、legacy_unknown=旧形式で判別不可
+    public string AsrConfidenceStatus { get; set; } = ConfidenceStatus.LegacyUnknown;
 
     public List<PhonemeTimingRecord> Phonemes { get; init; } = [];
     public double AlignmentConfidence { get; set; }
+    public string AlignmentConfidenceStatus { get; set; } = ConfidenceStatus.LegacyUnknown;
     public string AlignmentMethod { get; set; } = "legacy-uniform-placeholder";
     public string? AlignmentWarning { get; set; }
     public AlignmentMeasurementReference? AlignmentMeasurement { get; set; }
@@ -65,6 +92,15 @@ public sealed class UniversalVoiceSegment
 
     public StyleProsodyRecord StyleProsody { get; set; } = new();
     public List<double> SpeakerEmbedding { get; init; } = [];
+}
+
+public static class ConfidenceStatus
+{
+    public const string Measured = "measured";
+    public const string Uncalibrated = "uncalibrated";
+    public const string Unavailable = "unavailable";
+    public const string LegacyUnknown = "legacy_unknown";
+    public const string Invalid = "invalid";
 }
 
 public sealed class PhonemeTimingRecord

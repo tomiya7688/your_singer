@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Your Singer v1 design contract. 本体に実装済みであることを示すものではありません。",
+  "title": "Your Singer External Training Provider Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "provider_id",
+    "version",
+    "protocol_version",
+    "display_name_ja",
+    "runtime",
+    "operations",
+    "permissions_requested",
+    "license_file"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "provider_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_.-]*$",
+      "minLength": 5,
+      "maxLength": 128
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "protocol_version": {
+      "const": "1"
+    },
+    "display_name_ja": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "entry"],
+      "properties": {
+        "kind": {
+          "const": "external_process"
+        },
+        "entry": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 260
+        }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["operation_id", "version"],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_.-]*$",
+            "minLength": 5,
+            "maxLength": 128
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+          }
+        }
+      }
+    },
+    "resource_manifest": {
+      "type": "string",
+      "minLength": 1
+    },
+    "permissions_requested": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["read_provided_artifacts", "write_job_artifacts"]
+      }
+    },
+    "license_file": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
