@@ -37,7 +37,7 @@ public sealed class StyleBertVits2TrainingTests
         var job = await CreateJob(project);
         await Assert.ThrowsAsync<InvalidDataException>(() => new StyleBertVits2DatasetBuilder(project.DatasetRepository)
             .BuildAsync(project.Workspace, job, speakerName, TestProject.Token));
-        Assert.False(Directory.Exists(Path.Combine(project.Workspace.RootPath, "training")));
+        TestProject.AssertNoTrainingInputPublished(project.Workspace);
     }
 
     // { 責務: [TrainerReceivesThePreparedDatasetAndJobIdentity: ワーカーへ入力と補正設定が渡ることを確認する] }

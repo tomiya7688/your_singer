@@ -71,6 +71,16 @@ public sealed class TrainingAssessmentRepository
         }
     }
 
+    // {
+    //   責務: [Delete: ジョブ作成の失敗時に、そのジョブのAssessment保存先を取り除く]
+    //   処理: [1: 保存先を領域内に限って決める 2: あればディレクトリごと削除する]
+    // }
+    public void Delete(ProjectWorkspace workspace, string jobId)
+    {
+        var directory = Path.GetDirectoryName(GetPath(workspace, jobId))!;
+        if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+    }
+
     private static async Task<TrainingAssessmentRecord> ReadAsync(Stream stream, CancellationToken cancellationToken)
     {
         TrainingAssessmentRecord? record;

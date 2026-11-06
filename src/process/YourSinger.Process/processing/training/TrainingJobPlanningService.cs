@@ -12,18 +12,22 @@ namespace YourSinger.Process.Processing.Training;
 // }
 public sealed class TrainingJobPlanningService
 {
-    public const string StageVersion = "v1-09.5";
+    public const string StageVersion = "v1-09.6";
     public const string CurrentInputVersion = StageVersion + "/" + AutoCorrectionService.StageVersion;
     private readonly UniversalVoiceDatasetRepository _datasetRepository;
     private readonly AutoCorrectionService _autoCorrectionService;
     private readonly TrainingJobRepository _jobRepository;
+    private readonly TrainingAssessmentRepository _assessmentRepository;
+    private readonly TrainingAssessmentBuilder _assessmentBuilder = new();
 
     public TrainingJobPlanningService(UniversalVoiceDatasetRepository datasetRepository,
-        AutoCorrectionService autoCorrectionService, TrainingJobRepository jobRepository)
+        AutoCorrectionService autoCorrectionService, TrainingJobRepository jobRepository,
+        TrainingAssessmentRepository? assessmentRepository = null)
     {
         _datasetRepository = datasetRepository;
         _autoCorrectionService = autoCorrectionService;
         _jobRepository = jobRepository;
+        _assessmentRepository = assessmentRepository ?? new TrainingAssessmentRepository();
     }
 
     public static bool RequiresRecreation(TrainingJobBatch batch) =>
@@ -60,10 +64,19 @@ public sealed class TrainingJobPlanningService
             RecreatedFromBatchId = recreatedFromBatchId
         };
         var views = new Dictionary<bool, CorrectedDatasetView>();
-        foreach (var selection in selections)
-            await AppendSelectionJobsAsync(workspace, selection, batch, views, cancellationToken);
-        // 新しいバッチだけを公開し、同じIDの既存ファイルは上書きしない。
-        await _jobRepository.CreateBatchAsync(workspace, batch, cancellationToken);
+        try
+        {
+            foreach (var selection in selections)
+                await AppendSelectionJobsAsync(workspace, selection, batch, views, cancellationToken);
+            // 新しいバッチだけを公開し、同じIDの既存ファイルは上書きしない。
+            await _jobRepository.CreateBatchAsync(workspace, batch, cancellationToken);
+        }
+        catch
+        {
+            // 失敗・取消では、このバッチ用に書いたAssessmentを残さない(既存の保存済みデータは触らない)。
+            foreach (var job in batch.Jobs) _assessmentRepository.Delete(workspace, job.JobId);
+            throw;
+        }
         return batch;
     }
 
@@ -112,17 +125,19 @@ public sealed class TrainingJobPlanningService
         foreach (var target in ExpandTargets(selection.Target))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            AddTargetJob(batch, selection, target, view);
+            var job = BuildJob(selection, target, view);
+            await AttachAssessmentAsync(workspace, job, view, cancellationToken);
+            batch.Jobs.Add(job);
         }
     }
 
     // {
-    //   責務: [AddTargetJob: 用途別segmentを選び、検証済みjobをバッチに追加する]
+    //   責務: [BuildJob: 用途別segmentを選び、検証済みjobを作る(バッチへの追加は評価の保存後)]
     //   処理: [1: 対象segmentを抽出し、歌唱用途ならforced alignmentを検証する]
-    //   引数: [batch: job追加先, selection: 話者設定, target: 学習用途, view: 補完・補正済みデータ]
+    //   引数: [selection: 話者設定, target: 学習用途, view: 補完・補正済みデータ]
     //   エラー: [対象素材がない場合またはalignment不正時にInvalidOperationExceptionを送出する]
     // }
-    private static void AddTargetJob(TrainingJobBatch batch, SpeakerTrainingSelection selection,
+    private static TrainingJobRecord BuildJob(SpeakerTrainingSelection selection,
         TrainingTarget target, CorrectedDatasetView view)
     {
         var contentType = target == TrainingTarget.Talk ? SegmentContentType.Speech : SegmentContentType.Singing;
@@ -135,8 +150,10 @@ public sealed class TrainingJobPlanningService
 
         var options = (target == TrainingTarget.Talk ? selection.TalkOptions : selection.SingingOptions) ?? new TrainingJobOptions();
         var explicitMode = options.Mode != TrainingMode.Auto;
-        batch.Jobs.Add(new TrainingJobRecord
+        var (backend, revision) = TrainingBackendCatalog.For(target);
+        return new TrainingJobRecord
         {
+            Backend = backend, BackendRevision = revision,
             JobId = $"job-{Guid.NewGuid():N}", SpeakerId = selection.SpeakerId, Target = target,
             AutoCorrectionEnabled = selection.AutoCorrectionEnabled,
             DatasetFingerprint = TrainingDatasetSnapshotService.CreateJobFingerprint(view.Fingerprint, selection.SpeakerId, target, segmentIds),
@@ -152,6 +169,46 @@ public sealed class TrainingJobPlanningService
                     Type = TrainingJobVocabulary.PretrainedCheckpoint, Components = [.. options.BaseCheckpoints]
                 },
             Seed = options.Seed
+        };
+    }
+
+    // {
+    //   責務: [AttachAssessmentAsync: ジョブの区間評価を組み立てて保存し、学習入力fingerprintを記録する]
+    //   処理: [
+    //     1: 適格性・Utility・重みを組み立てる(音声ファイルの存在とF0特徴を作業領域内から読む)
+    //     2: Assessmentを検証付きで保存する
+    //     3: 素材・学習方式・backend・評価からfingerprintを計算してジョブに記録する
+    //   ]
+    //   エラー: [利用可能(eligible)な区間が0件のとき InvalidOperationException]
+    // }
+    private async Task AttachAssessmentAsync(ProjectWorkspace workspace, TrainingJobRecord job,
+        CorrectedDatasetView view, CancellationToken cancellationToken)
+    {
+        var ids = job.SegmentIds.ToHashSet(StringComparer.Ordinal);
+        var segments = view.Segments.Where(x => ids.Contains(x.SegmentId)).ToArray();
+        var targetName = job.Target == TrainingTarget.Talk ? "talk" : "singing";
+        TrainingAssessmentRecord record;
+        try
+        {
+            record = _assessmentBuilder.Build(segments, new TrainingAssessmentBuildInput
+            {
+                JobId = job.JobId, SpeakerId = job.SpeakerId, Target = targetName,
+                SourceDatasetFingerprint = job.DatasetFingerprint,
+                IsAudioReadable = segment => File.Exists(Path.Combine(workspace.RootPath, segment.AudioPath)),
+                F0Provider = segment => TrainingF0Reader.Read(workspace, segment)
+            });
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new InvalidOperationException(
+                $"話者 {job.SpeakerId} の{(job.Target == TrainingTarget.Talk ? "トーク" : "歌唱")}用に利用可能な区間がありません: {exception.Message}");
+        }
+        await _assessmentRepository.SaveAsync(workspace, record, cancellationToken);
+        job.InputFingerprint = TrainingInputFingerprint.Compute(new TrainingInputFingerprintInput
+        {
+            DatasetFingerprint = job.DatasetFingerprint,
+            ContractFingerprint = TrainingJobContractFingerprint.Compute(job),
+            Backend = job.Backend!, BackendRevision = job.BackendRevision!, Assessment = record
         });
     }
 

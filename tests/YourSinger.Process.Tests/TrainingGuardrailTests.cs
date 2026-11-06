@@ -82,7 +82,7 @@ public sealed class TrainingGuardrailTests
             new DiffSingerDatasetBuilder(p.DatasetRepository).BuildAsync(p.Workspace, job, Token));
 
         Assert.Contains("音素時刻が推定値", error.Message);
-        Assert.False(Directory.Exists(Path.Combine(p.Workspace.RootPath, "training")));
+        TestProject.AssertNoTrainingInputPublished(p.Workspace);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public sealed class TrainingGuardrailTests
         else
             await Assert.ThrowsAsync<InvalidOperationException>(() => new DiffSingerDatasetBuilder(p.DatasetRepository)
                 .BuildAsync(p.Workspace, job, Token));
-        Assert.False(Directory.Exists(Path.Combine(p.Workspace.RootPath, "training")));
+        TestProject.AssertNoTrainingInputPublished(p.Workspace);
     }
 
     [Fact]
