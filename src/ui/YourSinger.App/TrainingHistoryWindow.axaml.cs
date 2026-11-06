@@ -104,6 +104,7 @@ public sealed partial class TrainingHistoryWindow : Window
         {
             BatchDetailText.Text = "再作成するジョブ一式を選択してください。";
             RecreateBatchButton.IsEnabled = false;
+            StartTalkButton.IsEnabled = false;
             return;
         }
         var batch = row.Batch;
@@ -114,6 +115,7 @@ public sealed partial class TrainingHistoryWindow : Window
         var running = batch.Jobs.Any(job => job.State == TrainingJobState.Running);
         if (running) BatchDetailText.Text += "\n実行中のジョブを含むため、終了または中止を確認するまで再作成できません。";
         RecreateBatchButton.IsEnabled = !_busy && !running;
+        StartTalkButton.IsEnabled = !_busy && PendingTalkJob(batch) is not null;
     }
 
     private async void OnRecreateBatchClick(object? sender, RoutedEventArgs e)
@@ -150,8 +152,10 @@ public sealed partial class TrainingHistoryWindow : Window
     {
         var dialog = new Window
         {
-            Title = "学習ジョブを再作成しますか？", Width = 580,
-            SizeToContent = SizeToContent.Height, CanResize = false,
+            Title = "学習ジョブを再作成しますか？",
+            Width = 580,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
         var cancel = new Button { Content = "取り消す", IsCancel = true };
@@ -160,7 +164,8 @@ public sealed partial class TrainingHistoryWindow : Window
         confirm.Click += (_, _) => dialog.Close(true);
         dialog.Content = new StackPanel
         {
-            Margin = new Thickness(24), Spacing = 16,
+            Margin = new Thickness(24),
+            Spacing = 16,
             Children =
             {
                 new TextBlock
@@ -212,14 +217,19 @@ public sealed partial class TrainingHistoryWindow : Window
 
     private static string TargetLabel(TrainingTarget target) => target switch
     {
-        TrainingTarget.Talk => "トーク", TrainingTarget.Singing => "歌唱", _ => "両方"
+        TrainingTarget.Talk => "トーク",
+        TrainingTarget.Singing => "歌唱",
+        _ => "両方"
     };
 
     private static string StateLabel(TrainingJobState state) => state switch
     {
-        TrainingJobState.Pending => "待機中", TrainingJobState.Running => "実行中",
-        TrainingJobState.Succeeded => "完了", TrainingJobState.Failed => "失敗",
-        TrainingJobState.Canceled => "中止", _ => "不明"
+        TrainingJobState.Pending => "待機中",
+        TrainingJobState.Running => "実行中",
+        TrainingJobState.Succeeded => "完了",
+        TrainingJobState.Failed => "失敗",
+        TrainingJobState.Canceled => "中止",
+        _ => "不明"
     };
 
     private sealed record BatchRow(TrainingJobBatch Batch)

@@ -165,3 +165,73 @@ public sealed class TrainerExecutionBindingTests
                 .AsExecution(project.Workspace, "model")(talk, TestProject.Token));
     }
 }
+
+// { 責務: [SpeakerInventoryProviderTests: 保存済みデータから話者の棚卸しを作り、分類が無ければ拒否することを確認する] }
+public sealed class SpeakerInventoryProviderTests
+{
+    [Fact]
+    public async Task InventoryComesFromSavedSegmentsAndTheJobSpeaker()
+    {
+        using var project = new TestProject();
+        await project.SeedAsync(project.Segment("a", duration: 3), project.Segment("b", duration: 3));
+        var job = Assert.Single((await project.Planner().CreateBatchAsync(project.Workspace,
+            [new SpeakerTrainingSelection { SpeakerId = "spk_a", Target = TrainingTarget.Talk, AutoCorrectionEnabled = false }],
+            TestProject.Token)).Jobs);
+        var inventory = await new SpeakerInventoryProvider(project.Correction(), project.Classifications)
+            .BuildAsync(project.Workspace, job, TestProject.Token);
+        Assert.Equal("spk_a", inventory.SpeakerId);
+        Assert.Equal(job.DatasetFingerprint, inventory.DatasetFingerprint);
+        Assert.True(inventory.Speech.RawSeconds > 0);
+        Assert.False(string.IsNullOrEmpty(inventory.InventoryRevision));
+    }
+
+    [Fact]
+    public async Task MissingClassificationIsRejectedInsteadOfAnEmptyInventory()
+    {
+        using var project = new TestProject();
+        var job = new TrainingJobRecord
+        {
+            JobId = "j",
+            SpeakerId = "spk_a",
+            Target = TrainingTarget.Talk,
+            DatasetFingerprint = "fp",
+            SegmentIds = ["s"],
+            Backend = TrainingBackendCatalog.TalkBackend,
+            BackendRevision = TrainingBackendCatalog.TalkRevision
+        };
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new SpeakerInventoryProvider(project.Correction(), project.Classifications).BuildAsync(project.Workspace, job, TestProject.Token));
+    }
+}
+
+// { 責務: [TalkTrainingPipelineTests: 実行不可のとき学習入力もTrainerも作られず、jobがPendingのままであることを確認する] }
+public sealed class TalkTrainingPipelineTests
+{
+    [Fact]
+    public async Task WithoutCudaNothingIsBuiltOrStartedAndTheJobStaysPending()
+    {
+        using var project = new TestProject();
+        await project.SeedAsync(project.Segment("a", duration: 3), project.Segment("b", duration: 3));
+        var batch = await project.Planner().CreateBatchAsync(project.Workspace,
+            [new SpeakerTrainingSelection { SpeakerId = "spk_a", Target = TrainingTarget.Talk, AutoCorrectionEnabled = false }],
+            TestProject.Token);
+        var job = Assert.Single(batch.Jobs);
+        var preflight = new TrainingPreflightService(
+            new TalkTrainingStrategyPlanner(BuiltInTalkStrategies.CreateRegistry(), new TexturePresetRegistry()),
+            new SingingTrainingStrategyPlanner(BuiltInSingingStrategies.CreateRegistry(), new TexturePresetRegistry()), project.Jobs);
+        var worker = new YourSinger.Process.Processing.Ml.Bridge.MlWorkerClient("worker-that-must-not-start", []);
+        var pipeline = new YourSinger.Process.Processing.Talk.TalkTrainingPipeline(
+            new SpeakerInventoryProvider(project.Correction(), project.Classifications),
+            new TrainingExecutionService(preflight, new TrainingJobRunner(project.Planner()), project.Jobs),
+            new YourSinger.Process.Processing.Talk.StyleBertVits2DatasetBuilder(project.DatasetRepository),
+            new YourSinger.Process.Processing.Talk.StyleBertVits2TrainerService(worker), project.Jobs,
+            _ => Task.FromResult(new HardwareInfo(false, null)),
+            _ => Task.FromResult<IReadOnlyList<ResolverCheckpoint>>([]));
+        var outcome = await pipeline.RunAsync(project.Workspace, batch.BatchId, job.JobId, "trainer", "lock", TestProject.Token);
+        Assert.Null(outcome.State);
+        Assert.NotEmpty(outcome.StopReasons);
+        TestProject.AssertNoTrainingInputPublished(project.Workspace);
+        var saved = (await project.Jobs.LoadBatchAsync(project.Workspace, batch.BatchId, TestProject.Token))!.Jobs.Single();
+        Assert.Equal(TrainingJobState.Pending, saved.State);
+    }
+}
