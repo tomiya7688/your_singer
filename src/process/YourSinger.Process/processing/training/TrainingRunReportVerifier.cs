@@ -64,6 +64,7 @@ public static class TrainingRunReportVerifier
         if (report.TrainerExitCode != 0) problems.Add($"Trainerの終了コードが0ではありません: {report.TrainerExitCode?.ToString() ?? "未記録"}");
         if (job.Seed is { } seed && report.Seed != seed) problems.Add($"seedが指定と違います(指定 {seed}、記録 {report.Seed?.ToString() ?? "なし"})。");
         VerifyMode(job, report, problems);
+        VerifyWeightSampling(job, report, problems);
         VerifyArtifacts(report, outputDirectory, problems);
         if (problems.Count > 0) return Failed([.. problems]);
         // 起動前に置いた重みのhash確認(staged)は、Trainerが実際に読み込んだこと(loaded)の確認ではない。
@@ -76,6 +77,21 @@ public static class TrainingRunReportVerifier
                 ? ["初期重みの実際の読込が観測できていないため、指定どおりの初期化は確認できていません。"]
                 : ["初期重みは起動前に置いた状態のhashまで確認しました。Trainerが実際に読み込んだことは未確認です。"]
         };
+    }
+
+    // SBV2(トーク)の評価付きジョブでは、重み付きサンプラーが学習中に実際に使われたことを要求する。
+    // 無効・欠落を等重みの成功として扱わない。
+    private static void VerifyWeightSampling(TrainingJobRecord job, TrainingRunReport report, List<string> problems)
+    {
+        if (job.Target != TrainingTarget.Talk || job.InputFingerprint is null) return;
+        var sampling = report.WeightSampling;
+        if (sampling is not { Applied: true } || sampling.Iterations < 1 || string.IsNullOrEmpty(sampling.SamplerVersion))
+        {
+            problems.Add("重み付きサンプリングが学習中に使われた記録がありません(等重みの学習を成功にしません)。");
+            return;
+        }
+        if (job.Seed is { } seed && sampling.Seed != seed)
+            problems.Add($"サンプラーのseedが指定と違います(指定 {seed}、記録 {sampling.Seed?.ToString() ?? "なし"})。");
     }
 
     private static void VerifyMode(TrainingJobRecord job, TrainingRunReport report, List<string> problems)

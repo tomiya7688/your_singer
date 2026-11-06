@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .run_report import build_run_report
 from .style_bert_vits2_session import StyleBertVits2TrainingSession
+from .style_bert_vits2_weighted_sampler import read_report
 
 
 # {
@@ -82,6 +83,10 @@ def train_style_bert_vits2(payload: dict) -> dict:
         ("style_vectors", Path(result["style_vectors_path"])),
         *[("model_weights", Path(path)) for path in result["model_weights_paths"]],
     ]
+    # 重みmanifestがあるジョブでは、重み付きサンプラーが学習中に実際に使われたことを要求する(使われなければ失敗)。
+    weight_sampling = (
+        read_report(session.output / "weight_sampling.json") if session.weight_manifest else None
+    )
     result["run_report"] = build_run_report(
         payload.get("job_id", ""),
         payload.get("resolved_training_mode"),
@@ -91,6 +96,7 @@ def train_style_bert_vits2(payload: dict) -> dict:
         artifacts,
         staged,
         "staged_before_launch" if staged is not None else None,
+        weight_sampling,
     )
     # 結果の参照も非公開Voice Project内に残し、Exporterへ渡せるようにする。
     (session.output / "result.json").write_text(

@@ -64,7 +64,8 @@ public sealed class StyleBertVits2TrainingTests
             trainer=dataset/'trainer'; trainer.mkdir(exist_ok=True)
             (trainer/'model.safetensors').write_bytes(b'weights')
             report=dict(schema_version='1',job_id=payload['job_id'],resolved_mode=None,seed=None,trainer_exit_code=0,initialization_observed=None,
-                        artifacts=[dict(kind='model_weights',path='model.safetensors',sha256=hashlib.sha256(b'weights').hexdigest())])
+                        artifacts=[dict(kind='model_weights',path='model.safetensors',sha256=hashlib.sha256(b'weights').hexdigest())],
+                        weight_sampling=dict(applied=True,sampler_version='weighted-bucket-v1',seed=None,item_count=1,min_weight=1.0,max_weight=1.0,manifest_sha256='x',iterations=1,last_epoch=0))
             print(json.dumps(dict(request_id=request['request_id'],status='ok',result=dict(log_path=str(trainer/'trainer.log'),run_report=report))))
             """;
         var python = Environment.GetEnvironmentVariable("YOURSINGER_TEST_PYTHON") ?? "python";

@@ -194,6 +194,34 @@ def append_timbre_style(
 
 
 # {
+#   責務: [install_weighted_sampler: 重みmanifestがあるジョブで、公式の DistributedBucketSampler を重み付き版へ差し替える]
+#   処理: [1: request.json から重みmanifestの記録を読む 2: ジョブ内のmanifestをsha256で再検証する 3: data_utils のサンプラーを差し替える]
+#   エラー: [manifestの改竄・欠落・固定版でないdata_utilsで失敗(等重みで続行しない)。記録が無い旧形式は何もしない]
+# }
+def install_weighted_sampler(trainer: Path, output: Path) -> None:
+    request = json.loads((output / "request.json").read_text(encoding="utf-8"))
+    record = request.get("weight_manifest")
+    if record is None:
+        return
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "style_bert_vits2_weighted_sampler",
+        Path(__file__).with_name("style_bert_vits2_weighted_sampler.py"),
+    )
+    sampler = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sampler)
+    weights, digest = sampler.load_weight_manifest(
+        output / "data" / record["file"], record["sha256"], request["source_job"]["job_id"]
+    )
+    import data_utils
+
+    sampler.install(
+        data_utils, weights, int(record.get("seed") or 0), digest, output / "weight_sampling.json"
+    )
+
+
+# {
 #   責務: [main: 専用Pythonから許可した公式工程だけを起動する]
 #   処理: [1: 公式ソースの版を確認する 2: 辞書の書込先を分離する 3: 工程を起動する]
 #   エラー: [不明な工程・版違い・工程の失敗を終了コードで伝える]
@@ -228,6 +256,8 @@ def main() -> None:
             output, Path(references).resolve(), style_name, Path(model_dir).resolve()
         )
         return
+    if stage == "train_ms.py":
+        install_weighted_sampler(trainer, output)
     sys.argv = [str(trainer / stage), *sys.argv[4:]]
     if stage in {"preprocess_text.py", "bert_gen.py"}:
         with isolated_dictionary_worker():
