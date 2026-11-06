@@ -12,6 +12,7 @@ from .diffsinger_initialization import (
     verify_dumped_config,
 )
 from .diffsinger_weighted_sampler import read_report
+from .process_tree import classify, record_failure, run_reclaiming
 from .run_report import build_run_report
 
 
@@ -98,6 +99,20 @@ def train_diffsinger(payload: dict) -> dict:
         _resolve_training_paths(payload)
     )
     output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        return _run_training(
+            payload, trainer_root, trainer_python, trainer_entry, config_path, exp_name, output_dir
+        )
+    except BaseException as error:
+        # 取消・タイムアウト・異常終了を区別して診断用に残す。成功として公開しない。
+        record_failure(output_dir, classify(error), str(error))
+        raise
+
+
+# { 責務: [_run_training: 検証済みのパスで学習を実行し、成果物と実行記録を返す(失敗は呼び出し側が記録する)] }
+def _run_training(
+    payload, trainer_root, trainer_python, trainer_entry, config_path, exp_name, output_dir
+) -> dict:
     # 学習モード(fine_tune / from_scratch)が指定されたときは、初期化方式を固定するoverlayのconfigで起動する。
     plan = prepare_initialization(payload, config_path, output_dir, exp_name)
     environment = _build_training_environment(output_dir)
@@ -127,8 +142,9 @@ def train_diffsinger(payload: dict) -> dict:
     log_path = output_dir / "trainer.log"
     # 同じjobを再実行しても以前のログを上書きしない。
     with log_path.open("a", encoding="utf-8") as log_file:
-        completed = subprocess.run(
+        completed = run_reclaiming(
             command,
+            timeout=payload.get("stage_timeout_seconds"),
             cwd=output_dir,
             check=False,
             text=True,
