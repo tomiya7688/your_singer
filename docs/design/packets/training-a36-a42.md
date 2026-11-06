@@ -109,11 +109,11 @@ Issue 本文と設計正本の食い違いは「要決定」に記録します�
 - テスト: 自動(クラス名は Issue になし): built-in preset の読込、Mod の追加、ID 競合、version 違い、traits が 0〜1 の外、target 不一致、Job fingerprint への反映、破損 JSON と unsupported schema version の理由付き拒否。実音声の差の確認は #136 の範囲外(下の注記)。
 - 非目標: 学習方式の登録(#137)、外部 worker の実行(#138)、UI(#139)。
 - 注記: 「名前だけ変わった成果物を preset 成功と表示しない」(learning-system-design.md §3、taxonomy §5)の検証は、実 stage と実生成が揃う #99・#100・#108 側の範囲。#136 は Registry 上の状態表示までを担当する。
-- 要決定: Issue の「reference 要件」と「strategy tags」。schema には `required_capability_tags`・`preferred_strategy_tags` はあるが、reference(参考区間)の要件を持つ項目が無い。参考区間は preset ではなく Goal 側(`reference_segment_ids`)の入力であるため、preset 側で何を宣言するか。
-- 要決定: ビルトイン preset 8 件の `traits` の初期値と `required_capability_tags`。taxonomy は目標特徴を文章で述べるのみ(D-00: 根拠が無い間は保存するだけで合否に使わない)。
-- 要決定: `characterized` は taxonomy の表と Issue の列挙に出るが、learning-system-design.md §3 の表には無い。初期候補に含めるか。
-- 要決定: `TexturePresetRecord`(Data 層)と Registry(Process 層)の分担、および Mod 用 `preset.json` の読込を担う層(#139 の「Registry の読込導線」との境界)。
-- 要決定: fingerprint への渡し方。現行の `CreateJobFingerprint` は `training-job-input-2`。D-07 の `input_fingerprint`(目的/質感を含む)と `run_fingerprint` の分離に合わせる。
+- ~~要決定: Issue の「reference 要件」と「strategy tags」。schema には `required_capability_tags`・`preferred_strategy_tags` はあるが、reference(参考区間)の要件を持つ項目が無い。参考区間は preset ではなく Goal 側(`reference_segment_ids`)の入力であるため、preset 側で何を宣言するか。~~ → 暫定(#136): preset 側には参考区間の要件を持たせない。参考区間はジョブの目標(`reference_segment_ids`)の入力で、preset は `required_capability_tags`(例: `same_speaker_reference`)だけで必要性を宣言する。`preferred_strategy_tags` は schema どおり
+- ~~要決定: ビルトイン preset 8 件の `traits` の初期値と `required_capability_tags`。taxonomy は目標特徴を文章で述べるのみ(D-00: 根拠が無い間は保存するだけで合否に使わない)。~~ → 暫定(#136): `BuiltInTexturePresets` に方向を示す初期値を置く(根拠が得られるまで保存・表示のみで合否に使わない)。数値は検証済みではない
+- ~~要決定: `characterized` は taxonomy の表と Issue の列挙に出るが、learning-system-design.md §3 の表には無い。初期候補に含めるか。~~ → 暫定(#136): 初期候補に含める(8件)
+- ~~要決定: `TexturePresetRecord`(Data 層)と Registry(Process 層)の分担、および Mod 用 `preset.json` の読込を担う層(#139 の「Registry の読込導線」との境界)。~~ → 暫定(#136): record は `YourSinger.Data/models/TexturePresetRecord.cs`、検証(`TexturePresetValidator`)と登録簿(`TexturePresetRegistry`)は `processing/training/`。Mod の `preset.json` は文字列またはファイル単位で `RegisterMod` / `RegisterModFile` に渡す。ディレクトリの走査と読込導線は #139
+- ~~要決定: fingerprint への渡し方。現行の `CreateJobFingerprint` は `training-job-input-2`。D-07 の `input_fingerprint`(目的/質感を含む)と `run_fingerprint` の分離に合わせる。~~ → 暫定(#136): `TrainingTextureRequest.PresetVersion`(任意)を追加し、ジョブの契約 fingerprint に `preset=<id>@<version>` と参考区間を含める。version が無いときは従来と同じ値のまま(既存ジョブの fingerprint を変えない)。入力全体の fingerprint は #85 の `training-input-v1` で契約 fingerprint を含む
 
 ### #137 A40 組み込み/Mod 学習戦略の Registry と宣言 JSON の検証を実装する
 
