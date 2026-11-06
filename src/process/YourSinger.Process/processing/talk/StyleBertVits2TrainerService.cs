@@ -148,7 +148,10 @@ public sealed class StyleBertVits2TrainerService
                 throw new InvalidOperationException("声質参照を渡しましたが、Trainerがスタイル追加を報告していません。");
             usage = new SharedFeatureUsageEntry
             {
-                Feature = usage.Feature, Domain = usage.Domain, Support = usage.Support, Used = true,
+                Feature = usage.Feature,
+                Domain = usage.Domain,
+                Support = usage.Support,
+                Used = true,
                 Reason = $"歌唱区間 {count.GetInt32()} 件の音声から作ったスタイル「{TalkTimbreAdaptationInput.StyleName}」をトークモデルへ追加しました(教師データには使っていません)。"
             };
         }

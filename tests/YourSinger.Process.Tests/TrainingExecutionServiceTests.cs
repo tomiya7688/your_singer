@@ -11,27 +11,44 @@ public sealed class TrainingExecutionServiceTests
 {
     private static SpeakerDataInventory Inventory(double speech, double singing, string revision = "rev") => new()
     {
-        SchemaVersion = "1", SpeakerId = "spk_a", DatasetFingerprint = "fp", CalculationVersion = "v", InventoryRevision = revision,
+        SchemaVersion = "1",
+        SpeakerId = "spk_a",
+        DatasetFingerprint = "fp",
+        CalculationVersion = "v",
+        InventoryRevision = revision,
         Speech = new SpeechInventory
         {
-            RawSeconds = speech, EligibleSeconds = speech, DistinctRecordings = speech > 0 ? 3 : 0,
-            IndependentUtterances = (int)(speech / 3), TranscriptUsableCount = (int)(speech / 3), PhonemeCoverageCount = 30
+            RawSeconds = speech,
+            EligibleSeconds = speech,
+            DistinctRecordings = speech > 0 ? 3 : 0,
+            IndependentUtterances = (int)(speech / 3),
+            TranscriptUsableCount = (int)(speech / 3),
+            PhonemeCoverageCount = 30
         },
         Singing = new SingingInventory
         {
-            RawSeconds = singing, EligibleSeconds = singing, DistinctRecordings = singing > 0 ? 3 : 0,
-            IndependentPhrases = (int)(singing / 5), PitchBinsObserved = singing > 0 ? 4 : 0
+            RawSeconds = singing,
+            EligibleSeconds = singing,
+            DistinctRecordings = singing > 0 ? 3 : 0,
+            IndependentPhrases = (int)(singing / 5),
+            PitchBinsObserved = singing > 0 ? 4 : 0
         },
         IdentityReference = new IdentityReferenceInventory { EligibleSeconds = speech + singing, DistinctSources = 3 },
-        MeasurementStatus = new() { ["duration"] = ConfidenceStatus.Measured }, DerivedTags = []
+        MeasurementStatus = new() { ["duration"] = ConfidenceStatus.Measured },
+        DerivedTags = []
     };
 
     private static TrainingJobRecord Job(TrainingTarget target, TrainingMode mode = TrainingMode.Auto, string preset = "natural") => new()
     {
-        JobId = "job-1", SpeakerId = "spk_a", Target = target, DatasetFingerprint = "fp", SegmentIds = ["s1"],
+        JobId = "job-1",
+        SpeakerId = "spk_a",
+        Target = target,
+        DatasetFingerprint = "fp",
+        SegmentIds = ["s1"],
         Backend = target == TrainingTarget.Talk ? TrainingBackendCatalog.TalkBackend : TrainingBackendCatalog.SingingBackend,
         BackendRevision = target == TrainingTarget.Talk ? TrainingBackendCatalog.TalkRevision : TrainingBackendCatalog.SingingRevision,
-        RequestedTexture = new TrainingTextureRequest { Preset = preset }, RequestedTrainingMode = mode,
+        RequestedTexture = new TrainingTextureRequest { Preset = preset },
+        RequestedTrainingMode = mode,
         ResolvedTrainingMode = mode == TrainingMode.Auto ? null : mode,
         Initialization = mode == TrainingMode.FromScratch ? new TrainingInitialization { Type = TrainingJobVocabulary.RandomInitialization } : null
     };
@@ -122,13 +139,23 @@ public sealed class TrainerExecutionBindingTests
         var worker = new YourSinger.Process.Processing.Ml.Bridge.MlWorkerClient("worker-that-must-not-start", []);
         var singing = new TrainingJobRecord
         {
-            JobId = "j", SpeakerId = "spk_a", Target = TrainingTarget.Singing, DatasetFingerprint = "fp", SegmentIds = ["s"],
-            Backend = TrainingBackendCatalog.SingingBackend, BackendRevision = TrainingBackendCatalog.SingingRevision
+            JobId = "j",
+            SpeakerId = "spk_a",
+            Target = TrainingTarget.Singing,
+            DatasetFingerprint = "fp",
+            SegmentIds = ["s"],
+            Backend = TrainingBackendCatalog.SingingBackend,
+            BackendRevision = TrainingBackendCatalog.SingingRevision
         };
         var talk = new TrainingJobRecord
         {
-            JobId = "j", SpeakerId = "spk_a", Target = TrainingTarget.Talk, DatasetFingerprint = "fp", SegmentIds = ["s"],
-            Backend = TrainingBackendCatalog.TalkBackend, BackendRevision = TrainingBackendCatalog.TalkRevision
+            JobId = "j",
+            SpeakerId = "spk_a",
+            Target = TrainingTarget.Talk,
+            DatasetFingerprint = "fp",
+            SegmentIds = ["s"],
+            Backend = TrainingBackendCatalog.TalkBackend,
+            BackendRevision = TrainingBackendCatalog.TalkRevision
         };
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             new YourSinger.Process.Processing.Singing.DiffSingerTrainerService(worker)

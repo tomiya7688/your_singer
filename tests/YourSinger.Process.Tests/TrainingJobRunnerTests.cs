@@ -10,7 +10,9 @@ public sealed class TrainingJobRunnerTests
 {
     private static readonly SpeakerTrainingSelection Singing = new()
     {
-        SpeakerId = "spk_a", Target = TrainingTarget.Singing, AutoCorrectionEnabled = false
+        SpeakerId = "spk_a",
+        Target = TrainingTarget.Singing,
+        AutoCorrectionEnabled = false
     };
 
     private static async Task<(TestProject Project, TrainingJobPlanningService Planner, TrainingJobBatch Batch)> ArrangeAsync()
