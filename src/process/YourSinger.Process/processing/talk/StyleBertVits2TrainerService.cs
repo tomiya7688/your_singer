@@ -81,11 +81,7 @@ public sealed class StyleBertVits2TrainerService
         RecordTimbreUsage(job, timbre, references, result);
 
         // worker の実行記録を、計画と実ファイルに照合する。矛盾・欠損は失敗にし、成功として残さない。
-        var runReport = result.TryGetProperty("run_report", out var reportElement)
-            ? TrainingRunReportVerifier.Parse(reportElement) : null;
-        job.RunVerification = TrainingRunReportVerifier.Verify(job, runReport, outputDirectory);
-        if (job.RunVerification.Status == TrainingRunVerificationStatus.Failed)
-            throw new InvalidOperationException("学習の実行記録が計画と一致しません: " + string.Join(" / ", job.RunVerification.Problems));
+        TrainingRunReportVerifier.VerifyAndRecord(job, result, outputDirectory);
 
         return logPath.GetString()
             ?? throw new InvalidOperationException(

@@ -39,6 +39,18 @@ public static class TrainingRunReportVerifier
     }
 
     // {
+    //   責務: [VerifyAndRecord: worker 応答の run_report をジョブに照合し、結果をジョブに残す。失敗は例外にする]
+    //   エラー: [記録が計画と一致しない(Failed)とき InvalidOperationException。Unverified は例外にせず、ジョブに残す]
+    // }
+    public static void VerifyAndRecord(TrainingJobRecord job, JsonElement result, string outputDirectory)
+    {
+        var report = result.TryGetProperty("run_report", out var element) ? Parse(element) : null;
+        job.RunVerification = Verify(job, report, outputDirectory);
+        if (job.RunVerification.Status == TrainingRunVerificationStatus.Failed)
+            throw new InvalidOperationException("学習の実行記録が計画と一致しません: " + string.Join(" / ", job.RunVerification.Problems));
+    }
+
+    // {
     //   責務: [Verify: 記録をジョブと出力先の実ファイルに照合し、結果を返す]
     //   引数: [job: 解決済み計画つきのジョブ, report: worker の記録(無ければnull), outputDirectory: 学習出力ディレクトリ]
     //   戻り値: [record: verified / failed / unverified と理由(日本語)]
