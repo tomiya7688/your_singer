@@ -112,7 +112,8 @@ public sealed partial class TrainingHistoryWindow : Window
         BatchDetailText.Text = $"識別子: {batch.BatchId}\n入力形式: {(string.IsNullOrEmpty(batch.InputVersion) ? "旧形式（版情報なし）" : batch.InputVersion)}\n" +
             (batch.RecreatedFromBatchId is null ? "" : $"再作成元: {batch.RecreatedFromBatchId}\n") +
             string.Join("\n", batch.Jobs.Select(job =>
-                $"{job.SpeakerId} / {TargetLabel(job.Target)} / 補完{(job.AutoCorrectionEnabled ? "ON" : "OFF")} / {StateLabel(job.State)} / {job.SegmentIds.Count}区間"));
+                $"{job.SpeakerId} / {TargetLabel(job.Target)} / 補完{(job.AutoCorrectionEnabled ? "ON" : "OFF")} / {StateLabel(job.State)} / {job.SegmentIds.Count}区間\n" +
+                string.Join("\n", YourSinger.Process.Processing.Training.TrainingPlanSelection.DescribeJob(job))));
         var running = batch.Jobs.Any(job => job.State == TrainingJobState.Running);
         if (running) BatchDetailText.Text += "\n実行中のジョブを含むため、終了または中止を確認するまで再作成できません。";
         RecreateBatchButton.IsEnabled = !_busy && !running;

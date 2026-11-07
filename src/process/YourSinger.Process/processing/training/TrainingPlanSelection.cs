@@ -49,6 +49,25 @@ public static class TrainingPlanSelection
         };
     }
 
+    // {
+    //   責務: [DescribeJob: ジョブに保存された質感・初期化モードの指定と、解決済み計画を日本語の行にする]
+    //   引数: [job: 学習ジョブ]
+    //   戻り値: [lines: 指定の行と、計画があればその説明。旧ジョブは「指定なし」と明記する]
+    // }
+    public static IReadOnlyList<string> DescribeJob(TrainingJobRecord job)
+    {
+        var lines = new List<string>();
+        if (job.IsLegacyWithoutTrainingContract)
+            lines.Add("  学習方式の指定: なし(旧形式のジョブ。再作成すると既定で作り直します)");
+        else
+            lines.Add($"  質感: {job.RequestedTexture?.Preset ?? TrainingJobVocabulary.DefaultTexturePreset} / 初期化モード: {ModeLabel(job.RequestedTrainingMode!.Value)}");
+        if (job.ResolvedPlan is { } plan)
+            lines.AddRange(DescribePlan(plan).Select(x => "  " + x));
+        else
+            lines.Add("  計画: 未解決(学習を始めるときに確認します)");
+        return lines;
+    }
+
     public static string ModeLabel(TrainingMode mode) => mode switch
     {
         TrainingMode.FineTune => "追加学習",

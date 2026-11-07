@@ -68,4 +68,22 @@ public sealed class TrainingPlanSelectionTests
         Assert.Contains("注意: 素材が少なめです", text);
         Assert.Contains("停止理由: GPUが見つかりません", text);
     }
+
+    [Fact]
+    public void ALegacyJobIsDescribedAsHavingNoTrainingMethodAndANewJobShowsItsRequest()
+    {
+        TrainingJobRecord Job(TrainingMode? mode) => new()
+        {
+            JobId = "j",
+            SpeakerId = "s",
+            Target = TrainingTarget.Talk,
+            DatasetFingerprint = "fp",
+            RequestedTrainingMode = mode,
+            RequestedTexture = mode is null ? null : new TrainingTextureRequest { Preset = "builtin.powerful" }
+        };
+        Assert.Contains("旧形式", string.Join("\n", TrainingPlanSelection.DescribeJob(Job(null))));
+        var text = string.Join("\n", TrainingPlanSelection.DescribeJob(Job(TrainingMode.FineTune)));
+        Assert.Contains("質感: builtin.powerful / 初期化モード: 追加学習", text);
+        Assert.Contains("計画: 未解決", text);
+    }
 }
