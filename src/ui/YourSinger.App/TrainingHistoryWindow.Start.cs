@@ -122,7 +122,9 @@ public sealed partial class TrainingHistoryWindow
             new SpeakerInventoryProvider(correction, new ContentClassificationRepository()),
             new TrainingExecutionService(preflight, new TrainingJobRunner(planning), _jobs),
             new DiffSingerDatasetBuilder(dataset), new DiffSingerAcousticInputService(worker),
-            new DiffSingerBinarizeService(worker), new DiffSingerTrainerService(worker), _jobs);
+            new DiffSingerBinarizeService(worker), new DiffSingerTrainerService(worker), _jobs,
+            durationInput: new DiffSingerDurationInputService(worker),
+            durationBinarize: new DiffSingerDurationBinarizeService(worker));
     }
 
     // { 責務: [OnCancelTrainingClick: 実行中の学習を取り消す(Trainerの子プロセスごと停止される)] }

@@ -8,15 +8,17 @@ namespace YourSinger.Process.Processing.Singing;
 // {
 //   責務: [SingingTrainingPipeline: 歌唱学習1件を、棚卸し・GPU・初期重みの確認から、学習入力・binarization・学習・終了状態の記録まで進める]
 //   フィールド: [inventory/execution/jobs: トーク側と同じ共通部品, datasetBuilder/acousticInput/binarize/trainer: 歌唱の各段階,
-//     detectHardware/scanCheckpoints: テストで置き換える取得処理]
-//   処理: [1: 棚卸しとGPU・初期重みを集める 2: 計画を解決し実行不可なら止める 3: 実行中に学習入力→音響入力→binarization→学習を順に行う]
+//     detectHardware/scanCheckpoints: テストで置き換える取得処理, durationInput/durationBinarize: 指定時だけ音響学習の後にDurationを学習する]
+//   処理: [1: 棚卸しとGPU・初期重みを集める 2: 計画を解決し実行不可なら止める 3: 実行中に学習入力→音響入力→binarization→学習を順に行う 4: Duration段階が指定されていれば、音響学習の後にDuration入力→binarization→学習を行う]
 // }
 public sealed class SingingTrainingPipeline(
     SpeakerInventoryProvider inventory, TrainingExecutionService execution, DiffSingerDatasetBuilder datasetBuilder,
     DiffSingerAcousticInputService acousticInput, DiffSingerBinarizeService binarize, DiffSingerTrainerService trainer,
     TrainingJobRepository jobs,
     Func<CancellationToken, Task<HardwareInfo>>? detectHardware = null,
-    Func<CancellationToken, Task<IReadOnlyList<ResolverCheckpoint>>>? scanCheckpoints = null)
+    Func<CancellationToken, Task<IReadOnlyList<ResolverCheckpoint>>>? scanCheckpoints = null,
+    DiffSingerDurationInputService? durationInput = null,
+    DiffSingerDurationBinarizeService? durationBinarize = null)
 {
     public static readonly string VocoderRelativePath = Path.Combine("models", "vocoder", "nsf_hifigan", "model.ckpt");
 
@@ -59,7 +61,14 @@ public sealed class SingingTrainingPipeline(
                 await datasetBuilder.BuildAsync(workspace, fixedJob, token);
                 await acousticInput.PrepareAsync(workspace, fixedJob, token);
                 var configPath = await binarize.BinarizeAsync(workspace, fixedJob, trainerRoot, token);
-                return await trainer.TrainAsync(workspace, fixedJob, configPath, token);
+                var acousticLog = await trainer.TrainAsync(workspace, fixedJob, configPath, token);
+                if (durationInput is null || durationBinarize is null)
+                    return acousticLog;
+                // Durationは音響モデルと別の出力先で学習する。失敗は例外としてjobをFailedにする(音響の成果は出力先に残る)。
+                await durationInput.PrepareAsync(workspace, fixedJob, token);
+                var durationConfig = await durationBinarize.BinarizeAsync(workspace, fixedJob, trainerRoot, token);
+                await trainer.TrainDurationAsync(workspace, fixedJob, durationConfig, token);
+                return acousticLog;
             }, cancellationToken);
     }
 }

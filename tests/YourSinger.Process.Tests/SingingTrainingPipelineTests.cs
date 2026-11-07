@@ -85,4 +85,30 @@ public sealed class SingingTrainingPipelineTests
             new DiffSingerBinarizeService(new MlWorkerClient("worker-that-must-not-start", []))
                 .BinarizeAsync(project.Workspace, job, "trainer", TestProject.Token));
     }
+
+    [Fact]
+    public async Task TheDurationStagesAreOptionalAndAlsoStayUnstartedWithoutCuda()
+    {
+        using var project = new TestProject();
+        await project.SeedAsync(project.Segment("a", type: SegmentContentType.Singing, duration: 3),
+            project.Segment("b", type: SegmentContentType.Singing, duration: 3));
+        var batch = await project.Planner().CreateBatchAsync(project.Workspace,
+            [new SpeakerTrainingSelection { SpeakerId = "spk_a", Target = TrainingTarget.Singing, AutoCorrectionEnabled = false }],
+            TestProject.Token);
+        var preflight = new TrainingPreflightService(
+            new TalkTrainingStrategyPlanner(BuiltInTalkStrategies.CreateRegistry(), new TexturePresetRegistry()),
+            new SingingTrainingStrategyPlanner(BuiltInSingingStrategies.CreateRegistry(), new TexturePresetRegistry()), project.Jobs);
+        var worker = new MlWorkerClient("worker-that-must-not-start", []);
+        var pipeline = new SingingTrainingPipeline(
+            new SpeakerInventoryProvider(project.Correction(), project.Classifications),
+            new TrainingExecutionService(preflight, new TrainingJobRunner(project.Planner()), project.Jobs),
+            new DiffSingerDatasetBuilder(project.DatasetRepository), new DiffSingerAcousticInputService(worker),
+            new DiffSingerBinarizeService(worker), new DiffSingerTrainerService(worker), project.Jobs,
+            _ => Task.FromResult(new HardwareInfo(false, null)),
+            _ => Task.FromResult<IReadOnlyList<ResolverCheckpoint>>([]),
+            new DiffSingerDurationInputService(worker), new DiffSingerDurationBinarizeService(worker));
+        var outcome = await pipeline.RunAsync(project.Workspace, batch.BatchId, batch.Jobs.Single().JobId, "trainer", "checkpoints", TestProject.Token);
+        Assert.Null(outcome.State);
+        TestProject.AssertNoTrainingInputPublished(project.Workspace);
+    }
 }

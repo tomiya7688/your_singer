@@ -121,6 +121,8 @@
 - 実装済み(配線): `DiffSingerTrainerService.AsExecution` と `StyleBertVits2TrainerService.AsExecution` が実行デリゲートを返す(計画の無いjobは worker 起動前に拒否。`TrainerExecutionBindingTests`)。
 - 実装済み(トークのUI接続): `TalkTrainingPipeline.RunAsync`(棚卸し `SpeakerInventoryProvider` → GPU `HardwareProbe` → 初期重み `TalkCheckpointInventory` → 計画解決 → 学習入力の作成 → 学習 → 終了状態の記録)と、`TrainingHistoryWindow` の「待機中のトークジョブを学習」「学習を取り消す」。実行不可は学習入力もTrainerも作らずPendingのまま理由を表示する(`TalkTrainingPipelineTests`)。画面操作と実GPU学習は自動試験の対象外で未確認。
 - 実装済み(歌唱のUI接続): `SingingTrainingPipeline.RunAsync`(棚卸し → GPU → 初期重み `SingingCheckpointInventory` → 計画解決 → 学習入力 → 音響入力 → 公式binarization `DiffSingerBinarizeService`(#181) → 学習 → 終了状態の記録)と、学習履歴画面の「待機中の歌唱ジョブを学習」。歌唱の事前学習重みは同梱しておらず、`checkpoints.json` が無ければ重み無し(from_scratch のみ成立、fine_tune は停止)。実行不可は入力もTrainerも作らずPendingのまま理由を表示する。画面操作・実GPU学習・実モデルでの公式binarizationは未確認。
+
+- 実装済み(Duration段階の接続): `SingingTrainingPipeline` は `durationInput`/`durationBinarize` を渡されたとき、音響学習の後に Duration入力(#95) → variance binarization(#95) → `TrainDurationAsync` を同じjobの中で続ける(UIは両方を渡す)。Duration段階の失敗はjobをFailedにする(音響の成果は出力先に残る)。実素材・実GPUでの通し実行は未確認。
 - 供給元の整理(トーク): `TrainingExecutionService.ExecuteAsync` に渡す入力のうち、現状に供給元が無いものがある: (1) `PreflightEnvironment` のGPU有無・VRAM(`HardwareProbe.DetectAsync` が nvidia-smi の搭載メモリ申告値を返す。取得失敗はCUDAなしへ倒す。学習が実際に必要とするVRAMの測定は #88 で未実装)、(2) 初期重み(ResolverCheckpoint)の棚卸し(トークは `TalkCheckpointInventory.ScanAsync` が lock の期待hashと実ファイルのhashで作る。欠落・改竄は Preflight が停止理由にする。歌唱は `SingingCheckpointInventory`)、(3) 歌唱の学習設定パス・トークのモデル名(トークは `TrainingModelNaming.ModelName`="<話者>-<job先頭8文字>" に決定。歌唱の学習設定は `binarize_diffsinger`(#181)が生成する)。供給元は揃い、`TrainingHistoryWindow` に開始/取消の操作を追加済み。実 Trainer での回収は実GPU手動確認が必要(未確認)。
 
 ### #103 A24 トークモデルの本物の読み上げ推論と結果検証を実装する
