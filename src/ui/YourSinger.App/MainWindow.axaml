@@ -90,6 +90,20 @@
         <StackPanel Margin="16" Spacing="14">
           <TextBlock Text="学習設定" FontSize="20" FontWeight="SemiBold" />
           <CheckBox x:Name="AutoCorrectionCheckBox" IsChecked="True" Content="学習用データを自動補完・補正する" />
+          <TextBlock Text="目標の質感(生成目的は話者ごとの「両方/歌唱/トーク」で選びます)" FontWeight="SemiBold" />
+          <WrapPanel Orientation="Horizontal">
+            <TextBlock Text="トーク:" VerticalAlignment="Center" Margin="0,0,6,8" />
+            <ComboBox x:Name="TalkTextureCombo" Width="260" Margin="0,0,16,8" SelectionChanged="OnTextureChanged" />
+            <TextBlock Text="歌唱:" VerticalAlignment="Center" Margin="0,0,6,8" />
+            <ComboBox x:Name="SingingTextureCombo" Width="260" Margin="0,0,0,8" SelectionChanged="OnTextureChanged" />
+          </WrapPanel>
+          <TextBlock x:Name="TextureDescriptionText" TextWrapping="Wrap" Text="質感を選ばない場合は「自然」の既定で作成します。選んだ質感は別の方式へ黙って変えず、実現できない場合は理由を表示します。" />
+          <Expander Header="高度な設定(初期化モード)">
+            <StackPanel Spacing="6" Margin="0,6,0,0">
+              <ComboBox x:Name="TrainingModeCombo" Width="260" />
+              <TextBlock TextWrapping="Wrap" Text="自動は、素材と初期重みの有無から追加学習か新規学習かを決めます。追加学習・新規学習を選ぶと、その方式で計画します(満たせない場合は理由を出して止まります)。" />
+            </StackPanel>
+          </Expander>
           <TextBlock
               Text="有効にすると、元音声を確認できる短い音高欠損の補完と、低信頼区間の除外を学習入力に反映します。不足音素の音声候補は別画面で生成し、未採用のまま保存します。無効にしても手動修正・除外は維持します。元の録音は変更しません。"
               TextWrapping="Wrap" />

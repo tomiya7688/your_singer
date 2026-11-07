@@ -36,6 +36,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        InitializePlanSelection();
     }
 
     private async void OnSelectFolderClick(object? sender, RoutedEventArgs e)
@@ -402,7 +403,9 @@ public sealed partial class MainWindow : Window
             {
                 SpeakerId = x.Key,
                 Target = TargetFromIndex(_speakerTargets[x.Key].SelectedIndex),
-                AutoCorrectionEnabled = AutoCorrectionCheckBox.IsChecked != false
+                AutoCorrectionEnabled = AutoCorrectionCheckBox.IsChecked != false,
+                TalkOptions = BuildPlanOptions(TalkTextureCombo),
+                SingingOptions = BuildPlanOptions(SingingTextureCombo)
             })
             .ToArray();
 
