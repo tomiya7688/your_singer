@@ -22,7 +22,8 @@ commitは`323a5693245b827caba0ab1a7371fe5ca885b061`です。
 
 ```text
 VoiceProject/training/diffsinger/<job-id>/
-├─ dataset.json                 # v1-10.5-mfa-measurement: 元音声内の実測開始・終了時刻を含む
+├─ train_weights.json           # 区間Weight manifest(学習itemと1対1。sha256は dataset.json に記録)
+├─ dataset.json                 # v1-10.6-weight-manifest: 元音声内の実測開始・終了時刻を含む
 └─ acoustic-input/
    ├─ transcriptions.csv        # name,ph_seq,ph_dur
    ├─ wavs/segment_<hash>.wav    # 実測範囲に対応するPCM16モノラル音声
@@ -44,7 +45,7 @@ VoiceProject/training/diffsinger/<job-id>/
 
 ## 必要な入力と失敗時の対応
 
-歌唱jobと、それに対応する`v1-10.5-mfa-measurement`の`dataset.json`を用意してください。
+歌唱jobと、それに対応する`v1-10.6-weight-manifest`の`dataset.json`を用意してください。
 実測方法は`mfa-japanese-phone-forced-alignment-v1`、音声はPCM16モノラルWAVです。
 音素列・開始時刻・終了時刻・音素長は同じ個数で、有限な数値を持つ必要があります。
 音声と特徴量は同じVoice Project内に保存してください。領域外の参照やリンク先は拒否します。
@@ -54,6 +55,31 @@ VoiceProject/training/diffsinger/<job-id>/
 同じjobの既存入力は上書きしません。失敗時は元入力と元音声が残ります。
 `dataset.json`は64 MiB以内、音声は1 GiB以内が必要です。上限を超える場合は学習対象を分割してください。音声の一時コピーを作業領域に作成し、処理後に削除します。
 現在は処理APIまでの実装であり、画面からこの段階だけを実行する操作は接続していません。
+
+## Duration入力(variance binarizer用)
+
+音響学習入力の生成後、worker の `prepare_diffsinger_duration` が `duration-input/` を作ります。公式 v2.5.1 の `variance_binarizer.py` は、duration 予測(`predict_dur=true`)で `name, ph_seq, ph_dur, ph_num` を要求し、`ph_num` の合計が音素数と一致することを検査します(`wavs/<name>.wav` も必要)。
+
+- `ph_num`(語ごとの音素数)は測定値がないため、拍(子音+母音、`N`・`cl`・長音・`SP`は単独)から導出します。導出方式は `provenance.json` の `word_grouping`(`mora-v1`、`measured: false`)に残します。
+- 未知の音素、母音のない子音、非有限・ゼロ・負の音素長、音声長との不一致のクリップは、原因付きで `held` に保留します。素材は消しません。採用が0件なら出力を作りません。
+- 元音声・音響学習入力は変更せず、`duration-input/` は新規作成のみ(既存なら拒否)です。
+- 確認済み(2026-11-07, 合成音声4件): 構築済み bundle の公式 `variance_binarizer`(`predict_dur: true`、`predict_pitch: false`)が、この `duration-input` を受け付け、学習3件・検証1件の `train.data`/`valid.data` を作りました。公式の音素カバレッジ検査は `AP`・`SP` の出現を要求するため、#181 の起動入口(不足が `AP`・`SP` だけの場合に限り許可)を通して実行しています。実素材・実GPU学習は未検証です。
+- worker の `binarize_diffsinger_duration` が、`duration-input` から variance 用の設定(`duration-training.yaml`。`predict_dur: true`、`predict_pitch: false`)を作り、#181 の起動入口で公式 binarization を実行します(`binary-duration/` に出力。`train.names.json` と件数を照合し、失敗は `run_failure.json` に残します)。C# 側は `DiffSingerDurationBinarizeService`(設定パスがjob領域内であることを検証)が呼びます。Duration の学習は `DiffSingerTrainerService.TrainDurationAsync` が `train_diffsinger` を別の出力先(`trainer-duration/`)・実験名(`<job>-duration`)で呼びます。解決済み計画は音響モデル用のものを実行可否の関門としてだけ使い、Durationの初期化方式は計画に含まれないため新規学習になります。重み付きサンプラーの使用記録は環境変数 `YOURSINGER_WEIGHT_REPORT` で出力先へ書きます。確認済み(2026-11-07, GTX 1080, 合成音声4件, 共有学習キュー経由): 構築済み bundle で Duration の学習を4ステップ実行し、チェックポイント(`model_ckpt_steps_2/4.ckpt`)が出力されました(損失は合成音声のため意味を持ちません)。この確認で、公式の設定が `configs/base.yaml` を作業ディレクトリ基準で辿るため、学習前に固定ソースの `configs` を出力先へ複製する処理を追加しました(出力先は同梱bundleを汚さないため作業ディレクトリです)。実素材での学習品質・長時間学習・OpenUtau出力は未検証です。
+
+## 公式binarizationの起動と学習設定
+
+worker の `binarize_diffsinger` が、音響学習入力から学習設定を作り、固定した公式 `scripts/binarize.py` を実行します。
+
+- 学習設定 `acoustic-training.yaml`(job 直下)は、固定ソースの `configs/acoustic.yaml` を `base_config` に取り、辞書・データセット・検証分割(`test_prefixes`)・`binary_data_dir` だけを指定します。データ増幅(augmentation)は、重みmanifestと1対1にするため無効にします。
+- 検証用の区間は名前順で決定的に選びます(全体の1割、最大5件、学習用は必ず1件以上残します)。
+- 起動は `diffsinger_binarize_entry.py` 経由で、公式の item 書き込みを差し替え、学習 item 番号→名前を `binary/train.names.json` に残します。重み付きサンプラー(`weighted-ds-batch-v1`)がこの記録を使います。
+- 実行は子孫ごと回収できる形(`run_reclaiming`)で行い、タイムアウト・失敗は `run_failure.json` に残します。item 名の記録が無い、または件数が「入力 − 検証用」と合わないときは失敗にします。
+- 公式の音素カバレッジ検査は辞書の `AP`・`SP` が学習データに現れることも要求しますが、本アプリは未測定区間へ `AP`・`SP` を付けません。そのため入口で、不足が `AP`・`SP` だけの場合に限り検査を通します(他の音素の不足は従来どおり失敗)。
+- 呼吸・声質・テンションの埋め込みは使わないため、外部モデルを要求する `hnsep: vr` ではなく `hnsep: world` を指定します。`--exp_name` は渡しません(公式が `checkpoints/<名前>/config.yaml` を読み書きし、同梱bundleを汚すため)。
+- vocoder の取り扱い(2026-11-07 決定。Codex による一次情報の調査に基づく。再配布条件の最終確認は未了): 配布元は OpenVPI vocoders の `pc-nsf-hifigan-44.1k-hop512-128bin-2025.02` リリース(`pc_nsf_hifigan_44.1k_hop512_128bin_2025.02.zip`)で、ライセンスは CC BY-NC-SA 4.0(帰属表示・同条件での共有が必要で、商用利用不可)です。アーカイブ内 notice の追加条件、サイズ、公式のSHA-256は未確認・未公開です。このため**本アプリは同梱せず**、利用者が公式配布元から取得して `models/vocoder/nsf_hifigan/model.ckpt` に置く方式を既定とします(同梱する場合は、非商用の範囲・表示・同一条件共有をライセンス方針に反映したうえで改めて判断します)。取得後のSHA-256は利用者側の記録として保存します。
+- 要確認(実GPUでの音響モデル学習): 同梱 bundle で `train_diffsinger` を実際に起動したところ、設定の読み込みまでは通りましたが、`AcousticTask` が NSF-HiFiGAN vocoder の学習済みモデル(`vocoder_ckpt`)を要求して停止しました。このモデルは bundle に含まれず、本アプリはまだ取得・配布していません(音響学習の前提資源。配布・ライセンスの判断が必要です)。取得するまで、歌唱の音響モデル学習は実機で完走できません。Duration の学習は vocoder を使わないため完走を確認済みです。
+
+- 確認済み(2026-11-07): `python tools/smoke_diffsinger_binarize.py <bundle> <作業領域>` で、構築済み bundle の実際の公式 binarization を合成音声4件で実行し、学習3件・検証1件、`train.names.json` と件数の照合が成功しました。実素材・実GPU・実学習は未検証です。
 
 ## 歌唱Trainer専用runtimeの構築
 

@@ -286,6 +286,7 @@ public sealed partial class MainWindow : Window
         SingingQualityList.ItemsSource = globalSinging?.Warnings.Count > 0
             ? globalSinging.Warnings.Select(x => $"注意: {x}").ToArray()
             : globalSinging is null ? [] : ["良好: 主要な歌唱品質警告はありません。"];
+        await RefreshAssessmentAsync();
     }
 
     private void RefreshTraining()

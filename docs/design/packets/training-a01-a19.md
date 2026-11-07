@@ -266,6 +266,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: DiffSingerAcousticInputTests に追加: NonZeroStartClip / MfaSuccessAndFailure / IndexMatch / HashMismatch_Fails / LowQualityRareRange_PositiveWeight / UncalibratedScore
 - テスト（自動化できない確認）: なし。
 - 非目標: DiffSingerのsampler改造（#92）と音響学習の完走。
+- 実装済み(#90): `DiffSingerDatasetBuilder` は評価(assessment)の eligible な区間だけを学習itemにし、`train_weights.json`(segment_id・audio_filename・weight、skipped は理由つき)を別ファイルに出力して sha256 を `dataset.json`(stage `v1-10.6-weight-manifest`)に記録する。旧形式(評価なし)のジョブは拒否。推定時刻の素材が混ざるジョブは評価の有無に関係なく拒否(従来どおり)。worker(`diffsinger_acoustic_input.py`)は manifest の sha256・ジョブID・weight 範囲(0.25〜2.0)・学習itemとの1対1を起動前に検証し、切り出した各クリップの `training_weight` と manifest hash を provenance に残す(既存の CSV・wav の形式は変えない)。テスト: `DiffSingerWeightManifestTests`・`test_diffsinger_acoustic_input.py`。依存: #61/PR #68 の上に積む(DiffSingerDatasetBuilder の MFA 測定照合を維持)。未実装: 公式 binarization 後の item index との対応と sampler(#92)。
 - 要決定: manifest のファイル名とスキーマ（Issue 未記載）。#89 と共通の形式にするか
 - 解消(D-12): PR #68(#61) が未統合の間は実装に着手しない。契約の設計までは進めてよい。
 
@@ -300,6 +301,7 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - テスト（自動）: test_diffsinger_training.py: binarization_index_mismatch / weight_swap_changes_selection_rate / val_not_weighted / epoch_seed_reproducible / uncalibrated_mfa / rerun
 - テスト（自動化できない確認）: 実GPUでの重み反映確認は自動化できない（#110）。
 - 非目標: 新規・追加学習モードとサブモデル生成。
+- 実装済み(#92 の worker 契約): 固定ソースを確認して実装(`basics/base_task.py:329-350` の学習用 `DsBatchSampler`、`utils/training_utils.py:74-193` の `sub_indices`・`set_epoch`、`basics/base_binarizer.py:354-357` が学習データの名前を捨てる点)。(1) binarization 前に `install_name_recorder` が `IndexedDatasetBuilder` の item 追加をラップし、学習データの item番号→名前を `train.names.json` に保存する。(2) 学習は `diffsinger_train_entry.py` 経由で起動し、`basics.base_task.DsBatchSampler` を派生クラス(`weighted-ds-batch-v1`)へ差し替える。学習用(`shuffle_sample=True`)だけ、全 item が weight を持つことを名前で1対1に照合し(欠落は失敗)、各エポックで (seed, epoch) 固定の乱数により重み比例に復元抽出して公式の `sub_indices` に渡す(サイズ順・分割・DDP割当は公式のまま)。検証用は公式のまま。(3) 起動前に dataset.json の sha256・provenance の weight・範囲(0.25〜2.0)を照合。(4) 学習後は使用記録(`weight_sampling.json`)を実行記録に載せ、1度も抽出されなければ失敗。C# の検証は評価つきの歌唱ジョブでも使用記録を要求する。テスト: `test_diffsinger_weighted_sampler.py`・`TrainingRunReportVerifierTests`。未実装・未検証: binarization を名前記録つきで起動する工程(現状、公式 binarization の実行自体が未実装)、公式 `DsBatchSampler` 実物・実GPUでの動作と効果。依存: #90(PR #174)の上に積む。
 - 要決定: DiffSinger v2.5.1 の sampler 差し込み箇所（クラス名はIssue 未記載。固定 commit 323a569 のコード確認が必要）
 - 解消(D-12): #90 と同じ。PR #68(#61) 未統合の間は実装に着手しない。
 
@@ -355,6 +357,9 @@ Issue 本文と設計正本が食い違う箇所は黙って採用せず「要�
 - 非目標: duration trainer 起動（#96）とOpenUtau出力構築。
 - 要決定: 長音・促音など MFA が対応できない音素の扱い（implementation-v1-10.md は「未対応表現は実測成功にしない」。保留理由コードを何と呼ぶか）
 - 要決定: duration 入力 schema のファイル名と形式（Issue 未記載。公式 binarizer 要件の確認が前提）
+- 実装済み(#95 worker側): `diffsinger_duration_input.py` の `prepare_diffsinger_duration`。公式 v2.5.1 `variance_binarizer.py`(predict_dur=true)が要求する列 `name, ph_seq, ph_dur, ph_num` を `duration-input/transcriptions.csv` に出力。語境界は測定値ではなく拍(子音+母音、N・cl・長音・SPは単独)で導出し、provenance に `word_grouping: mora-v1, measured: false` と残す。未知音素・母音のない子音・非有限/ゼロ/負の音素長・音声長との不一致は原因付きで `held` に保留(破棄しない)。tests/worker `test_diffsinger_duration_input.py`。
+- 実装済み(#95 C#側): `DiffSingerDurationInputService.PrepareAsync`(音響学習入力の存在確認→worker要求→保存先・必須ファイル照合)。`DiffSingerDurationInputServiceTests`(代替workerで境界を確認)。
+- 未実装: 長音・促音を測定値として扱う方式の決定、Duration の binarization を起動する呼出し。公式 variance binarizer による合成音声での受理は確認済み(docs/diffsinger-acoustic-input.md。実素材・実GPUは未検証)。
 
 ### #96 A17 DiffSinger Durationモデルを学習しOpenUtau用成果物へ接続する
 

@@ -25,10 +25,17 @@ public sealed class TrainingRunReportVerifierTests : IDisposable
 
     private static TrainingJobRecord Job(string? mode = "fine_tune", int? seed = 7, params (string Name, string Sha)[] components) => new()
     {
-        JobId = "job-1", SpeakerId = "spk_a", Target = TrainingTarget.Talk, DatasetFingerprint = "fp", Seed = seed,
+        JobId = "job-1",
+        SpeakerId = "spk_a",
+        Target = TrainingTarget.Talk,
+        DatasetFingerprint = "fp",
+        Seed = seed,
         ResolvedPlan = new TrainingResolvedPlanRecord
         {
-            ManifestHash = "h", InventoryRevision = "r", Executable = true, ResolvedTrainingMode = mode,
+            ManifestHash = "h",
+            InventoryRevision = "r",
+            Executable = true,
+            ResolvedTrainingMode = mode,
             Stages = mode is null ? [] :
             [
                 new TrainingResolvedStageRecord
@@ -45,11 +52,17 @@ public sealed class TrainingRunReportVerifierTests : IDisposable
     private static TrainingRunReport Report(string? mode = "fine_tune", int? seed = 7, int exit = 0, string? path = "m.safetensors",
         string? sha = null, TrainingInitialization? observed = null, string schema = "1", string jobId = "job-1",
         string? evidence = TrainingInitializationEvidence.Loaded, bool sampled = true) => new()
-    {
-        SchemaVersion = schema, JobId = jobId, ResolvedMode = mode, Seed = seed, TrainerExitCode = exit, InitializationObserved = observed, InitializationEvidence = observed is null ? null : evidence,
-        WeightSampling = sampled ? new TrainingWeightSamplingRecord { Applied = true, SamplerVersion = "weighted-bucket-v1", Seed = seed, ItemCount = 1, Iterations = 1 } : null,
-        Artifacts = path is null ? [] : [new TrainingRunArtifact { Kind = "model_weights", Path = path, Sha256 = sha ?? Hash("weights") }]
-    };
+        {
+            SchemaVersion = schema,
+            JobId = jobId,
+            ResolvedMode = mode,
+            Seed = seed,
+            TrainerExitCode = exit,
+            InitializationObserved = observed,
+            InitializationEvidence = observed is null ? null : evidence,
+            WeightSampling = sampled ? new TrainingWeightSamplingRecord { Applied = true, SamplerVersion = "weighted-bucket-v1", Seed = seed, ItemCount = 1, Iterations = 1 } : null,
+            Artifacts = path is null ? [] : [new TrainingRunArtifact { Kind = "model_weights", Path = path, Sha256 = sha ?? Hash("weights") }]
+        };
 
     private static TrainingInitialization Pretrained(params (string Name, string Sha)[] components) => new()
     {
@@ -193,7 +206,12 @@ public sealed class TrainingRunReportVerifierTests : IDisposable
         var job = Job("from_scratch", 7);
         var typed = new TrainingJobRecord
         {
-            JobId = "job-1", SpeakerId = "spk_a", Target = TrainingTarget.Singing, DatasetFingerprint = "fp", Seed = 7, ResolvedPlan = job.ResolvedPlan
+            JobId = "job-1",
+            SpeakerId = "spk_a",
+            Target = TrainingTarget.Singing,
+            DatasetFingerprint = "fp",
+            Seed = 7,
+            ResolvedPlan = job.ResolvedPlan
         };
         await service.TrainAsync(project.Workspace, typed, "config.yaml", TestProject.Token);
         Assert.Equal(TrainingRunVerificationStatus.Unverified, typed.RunVerification!.Status);
@@ -210,17 +228,44 @@ public sealed class TrainingRunReportVerifierTests : IDisposable
         Assert.NotEqual(TrainingRunVerificationStatus.Failed, TrainingRunReportVerifier.Verify(job, Report(), _output).Status);
         var unused = new TrainingRunReport
         {
-            SchemaVersion = "1", JobId = "job-1", ResolvedMode = "fine_tune", Seed = 7, TrainerExitCode = 0,
+            SchemaVersion = "1",
+            JobId = "job-1",
+            ResolvedMode = "fine_tune",
+            Seed = 7,
+            TrainerExitCode = 0,
             WeightSampling = new TrainingWeightSamplingRecord { Applied = true, SamplerVersion = "v", Seed = 7, Iterations = 0 },
             Artifacts = [new TrainingRunArtifact { Kind = "w", Path = "m.safetensors", Sha256 = Hash("weights") }]
         };
         Assert.Equal(TrainingRunVerificationStatus.Failed, TrainingRunReportVerifier.Verify(job, unused, _output).Status);
         var wrongSeed = new TrainingRunReport
         {
-            SchemaVersion = "1", JobId = "job-1", ResolvedMode = "fine_tune", Seed = 7, TrainerExitCode = 0,
+            SchemaVersion = "1",
+            JobId = "job-1",
+            ResolvedMode = "fine_tune",
+            Seed = 7,
+            TrainerExitCode = 0,
             WeightSampling = new TrainingWeightSamplingRecord { Applied = true, SamplerVersion = "v", Seed = 8, Iterations = 2 },
             Artifacts = [new TrainingRunArtifact { Kind = "w", Path = "m.safetensors", Sha256 = Hash("weights") }]
         };
         Assert.Equal(TrainingRunVerificationStatus.Failed, TrainingRunReportVerifier.Verify(job, wrongSeed, _output).Status);
+    }
+
+    [Fact]
+    public void SingingJobsWithAnAssessment_AlsoRequireTheWeightedSamplerToHaveRun()
+    {
+        var job = new TrainingJobRecord
+        {
+            JobId = "job-1",
+            SpeakerId = "spk_a",
+            Target = TrainingTarget.Singing,
+            DatasetFingerprint = "fp",
+            Seed = 7,
+            InputFingerprint = "fp",
+            ResolvedPlan = Job().ResolvedPlan
+        };
+        var missing = TrainingRunReportVerifier.Verify(job, Report(sampled: false), _output);
+        Assert.Equal(TrainingRunVerificationStatus.Failed, missing.Status);
+        Assert.Contains(missing.Problems, x => x.Contains("重み付きサンプリング"));
+        Assert.NotEqual(TrainingRunVerificationStatus.Failed, TrainingRunReportVerifier.Verify(job, Report(), _output).Status);
     }
 }

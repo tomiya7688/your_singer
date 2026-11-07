@@ -115,6 +115,15 @@
 - 要決定: タイムアウト値と猶予時間。
 - 要決定: 孫プロセス回収の方式(Windows の Job Object か、別の方式か)。
 - 要決定: PR #56 の知見の取り込み範囲。
+- 実装済み(#102 worker 側): `process_tree.py` の `run_reclaiming` が Trainer を新しいプロセスグループ/セッションで起動し、タイムアウト(`stage_timeout_seconds`)・例外・中断のいずれでも子孫ごと終了する(Windows は `taskkill /T /F`、POSIX は `killpg`)。失敗は `run_failure.json`(kind: canceled / timeout / failed)に残し、`result.json` は書かない(成功として公開しない)。C# の `MlWorkerClient` は既にキャンセル時に `Kill(entireProcessTree: true)` でワーカーごと停止する。tests/worker `test_process_tree.py` で孫プロセスの回収を実プロセスで確認済み。
+- 実装済み(#102 C#側): `TrainingJobRunner.RunAsync` が学習処理を挟み、Running → Succeeded / Failed / Canceled を保存する(取消済みトークンでも終了状態は保存。終了済みjobは再実行不可)。`TrainingJobRunnerTests`。
+- 実装済み(連結): `TrainingExecutionService.ExecuteAsync` が Preflight → 実行可否 → 棚卸し版の照合 → Trainer 実行 → 終了状態の記録を連結する。実行不可は Trainer を起動せず Pending のまま理由を返す(Failed にしない)。`TrainingExecutionServiceTests`。
+- 実装済み(配線): `DiffSingerTrainerService.AsExecution` と `StyleBertVits2TrainerService.AsExecution` が実行デリゲートを返す(計画の無いjobは worker 起動前に拒否。`TrainerExecutionBindingTests`)。
+- 実装済み(トークのUI接続): `TalkTrainingPipeline.RunAsync`(棚卸し `SpeakerInventoryProvider` → GPU `HardwareProbe` → 初期重み `TalkCheckpointInventory` → 計画解決 → 学習入力の作成 → 学習 → 終了状態の記録)と、`TrainingHistoryWindow` の「待機中のトークジョブを学習」「学習を取り消す」。実行不可は学習入力もTrainerも作らずPendingのまま理由を表示する(`TalkTrainingPipelineTests`)。画面操作と実GPU学習は自動試験の対象外で未確認。
+- 実装済み(歌唱のUI接続): `SingingTrainingPipeline.RunAsync`(棚卸し → GPU → 初期重み `SingingCheckpointInventory` → 計画解決 → 学習入力 → 音響入力 → 公式binarization `DiffSingerBinarizeService`(#181) → 学習 → 終了状態の記録)と、学習履歴画面の「待機中の歌唱ジョブを学習」。歌唱の事前学習重みは同梱しておらず、`checkpoints.json` が無ければ重み無し(from_scratch のみ成立、fine_tune は停止)。実行不可は入力もTrainerも作らずPendingのまま理由を表示する。画面操作・実GPU学習・実モデルでの公式binarizationは未確認。
+
+- 実装済み(Duration段階の接続): `SingingTrainingPipeline` は `durationInput`/`durationBinarize` を渡されたとき、音響学習の後に Duration入力(#95) → variance binarization(#95) → `TrainDurationAsync` を同じjobの中で続ける(UIは両方を渡す)。Duration段階の失敗はjobをFailedにする(音響の成果は出力先に残る)。実素材・実GPUでの通し実行は未確認。
+- 供給元の整理(トーク): `TrainingExecutionService.ExecuteAsync` に渡す入力のうち、現状に供給元が無いものがある: (1) `PreflightEnvironment` のGPU有無・VRAM(`HardwareProbe.DetectAsync` が nvidia-smi の搭載メモリ申告値を返す。取得失敗はCUDAなしへ倒す。学習が実際に必要とするVRAMの測定は #88 で未実装)、(2) 初期重み(ResolverCheckpoint)の棚卸し(トークは `TalkCheckpointInventory.ScanAsync` が lock の期待hashと実ファイルのhashで作る。欠落・改竄は Preflight が停止理由にする。歌唱は `SingingCheckpointInventory`)、(3) 歌唱の学習設定パス・トークのモデル名(トークは `TrainingModelNaming.ModelName`="<話者>-<job先頭8文字>" に決定。歌唱の学習設定は `binarize_diffsinger`(#181)が生成する)。供給元は揃い、`TrainingHistoryWindow` に開始/取消の操作を追加済み。実 Trainer での回収は実GPU手動確認が必要(未確認)。
 
 ### #103 A24 トークモデルの本物の読み上げ推論と結果検証を実装する
 
@@ -300,3 +309,5 @@
 - #113 A34: 「低品質だが採用」の判定に使う Q の境界(設計正本に境界の定めなし)。
 - #114 A35: 設計正本の区分(学習中/学習完了・検証待ち/生成試験中/利用可能/注意あり/検証失敗)と、Issue の 5 状態の対応づけ。
 - #114 A35: 試聴の再生手段(UI 層での音声再生ライブラリ)。
+
+- 実装済み(A34 区間評価の表示・#113): `TrainingAssessmentPresenter` が区間評価を「採用・低品質だが採用(Q測定済みで0.5未満かつ重み>0)・要確認・除外」の件数と、区間ごとの品質・有用度・重み・理由の日本語1行に整形する。未計測・未校正は0%と見せず状態名で示す。品質タブの第3列に全ジョブ分を表示(200行まで)。用途別(talk/singing)は評価のTargetごとの行。画面上の見た目と、ユーザーが話者/分類/採用を直す導線の追加は未確認・未実装(既存の導線は変更なし)。

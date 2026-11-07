@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import subprocess
-
 from pathlib import Path
 
+from .process_tree import classify, record_failure, run_reclaiming
 from .run_report import build_run_report
 from .style_bert_vits2_session import StyleBertVits2TrainingSession
 from .style_bert_vits2_weighted_sampler import read_report
@@ -18,6 +18,16 @@ from .style_bert_vits2_weighted_sampler import read_report
 def train_style_bert_vits2(payload: dict) -> dict:
     session = StyleBertVits2TrainingSession(payload)
     session.prepare()
+    try:
+        return _run_stages(payload, session)
+    except BaseException as error:
+        # 取消・タイムアウト・異常終了を区別して診断用に残す。result.json は書かず、成功として公開しない。
+        record_failure(session.output, classify(error), str(error))
+        raise
+
+
+# { 責務: [_run_stages: 準備済みジョブの各工程を実行し、成果物と実行記録を返す(失敗は呼び出し側が記録する)] }
+def _run_stages(payload: dict, session: StyleBertVits2TrainingSession) -> dict:
     log_path = session.output / "trainer.log"
     staged = None
     with log_path.open("x", encoding="utf-8") as log:
@@ -34,8 +44,9 @@ def train_style_bert_vits2(payload: dict) -> dict:
             log.flush()
             if stage == "train_ms.py":
                 session.require_training_features()
-            completed = subprocess.run(
+            completed = run_reclaiming(
                 session.command(stage),
+                timeout=payload.get("stage_timeout_seconds"),
                 cwd=session.output,
                 env=session.environment(),
                 check=False,
@@ -62,8 +73,9 @@ def train_style_bert_vits2(payload: dict) -> dict:
         with log_path.open("a", encoding="utf-8") as log:
             log.write("\n--- timbre_style ---\n")
             log.flush()
-            completed = subprocess.run(
+            completed = run_reclaiming(
                 session.command("timbre_style"),
+                timeout=payload.get("stage_timeout_seconds"),
                 cwd=session.output,
                 env=session.environment(),
                 check=False,

@@ -12,9 +12,10 @@ namespace YourSinger.Process.Processing.Singing;
 //   フィールド: [datasetRepository: 共通音声データの読み込み]
 //   処理: [1: jobのsegmentと特徴量を検証しdataset.jsonへ保存する]
 // }
-public sealed class DiffSingerDatasetBuilder(UniversalVoiceDatasetRepository datasetRepository)
+public sealed class DiffSingerDatasetBuilder(
+    UniversalVoiceDatasetRepository datasetRepository, TrainingAssessmentRepository? assessmentRepository = null)
 {
-    public const string StageVersion = "v1-10.5-mfa-measurement";
+    public const string StageVersion = "v1-10.6-weight-manifest";
     public const string RequiredAlignmentMethod = UniversalVoiceSegment.RequiredSingingTrainingAlignmentMethod;
 
     // {
@@ -34,12 +35,20 @@ public sealed class DiffSingerDatasetBuilder(UniversalVoiceDatasetRepository dat
         if (job.Target != TrainingTarget.Singing)
             throw new InvalidOperationException("歌唱学習ジョブのみ歌唱用データを生成できます。");
         // 保存済みjobのsegmentを再解決し、計画後にalignmentが変わっていないか検証する。
-        var selected = await TrainingDatasetSnapshotService.ResolveJobAsync(datasetRepository, workspace, job, cancellationToken);
-        var unaligned = selected.FirstOrDefault(x => !x.HasValidSingingTrainingAlignment());
+        var resolved = await TrainingDatasetSnapshotService.ResolveJobAsync(datasetRepository, workspace, job, cancellationToken);
+        // 推定時刻の素材が1件でも混ざるジョブは、評価の有無に関係なく拒否する(音素時刻が推定値の素材は学習に使えない)。
+        var unaligned = resolved.FirstOrDefault(x => !x.HasValidSingingTrainingAlignment());
         if (unaligned is not null)
             throw new InvalidDataException(
                 $"セグメント {unaligned.SegmentId} に検証済みの音素単位forced alignmentがありません。" +
                 "音素時刻が推定値の素材はDiffSinger学習に使用できません。");
+        var assessment = await (assessmentRepository ?? new TrainingAssessmentRepository())
+            .LoadAsync(workspace, job.JobId, cancellationToken);
+        // 評価でeligibleな区間だけを学習に使う。needs_review・excludedは素材を消さずに学習へ流さず、manifestのskippedに理由を残す。
+        var (manifest, usedIds) = TrainingWeightManifestService.Build(job, assessment,
+            resolved.Select(x => x.SegmentId).ToArray(), id => TrainingInputDirectory.RequireComponent(id) + ".wav");
+        var used = usedIds.ToHashSet(StringComparer.Ordinal);
+        var selected = resolved.Where(x => used.Contains(x.SegmentId)).ToArray();
         // { 処理: [計画後の外部ファイル変更をhash・音素・音声の照合で拒否する] }
         foreach (var segment in selected)
             await MfaMeasurementValidator.ValidateFeatureAsync(workspace, segment, cancellationToken);
@@ -51,33 +60,39 @@ public sealed class DiffSingerDatasetBuilder(UniversalVoiceDatasetRepository dat
             if (!File.Exists(path)) throw new FileNotFoundException("歌唱学習の入力ファイルがありません。", path);
             return path;
         }
-        var record = new DiffSingerDatasetRecord
+        var items = selected.Select(x => new DiffSingerTrainingItem
         {
-            StageVersion = StageVersion,
-            JobId = job.JobId,
-            SpeakerId = job.SpeakerId,
-            DatasetFingerprint = job.DatasetFingerprint,
-            AutoCorrectionEnabled = job.AutoCorrectionEnabled,
-            Items = selected.Select(x => new DiffSingerTrainingItem
-            {
-                SegmentId = x.SegmentId,
-                AudioPath = RequireInput(x.AudioPath),
-                Transcript = x.Transcript,
-                Phonemes = x.Phonemes.Select(p => p.Phoneme).ToList(),
-                DurationsSec = x.Phonemes.Select(p => Math.Max(0, p.EndSec - p.StartSec)).ToList(),
-                AlignmentMethod = x.AlignmentMethod,
-                AlignmentMeasurement = x.AlignmentMeasurement,
-                PhonemeStartsSec = x.Phonemes.Select(p => p.StartSec).ToList(),
-                PhonemeEndsSec = x.Phonemes.Select(p => p.EndSec).ToList(),
-                F0FeaturePath = RequireInput(x.F0FeaturePath),
-                EnergyFeaturePath = RequireInput(x.EnergyFeaturePath),
-                MeanF0Hz = x.MeanF0Hz,
-                PitchReliability = x.PitchReliability
-            }).ToList()
-        };
+            SegmentId = x.SegmentId,
+            AudioPath = RequireInput(x.AudioPath),
+            Transcript = x.Transcript,
+            Phonemes = x.Phonemes.Select(p => p.Phoneme).ToList(),
+            DurationsSec = x.Phonemes.Select(p => Math.Max(0, p.EndSec - p.StartSec)).ToList(),
+            AlignmentMethod = x.AlignmentMethod,
+            AlignmentMeasurement = x.AlignmentMeasurement,
+            PhonemeStartsSec = x.Phonemes.Select(p => p.StartSec).ToList(),
+            PhonemeEndsSec = x.Phonemes.Select(p => p.EndSec).ToList(),
+            F0FeaturePath = RequireInput(x.F0FeaturePath),
+            EnergyFeaturePath = RequireInput(x.EnergyFeaturePath),
+            MeanF0Hz = x.MeanF0Hz,
+            PitchReliability = x.PitchReliability
+        }).ToList();
         var root = Path.Combine(workspace.RootPath, "training", "diffsinger", TrainingInputDirectory.RequireComponent(job.JobId));
         return await TrainingInputDirectory.BuildAsync(root, async staging =>
         {
+            // 重みは公式のdataset形式を変えず、別ファイルで学習itemと1対1に持つ。
+            var manifestHash = await TrainingWeightManifestService.WriteAsync(
+                Path.Combine(staging, TrainingWeightManifest.FileName), manifest, cancellationToken);
+            var record = new DiffSingerDatasetRecord
+            {
+                StageVersion = StageVersion,
+                JobId = job.JobId,
+                SpeakerId = job.SpeakerId,
+                DatasetFingerprint = job.DatasetFingerprint,
+                AutoCorrectionEnabled = job.AutoCorrectionEnabled,
+                WeightManifestFile = TrainingWeightManifest.FileName,
+                WeightManifestSha256 = manifestHash,
+                Items = items
+            };
             await using var stream = File.Create(Path.Combine(staging, "dataset.json"));
             using var limited = new LimitedWriteStream(stream, MfaMeasurementFiles.MaxSingingDatasetBytes);
             await JsonSerializer.SerializeAsync(limited, record,

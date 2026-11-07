@@ -11,6 +11,9 @@ public sealed class DiffSingerDatasetRecord
     public required string DatasetFingerprint { get; init; }
     [JsonRequired]
     public bool AutoCorrectionEnabled { get; init; }
+    // 区間Weight manifest(train_weights.json)のファイル名とSHA-256。この項目が無い旧データには null。
+    public string? WeightManifestFile { get; init; }
+    public string? WeightManifestSha256 { get; init; }
     public List<DiffSingerTrainingItem> Items { get; init; } = [];
 }
 

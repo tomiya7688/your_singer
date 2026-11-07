@@ -42,7 +42,7 @@ class DiffSingerAcousticInputTests(unittest.TestCase):
         )
         self.document = {key: value for key, value in self.payload.items() if key != "project_root"}
         self.document.update(
-            stage_version="v1-10.5-mfa-measurement",
+            stage_version="v1-10.6-weight-manifest",
             items=[
                 dict(
                     segment_id="../../private-segment",
@@ -82,9 +82,40 @@ class DiffSingerAcousticInputTests(unittest.TestCase):
 
     # { 責務: [save: 試験対象の入力manifestを書き出す] }
     def save(self):
+        self.write_manifest()
         data = json.dumps(self.document).encode("utf-8")
         (self.dataset / "dataset.json").write_bytes(data)
         self.payload["dataset_sha256"] = hashlib.sha256(data).hexdigest()
+
+    # { 責務: [write_manifest: 学習itemと1対1の区間Weight manifestを書き、入力manifestへ記録する(weights指定で上書き可)] }
+    def write_manifest(self, weights=None):
+        ids = [
+            item.get("segment_id")
+            for item in self.document.get("items", [])
+            if isinstance(item, dict)
+        ]
+        entries = (
+            weights
+            if weights is not None
+            else {i: 1.0 for i in dict.fromkeys(ids) if isinstance(i, str)}
+        )
+        manifest = dict(
+            schema_version="1",
+            job_id="test-job",
+            policy_version="v1",
+            input_fingerprint="x",
+            items=[
+                dict(segment_id=k, audio_filename=f"{n}.wav", training_weight=v)
+                for n, (k, v) in enumerate(entries.items())
+            ],
+            skipped=[],
+        )
+        data = json.dumps(manifest).encode("utf-8")
+        (self.dataset / "train_weights.json").write_bytes(data)
+        self.document.update(
+            weight_manifest_file="train_weights.json",
+            weight_manifest_sha256=hashlib.sha256(data).hexdigest(),
+        )
 
     # { 責務: [assert_rejected: 入力拒否時に完成品や一時ファイルが残らないことを確認する] }
     def assert_rejected(self, message):
@@ -245,6 +276,48 @@ class DiffSingerAcousticInputTests(unittest.TestCase):
         self.document["items"][0]["phoneme_ends_sec"][1] = 2.0
         self.document["items"][0]["durations_sec"][1] = 1.6
         self.assert_rejected("音声範囲外")
+
+    # { 責務: [test_weights_are_recorded_per_clip_and_in_provenance: クリップごとのweightとmanifest hashが残ることを確認する] }
+    def test_weights_are_recorded_per_clip_and_in_provenance(self):
+        self.write_manifest({"../../private-segment": 1.5})
+        self.save_without_manifest()
+        result = prepare_diffsinger_acoustic(self.payload)
+        provenance = json.loads(
+            (Path(result["raw_data_dir"]) / "provenance.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(provenance["items"][0]["training_weight"], 1.5)
+        self.assertEqual(
+            provenance["weight_manifest_sha256"], self.document["weight_manifest_sha256"]
+        )
+
+    # { 責務: [save_without_manifest: 既に書いたmanifestを保ったままdataset.jsonだけを書く] }
+    def save_without_manifest(self):
+        data = json.dumps(self.document).encode("utf-8")
+        (self.dataset / "dataset.json").write_bytes(data)
+        self.payload["dataset_sha256"] = hashlib.sha256(data).hexdigest()
+
+    # { 責務: [test_tampered_missing_extra_or_out_of_range_weights_are_rejected: manifestの改竄・欠落・過不足・範囲外を拒否する] }
+    def test_tampered_missing_extra_or_out_of_range_weights_are_rejected(self):
+        for weights, message in (
+            ({"../../private-segment": 3.0}, "範囲"),
+            ({"../../private-segment": 1.0, "extra": 1.0}, "1対1"),
+            ({"other": 1.0}, "1対1"),
+        ):
+            with self.subTest(weights=weights):
+                self.write_manifest(weights)
+                self.save_without_manifest()
+                with self.assertRaisesRegex(ValueError, message):
+                    prepare_diffsinger_acoustic(self.payload)
+                self.assertFalse((self.dataset / "acoustic-input").exists())
+        self.write_manifest()
+        (self.dataset / "train_weights.json").write_text("{}", encoding="utf-8")
+        self.save_without_manifest()
+        with self.assertRaisesRegex(ValueError, "sha256"):
+            prepare_diffsinger_acoustic(self.payload)
+        del self.document["weight_manifest_file"]
+        self.save_without_manifest()
+        with self.assertRaisesRegex(ValueError, "manifest"):
+            prepare_diffsinger_acoustic(self.payload)
 
 
 if __name__ == "__main__":

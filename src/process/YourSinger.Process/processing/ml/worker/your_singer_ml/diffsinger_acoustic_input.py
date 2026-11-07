@@ -49,7 +49,7 @@ class DiffSingerAcousticInput:
         ):
             raise ValueError("歌唱学習入力が検証後に変更されました。再生成してください。")
         self.document = json.loads(dataset_bytes.decode("utf-8-sig"))
-        if self.document.get("stage_version") != "v1-10.5-mfa-measurement":
+        if self.document.get("stage_version") != "v1-10.6-weight-manifest":
             raise ValueError("音素境界付きの歌唱入力を再生成してください。")
         for key in ("job_id", "dataset_fingerprint", "auto_correction_enabled", "speaker_id"):
             if key not in payload or self.document.get(key) != payload[key]:
@@ -68,6 +68,7 @@ class DiffSingerAcousticInput:
         if self.destination.exists() or self.destination.is_symlink():
             raise FileExistsError("歌唱音響入力は作成済みです。新しいjobを作成してください。")
         self.items = self._validate_items()
+        self.weights = self._verify_weight_manifest()
 
     # {
     #   責務: [_require_file: 私的素材を作業領域内の実ファイルへ解決する]
@@ -86,6 +87,42 @@ class DiffSingerAcousticInput:
         ):
             raise ValueError("歌唱学習の入力ファイルが作業領域外かリンクを含みます。")
         return path
+
+    # {
+    #   責務: [_verify_weight_manifest: 区間Weight manifestをsha256で検証し、学習itemと1対1であることを確認する]
+    #   戻り値: [weights: segment_id→training_weight]
+    #   エラー: [manifestが無い・hash不一致・ジョブ違い・範囲外/非有限のweight・学習itemとの過不足で ValueError(等重みへ黙って落とさない)]
+    # }
+    def _verify_weight_manifest(self) -> dict[str, float]:
+        name = self.document.get("weight_manifest_file")
+        digest = self.document.get("weight_manifest_sha256")
+        if not isinstance(name, str) or Path(name).name != name or not isinstance(digest, str):
+            raise ValueError("歌唱学習入力に重みmanifestの記録がありません。再生成してください。")
+        path = self._require_file(str((self.dataset_root / name).relative_to(self.project_root)))
+        data = path.read_bytes()
+        if hashlib.sha256(data).hexdigest() != digest.lower():
+            raise ValueError(
+                "重みmanifestのsha256が学習入力の記録と一致しません(改竄または差し替え)。"
+            )
+        manifest = json.loads(data.decode("utf-8-sig"))
+        if manifest.get("job_id") != self.document.get("job_id"):
+            raise ValueError("重みmanifestのジョブIDが一致しません。")
+        weights: dict[str, float] = {}
+        for entry in manifest.get("items", []):
+            weight = entry["training_weight"]
+            if entry["segment_id"] in weights:
+                raise ValueError("重みmanifestに同じ区間が重複しています。")
+            if (
+                not isinstance(weight, (int, float))
+                or weight != weight
+                or weight in (float("inf"), float("-inf"))
+                or not 0.25 <= weight <= 2.0
+            ):
+                raise ValueError(f"重みが範囲(0.25〜2.0)外または不正です: {entry['segment_id']}")
+            weights[entry["segment_id"]] = float(weight)
+        if set(weights) != {item["segment_id"] for item, _ in self.items}:
+            raise ValueError("重みmanifestと歌唱学習項目が1対1で一致しません。")
+        return weights
 
     # {
     #   責務: [_validate_items: 全入力の重複・音声・実測境界を出力開始前に検証する]
@@ -118,6 +155,9 @@ class DiffSingerAcousticInput:
             (staging / "wavs").mkdir()
             (staging / "measurements").mkdir()
             records = self._write_clips(staging)
+            # 切り出し後の各クリップに、元区間のweightを結び付けて残す(後続のsamplerが参照する)。
+            for record in records:
+                record["training_weight"] = self.weights[record["segment_id"]]
             phones = sorted({phone for item, _ in self.items for phone in item["phonemes"]})
             (staging / "dictionary-ja.txt").write_text(
                 "".join(f"{phone}\t{phone}\n" for phone in phones), encoding="utf-8"
@@ -148,6 +188,7 @@ class DiffSingerAcousticInput:
                 )
             }
             provenance.update(
+                weight_manifest_sha256=self.document["weight_manifest_sha256"],
                 schema="your-singer-diffsinger-acoustic-v1",
                 items=records,
                 training_run=False,

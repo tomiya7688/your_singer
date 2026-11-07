@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -10,6 +12,8 @@ from .diffsinger_initialization import (
     prepare_initialization,
     verify_dumped_config,
 )
+from .diffsinger_weighted_sampler import read_report
+from .process_tree import classify, record_failure, run_reclaiming
 from .run_report import build_run_report
 
 
@@ -39,6 +43,20 @@ def _resolve_training_paths(payload: dict) -> tuple[Path, Path, Path, Path, str,
     if not config_path.is_file():
         raise FileNotFoundError(f"学習configがありません: {config_path}")
     return trainer_root, trainer_python, trainer_entry, config_path, exp_name, output_dir
+
+
+# { 責務: [_has_weight_manifest: 学習入力が区間Weight manifestを持つか(重み付き学習が必要か)を返す] }
+def _has_weight_manifest(job_dir: Path) -> bool:
+    dataset = job_dir / "dataset.json"
+    if not dataset.is_file():
+        return False
+    try:
+        return (
+            json.loads(dataset.read_text(encoding="utf-8-sig")).get("weight_manifest_file")
+            is not None
+        )
+    except (OSError, ValueError):
+        return False
 
 
 # {
@@ -82,24 +100,59 @@ def train_diffsinger(payload: dict) -> dict:
         _resolve_training_paths(payload)
     )
     output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        return _run_training(
+            payload, trainer_root, trainer_python, trainer_entry, config_path, exp_name, output_dir
+        )
+    except BaseException as error:
+        # 取消・タイムアウト・異常終了を区別して診断用に残す。成功として公開しない。
+        record_failure(output_dir, classify(error), str(error))
+        raise
+
+
+# { 責務: [_run_training: 検証済みのパスで学習を実行し、成果物と実行記録を返す(失敗は呼び出し側が記録する)] }
+def _run_training(
+    payload, trainer_root, trainer_python, trainer_entry, config_path, exp_name, output_dir
+) -> dict:
     # 学習モード(fine_tune / from_scratch)が指定されたときは、初期化方式を固定するoverlayのconfigで起動する。
     plan = prepare_initialization(payload, config_path, output_dir, exp_name)
     environment = _build_training_environment(output_dir)
-    command = [
-        str(trainer_python),
-        str(trainer_entry),
+    # 公式の設定は base_config を作業ディレクトリ基準の相対パス(configs/base.yaml)で辿る。作業ディレクトリは
+    # 出力先(同梱bundleを汚さないため)なので、固定ソースの configs をそこへ複製して辿れるようにする。
+    configs = trainer_root / "source" / "configs"
+    if configs.is_dir():
+        shutil.copytree(configs, output_dir / "configs", dirs_exist_ok=True)
+    # 重み付きサンプラーの使用記録は出力先へ書く(音響とDurationの学習で出力先が異なるため、入口へ明示する)。
+    environment["YOURSINGER_WEIGHT_REPORT"] = str(output_dir / "weight_sampling.json")
+    train_arguments = [
         "--config",
         str(plan.overlay_path if plan else config_path),
         "--exp_name",
         exp_name,
         "--reset",
     ]
+    # 重みmanifestを持つ学習入力(job直下のdataset.json)では、重み付きサンプラーへ差し替える入口で起動する。
+    job_dir = output_dir.parent
+    weighted = _has_weight_manifest(job_dir)
+    if weighted:
+        command = [
+            str(trainer_python),
+            str(Path(__file__).with_name("diffsinger_train_entry.py")),
+            str(trainer_root),
+            str(job_dir),
+            str(int(payload.get("seed") or 0)),
+            "--",
+            *train_arguments,
+        ]
+    else:
+        command = [str(trainer_python), str(trainer_entry), *train_arguments]
 
     log_path = output_dir / "trainer.log"
     # 同じjobを再実行しても以前のログを上書きしない。
     with log_path.open("a", encoding="utf-8") as log_file:
-        completed = subprocess.run(
+        completed = run_reclaiming(
             command,
+            timeout=payload.get("stage_timeout_seconds"),
             cwd=output_dir,
             check=False,
             text=True,
@@ -122,6 +175,10 @@ def train_diffsinger(payload: dict) -> dict:
         "config_path": str(config_path),
         "exp_name": exp_name,
     }
+    # 重み付きサンプラーが学習中に実際に使われたことを要求する(使われなければ失敗)。
+    weight_sampling = read_report(output_dir / "weight_sampling.json") if weighted else None
+    if weight_sampling is not None:
+        result["weight_sampling"] = weight_sampling
     if plan is not None:
         # Trainerが実際に使った設定と、出力されたcheckpointを計画と照合して記録する。
         verify_dumped_config(plan, output_dir, exp_name)
@@ -135,5 +192,6 @@ def train_diffsinger(payload: dict) -> dict:
             [("checkpoint", path) for path in checkpoints],
             plan.staged,
             "staged_before_launch",
+            weight_sampling,
         )
     return result
