@@ -39,7 +39,7 @@
       </TabItem>
 
       <TabItem Header="2. 話者・分類">
-        <Grid ColumnDefinitions="*,*" Margin="16">
+        <Grid ColumnDefinitions="*,*,*" Margin="16">
           <StackPanel Grid.Column="0" Spacing="10" Margin="0,0,12,0">
             <TextBlock Text="検出話者" FontSize="20" FontWeight="SemiBold" />
             <TextBlock Text="学習対象を選び、用途を「歌唱」「トーク」「両方」から指定します。" TextWrapping="Wrap" />
@@ -76,6 +76,11 @@
             <TextBlock Text="歌唱向け品質診断" FontSize="20" FontWeight="SemiBold" />
             <TextBlock x:Name="SingingSummaryText" Text="診断結果はまだありません。" TextWrapping="Wrap" />
             <ListBox x:Name="SingingQualityList" />
+          </StackPanel>
+          <StackPanel Grid.Column="2" Spacing="10" Margin="12,0,0,0">
+            <TextBlock Text="学習用の区間評価" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock x:Name="AssessmentSummaryText" Text="学習ジョブを作ると、採用・低品質採用・要確認・除外の件数が出ます。" TextWrapping="Wrap" />
+            <ListBox x:Name="AssessmentList" />
           </StackPanel>
         </Grid>
       </TabItem>
