@@ -3,12 +3,16 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import os
 import re
 import shutil
 import tempfile
 from pathlib import Path
 
 from .diffsinger_audio_clip import DiffSingerAudioClip
+from .verified_file_source import normalize_existing_path, open_verified_file
+
+MAX_SINGING_DATASET_BYTES = 64 * 1024 * 1024
 
 
 # {
@@ -27,21 +31,38 @@ class DiffSingerAcousticInput:
         job_id = payload["job_id"]
         if not isinstance(job_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", job_id):
             raise ValueError("歌唱jobの識別子が不正です。")
-        self.dataset_root = (self.project_root / "training/diffsinger" / job_id).resolve(strict=True)
+        self.dataset_root = (self.project_root / "training/diffsinger" / job_id).resolve(
+            strict=True
+        )
         if not self.dataset_root.is_relative_to(self.project_root):
             raise ValueError("歌唱jobが作業領域外です。")
-        self.document = json.loads(self._require_file(
-            str(self.dataset_root / "dataset.json")).read_text(encoding="utf-8-sig"))
-        if self.document.get("stage_version") != "v1-10.4":
+        # { 処理: [C#側が検証した同じdatasetバイト列だけを処理する] }
+        dataset_path = self._require_file(str(self.dataset_root / "dataset.json"))
+        with open_verified_file(dataset_path) as stream:
+            dataset_bytes = stream.read(MAX_SINGING_DATASET_BYTES + 1)
+        expected = payload.get("dataset_sha256")
+        if (
+            len(dataset_bytes) > MAX_SINGING_DATASET_BYTES
+            or not isinstance(expected, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", expected)
+            or hashlib.sha256(dataset_bytes).hexdigest() != expected
+        ):
+            raise ValueError("歌唱学習入力が検証後に変更されました。再生成してください。")
+        self.document = json.loads(dataset_bytes.decode("utf-8-sig"))
+        if self.document.get("stage_version") != "v1-10.5-mfa-measurement":
             raise ValueError("音素境界付きの歌唱入力を再生成してください。")
         for key in ("job_id", "dataset_fingerprint", "auto_correction_enabled", "speaker_id"):
             if key not in payload or self.document.get(key) != payload[key]:
                 raise ValueError(f"歌唱入力とjobの設定が一致しません: {key}")
-        if (type(payload["auto_correction_enabled"]) is not bool
-                or type(self.document.get("auto_correction_enabled")) is not bool):
+        if (
+            type(payload["auto_correction_enabled"]) is not bool
+            or type(self.document.get("auto_correction_enabled")) is not bool
+        ):
             raise ValueError("補正設定には真偽値が必要です。")
-        if any(not isinstance(payload[key], str) or not payload[key]
-               for key in ("dataset_fingerprint", "speaker_id")):
+        if any(
+            not isinstance(payload[key], str) or not payload[key]
+            for key in ("dataset_fingerprint", "speaker_id")
+        ):
             raise ValueError("歌唱jobにfingerprintと話者IDが必要です。")
         self.destination = self.dataset_root / "acoustic-input"
         if self.destination.exists() or self.destination.is_symlink():
@@ -54,9 +75,16 @@ class DiffSingerAcousticInput:
     #   戻り値: [path: 絶対パス]
     # }
     def _require_file(self, reference: str) -> Path:
-        path = (self.project_root / reference).resolve(strict=True)
-        if not path.is_relative_to(self.project_root) or not path.is_file():
+        raw = normalize_existing_path(self.project_root / reference)
+        if not raw.is_relative_to(self.project_root):
             raise ValueError("歌唱学習の入力ファイルが作業領域外です。")
+        path = raw.resolve(strict=True)
+        if (
+            not path.is_relative_to(self.project_root)
+            or not path.is_file()
+            or os.path.normcase(str(path)) != os.path.normcase(str(raw))
+        ):
+            raise ValueError("歌唱学習の入力ファイルが作業領域外かリンクを含みます。")
         return path
 
     # {
@@ -88,29 +116,58 @@ class DiffSingerAcousticInput:
         staging = Path(tempfile.mkdtemp(prefix=".acoustic-", dir=self.dataset_root)).resolve()
         try:
             (staging / "wavs").mkdir()
+            (staging / "measurements").mkdir()
             records = self._write_clips(staging)
             phones = sorted({phone for item, _ in self.items for phone in item["phonemes"]})
             (staging / "dictionary-ja.txt").write_text(
-                "".join(f"{phone}\t{phone}\n" for phone in phones), encoding="utf-8")
+                "".join(f"{phone}\t{phone}\n" for phone in phones), encoding="utf-8"
+            )
             # 学習・検証分割と完全な発音辞書は、Trainer準備時に別途検証する。
-            fragment = {"dictionaries": {"ja": str(self.destination / "dictionary-ja.txt")},
-                        "datasets": [{"raw_data_dir": str(self.destination),
-                                      "speaker": self.document["speaker_id"], "spk_id": 0, "language": "ja"}]}
+            fragment = {
+                "dictionaries": {"ja": str(self.destination / "dictionary-ja.txt")},
+                "datasets": [
+                    {
+                        "raw_data_dir": str(self.destination),
+                        "speaker": self.document["speaker_id"],
+                        "spk_id": 0,
+                        "language": "ja",
+                    }
+                ],
+            }
             (staging / "dataset-config.json").write_text(
-                json.dumps(fragment, ensure_ascii=False, indent=2), encoding="utf-8")
-            provenance = {key: self.document[key] for key in (
-                "stage_version", "job_id", "speaker_id", "dataset_fingerprint", "auto_correction_enabled")}
-            provenance.update(schema="your-singer-diffsinger-acoustic-v1", items=records,
-                              training_run=False, source_audio_unchanged=True)
+                json.dumps(fragment, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            provenance = {
+                key: self.document[key]
+                for key in (
+                    "stage_version",
+                    "job_id",
+                    "speaker_id",
+                    "dataset_fingerprint",
+                    "auto_correction_enabled",
+                )
+            }
+            provenance.update(
+                schema="your-singer-diffsinger-acoustic-v1",
+                items=records,
+                training_run=False,
+                source_audio_unchanged=True,
+            )
             (staging / "provenance.json").write_text(
-                json.dumps(provenance, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
+                json.dumps(provenance, ensure_ascii=False, indent=2, allow_nan=False),
+                encoding="utf-8",
+            )
             staging.rename(self.destination)
         finally:
             # stagingはこの関数がjob配下に作った絶対パスだけを削除対象とする。
             if staging.is_relative_to(self.dataset_root) and staging.exists():
                 shutil.rmtree(staging)
-        return {"raw_data_dir": str(self.destination), "item_count": len(self.items),
-                "dictionary_path": str(self.destination / "dictionary-ja.txt"), "training_run": False}
+        return {
+            "raw_data_dir": str(self.destination),
+            "item_count": len(self.items),
+            "dictionary_path": str(self.destination / "dictionary-ja.txt"),
+            "training_run": False,
+        }
 
     # {
     #   責務: [_write_clips: 各音声を実測範囲で切り出しCSV行と由来を保存する]
@@ -124,12 +181,52 @@ class DiffSingerAcousticInput:
             writer.writerow(["name", "ph_seq", "ph_dur"])
             for item, clip in self.items:
                 name = "segment_" + hashlib.sha256(item["segment_id"].encode("utf-8")).hexdigest()
+                measurement = self._copy_measurement(
+                    item, staging / "measurements" / f"{name}.json"
+                )
                 crop = clip.write(staging / "wavs" / f"{name}.wav")
-                writer.writerow([name, " ".join(clip.phones),
-                                 " ".join(format(end - start, ".12g")
-                                          for start, end in zip(clip.starts, clip.ends, strict=True))])
-                records.append({"name": name, "segment_id": item["segment_id"], "crop": crop})
+                writer.writerow(
+                    [
+                        name,
+                        " ".join(clip.phones),
+                        " ".join(
+                            format(end - start, ".12g")
+                            for start, end in zip(clip.starts, clip.ends, strict=True)
+                        ),
+                    ]
+                )
+                records.append(
+                    {
+                        "name": name,
+                        "segment_id": item["segment_id"],
+                        "crop": crop,
+                        "measurement": measurement,
+                    }
+                )
         return records
+
+    # { 責務: [_copy_measurement: 照合した測定記録を完成品に保存し、後からの原本変更と分離する] }
+    def _copy_measurement(self, item: dict, destination: Path) -> dict:
+        reference = item.get("alignment_measurement")
+        if not isinstance(reference, dict):
+            raise ValueError("音素の測定記録がありません。再解析してください。")
+        path = reference.get("path")
+        digest = reference.get("sha256")
+        if (
+            not isinstance(path, str)
+            or not path
+            or Path(path).is_absolute()
+            or not isinstance(digest, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", digest)
+        ):
+            raise ValueError("音素の測定記録の参照が不正です。")
+        source = self._require_file(path)
+        with open_verified_file(source) as stream:
+            data = stream.read(16 * 1024 * 1024 + 1)
+        if len(data) > 16 * 1024 * 1024 or hashlib.sha256(data).hexdigest() != digest:
+            raise ValueError("音素の測定記録が変更されました。再解析してください。")
+        destination.write_bytes(data)
+        return {"path": "measurements/" + destination.name, "sha256": digest}
 
 
 # {

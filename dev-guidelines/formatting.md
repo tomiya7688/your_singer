@@ -51,3 +51,16 @@ npm run format:python:check -- tests/worker/test_mfa_measurement.py
 cacheは`artifacts/ruff-cache`へ保存し、私的素材・生成物・vendorを除外します。
 `force-exclude`により明示指定したパスにも除外を適用します。CIはPythonの変更がない場合も`--show-settings`で設定を読み込み、設定だけの変更も検証します。
 対象は今回のPythonファイルだけを列挙してください。CIの`format.yml`も変更Pythonファイルだけを同じ固定版で検査します。
+
+## C#を変更するとき
+
+.NET SDK 10.0.401に含まれる`dotnet format whitespace`を固定して使います。通常のビルド用SDKの選択は変更しません。
+SDK 10.0.401を用意し、[実行環境](execution.md)の一時領域・NuGetキャッシュを設定してから、リポジトリ直下で対象だけを指定してください。
+
+```powershell
+npm run format:csharp -- src/data/YourSinger.Data/models/AlignmentMeasurementReference.cs
+npm run format:csharp:check -- src/data/YourSinger.Data/models/AlignmentMeasurementReference.cs
+```
+
+スクリプトは対象ファイルのプロジェクトを検出し、復元後に固定SDK内のformatterを実行します。
+生成物・vendor・project外を拒否し、CIは変更されたC#ファイルだけを`--check`で検査します。

@@ -16,7 +16,9 @@ public sealed class PitchCompletionTests
     private static AudioFeatureFrame[] Frames(Func<int, double> value, bool confidence = false) =>
         Enumerable.Range(0, 20).Select(i => new AudioFeatureFrame
         {
-            TimeSec = i * 0.01, Value = value(i), Confidence = confidence ? value(i) == 0 ? 0 : 0.95 : null
+            TimeSec = i * 0.01,
+            Value = value(i),
+            Confidence = confidence ? value(i) == 0 ? 0 : 0.95 : null
         }).ToArray();
 
     private static List<PhonemeTimingRecord> Vowel(string name = "a") =>
@@ -228,7 +230,10 @@ public sealed class PitchCompletionTests
         if (changed == "設定")
             await new AutoCorrectionRepository().SaveAsync(p.Workspace,
                 new() { PitchCompletion = new() { MaxGapSec = 0.04 } }, [], Token);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => new DiffSingerDatasetBuilder(p.DatasetRepository).BuildAsync(p.Workspace, job, Token));
+        if (changed == "音声")
+            await Assert.ThrowsAsync<InvalidDataException>(() => new DiffSingerDatasetBuilder(p.DatasetRepository).BuildAsync(p.Workspace, job, Token));
+        else
+            await Assert.ThrowsAsync<InvalidOperationException>(() => new DiffSingerDatasetBuilder(p.DatasetRepository).BuildAsync(p.Workspace, job, Token));
     }
 
     [Fact]
@@ -298,6 +303,7 @@ public sealed class PitchCompletionTests
         var segment = p.Segment("song", type: SegmentContentType.Singing, duration: 0.3);
         await p.SeedAsync(segment);
         WriteWave(Path.Combine(p.Workspace.RootPath, segment.AudioPath), kind);
+        await p.RefreshMeasurementAsync(segment);
         await WriteFramesAsync(p, segment.F0FeaturePath, Frames(i => i is 4 or 5 ? 0 : 220, true));
         await WriteFramesAsync(p, segment.EnergyFeaturePath, Frames(_ => 0.05));
         await WriteFramesAsync(p, segment.VoicingFeaturePath, Frames(i => i is 4 or 5 ? 0 : 1));

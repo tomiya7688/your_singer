@@ -14,7 +14,7 @@ namespace YourSinger.Process.Processing.Singing;
 // }
 public sealed class DiffSingerDatasetBuilder(UniversalVoiceDatasetRepository datasetRepository)
 {
-    public const string StageVersion = "v1-10.4";
+    public const string StageVersion = "v1-10.5-mfa-measurement";
     public const string RequiredAlignmentMethod = UniversalVoiceSegment.RequiredSingingTrainingAlignmentMethod;
 
     // {
@@ -40,6 +40,9 @@ public sealed class DiffSingerDatasetBuilder(UniversalVoiceDatasetRepository dat
             throw new InvalidDataException(
                 $"セグメント {unaligned.SegmentId} に検証済みの音素単位forced alignmentがありません。" +
                 "音素時刻が推定値の素材はDiffSinger学習に使用できません。");
+        // { 処理: [計画後の外部ファイル変更をhash・音素・音声の照合で拒否する] }
+        foreach (var segment in selected)
+            await MfaMeasurementValidator.ValidateFeatureAsync(workspace, segment, cancellationToken);
         string RequireInput(string relative)
         {
             // workspace相対パスを絶対化してから存在確認し、保存するrecordには解決済みパスを含める。
@@ -50,25 +53,34 @@ public sealed class DiffSingerDatasetBuilder(UniversalVoiceDatasetRepository dat
         }
         var record = new DiffSingerDatasetRecord
         {
-            StageVersion = StageVersion, JobId = job.JobId, SpeakerId = job.SpeakerId,
-            DatasetFingerprint = job.DatasetFingerprint, AutoCorrectionEnabled = job.AutoCorrectionEnabled,
+            StageVersion = StageVersion,
+            JobId = job.JobId,
+            SpeakerId = job.SpeakerId,
+            DatasetFingerprint = job.DatasetFingerprint,
+            AutoCorrectionEnabled = job.AutoCorrectionEnabled,
             Items = selected.Select(x => new DiffSingerTrainingItem
             {
-                SegmentId = x.SegmentId, AudioPath = RequireInput(x.AudioPath), Transcript = x.Transcript,
+                SegmentId = x.SegmentId,
+                AudioPath = RequireInput(x.AudioPath),
+                Transcript = x.Transcript,
                 Phonemes = x.Phonemes.Select(p => p.Phoneme).ToList(),
                 DurationsSec = x.Phonemes.Select(p => Math.Max(0, p.EndSec - p.StartSec)).ToList(),
                 AlignmentMethod = x.AlignmentMethod,
+                AlignmentMeasurement = x.AlignmentMeasurement,
                 PhonemeStartsSec = x.Phonemes.Select(p => p.StartSec).ToList(),
                 PhonemeEndsSec = x.Phonemes.Select(p => p.EndSec).ToList(),
-                F0FeaturePath = RequireInput(x.F0FeaturePath), EnergyFeaturePath = RequireInput(x.EnergyFeaturePath),
-                MeanF0Hz = x.MeanF0Hz, PitchReliability = x.PitchReliability
+                F0FeaturePath = RequireInput(x.F0FeaturePath),
+                EnergyFeaturePath = RequireInput(x.EnergyFeaturePath),
+                MeanF0Hz = x.MeanF0Hz,
+                PitchReliability = x.PitchReliability
             }).ToList()
         };
         var root = Path.Combine(workspace.RootPath, "training", "diffsinger", TrainingInputDirectory.RequireComponent(job.JobId));
         return await TrainingInputDirectory.BuildAsync(root, async staging =>
         {
             await using var stream = File.Create(Path.Combine(staging, "dataset.json"));
-            await JsonSerializer.SerializeAsync(stream, record,
+            using var limited = new LimitedWriteStream(stream, MfaMeasurementFiles.MaxSingingDatasetBytes);
+            await JsonSerializer.SerializeAsync(limited, record,
                 new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower }, cancellationToken);
             return record;
         }, cancellationToken);

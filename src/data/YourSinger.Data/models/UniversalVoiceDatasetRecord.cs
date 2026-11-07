@@ -24,6 +24,7 @@ public sealed class UniversalVoiceSegment
     //   戻り値: [isValid: 学習用alignmentの条件をすべて満たす場合はtrue]
     // }
     public bool HasValidSingingTrainingAlignment() =>
+        AlignmentMeasurement is not null &&
         AlignmentMethod == RequiredSingingTrainingAlignmentMethod &&
         double.IsFinite(AlignmentConfidence) && AlignmentConfidence is >= 0 and <= 1 &&
         Phonemes is { Count: > 0 } &&
@@ -77,6 +78,7 @@ public sealed class UniversalVoiceSegment
     public string AlignmentConfidenceStatus { get; set; } = ConfidenceStatus.LegacyUnknown;
     public string AlignmentMethod { get; set; } = "legacy-uniform-placeholder";
     public string? AlignmentWarning { get; set; }
+    public AlignmentMeasurementReference? AlignmentMeasurement { get; set; }
 
     public string F0FeaturePath { get; set; } = string.Empty;
     public string EnergyFeaturePath { get; set; } = string.Empty;

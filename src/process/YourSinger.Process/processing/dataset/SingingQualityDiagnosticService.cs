@@ -26,7 +26,8 @@ public sealed class SingingQualityDiagnosticService
         ProjectWorkspace workspace,
         CancellationToken cancellationToken = default)
     {
-        var dataset = await _datasetRepository.LoadAsync(workspace, cancellationToken)
+        var snapshot = await _datasetRepository.LoadSnapshotAsync(workspace, cancellationToken);
+        var dataset = snapshot.Record
             ?? throw new InvalidOperationException("Universal Voice Datasetがありません。");
 
         var singing = dataset.Segments
@@ -58,7 +59,7 @@ public sealed class SingingQualityDiagnosticService
                     ? SingingQualityLevel.Warning
                     : SingingQualityLevel.Good;
 
-        await _datasetRepository.SaveAsync(workspace, dataset, cancellationToken);
+        await _datasetRepository.SaveIfUnchangedAsync(workspace, dataset, snapshot.Revision, cancellationToken);
         await _repository.SaveAsync(workspace, diagnostic, cancellationToken);
 
         return diagnostic;

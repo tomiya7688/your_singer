@@ -20,10 +20,20 @@ public sealed class TrainingInputFingerprintTests
     {
         var s = new UniversalVoiceSegment
         {
-            SegmentId = id, SourceId = "src", AudioPath = $"{id}.wav", CacheKey = id, SpeakerId = speaker,
-            ContentType = type, VoicedRatio = 0.8, AsrConfidence = asr, AsrConfidenceStatus = asrStatus,
+            SegmentId = id,
+            SourceId = "src",
+            AudioPath = $"{id}.wav",
+            CacheKey = id,
+            SpeakerId = speaker,
+            ContentType = type,
+            VoicedRatio = 0.8,
+            AsrConfidence = asr,
+            AsrConfidenceStatus = asrStatus,
             AlignmentMethod = UniversalVoiceSegment.RequiredSingingTrainingAlignmentMethod,
-            AlignmentConfidence = 0.8, AlignmentConfidenceStatus = ConfidenceStatus.Measured, PitchReliability = 0.9
+            AlignmentConfidence = 0.8,
+            AlignmentConfidenceStatus = ConfidenceStatus.Measured,
+            PitchReliability = 0.9,
+            AlignmentMeasurement = new() { Path = $"measurements/{id}.json", Sha256 = new string('a', 64), AudioSha256 = new string('b', 64) }
         };
         double t = 0;
         foreach (var p in phonemes ?? ["a"])
@@ -36,15 +46,22 @@ public sealed class TrainingInputFingerprintTests
 
     private static TrainingAssessmentBuildInput Input(string target = "talk", string[]? excluded = null) => new()
     {
-        JobId = "job1", SpeakerId = "spk_a", Target = target, SourceDatasetFingerprint = "snapshot-1",
+        JobId = "job1",
+        SpeakerId = "spk_a",
+        Target = target,
+        SourceDatasetFingerprint = "snapshot-1",
         UserExcludedSegmentIds = new HashSet<string>(excluded ?? []),
         F0Provider = _ => [220.0]
     };
 
     private static TrainingJobRecord Job(TrainingMode mode = TrainingMode.Auto, string preset = "natural") => new()
     {
-        JobId = "job1", SpeakerId = "spk_a", Target = TrainingTarget.Talk, DatasetFingerprint = "snapshot-1",
-        RequestedTexture = new TrainingTextureRequest { Preset = preset }, RequestedTrainingMode = mode,
+        JobId = "job1",
+        SpeakerId = "spk_a",
+        Target = TrainingTarget.Talk,
+        DatasetFingerprint = "snapshot-1",
+        RequestedTexture = new TrainingTextureRequest { Preset = preset },
+        RequestedTrainingMode = mode,
         ResolvedTrainingMode = mode == TrainingMode.Auto ? null : mode,
         Initialization = mode == TrainingMode.FromScratch
             ? new TrainingInitialization { Type = TrainingJobVocabulary.RandomInitialization }
@@ -58,8 +75,12 @@ public sealed class TrainingInputFingerprintTests
         string? config = null) =>
         TrainingInputFingerprint.Compute(new TrainingInputFingerprintInput
         {
-            DatasetFingerprint = "snapshot-1", ContractFingerprint = TrainingJobContractFingerprint.Compute(job ?? Job()),
-            Backend = "diffsinger", BackendRevision = revision, TrainerConfigSha256 = config, Assessment = record
+            DatasetFingerprint = "snapshot-1",
+            ContractFingerprint = TrainingJobContractFingerprint.Compute(job ?? Job()),
+            Backend = "diffsinger",
+            BackendRevision = revision,
+            TrainerConfigSha256 = config,
+            Assessment = record
         });
 
     [Fact]
@@ -135,8 +156,12 @@ public sealed class TrainingInputFingerprintTests
         var record = Builder.Build(segments, Input());
         var otherPolicy = new TrainingAssessmentRecord
         {
-            SchemaVersion = record.SchemaVersion, PolicyVersion = "training-weight-v2", JobId = record.JobId,
-            SpeakerId = record.SpeakerId, Target = record.Target, SourceDatasetFingerprint = record.SourceDatasetFingerprint,
+            SchemaVersion = record.SchemaVersion,
+            PolicyVersion = "training-weight-v2",
+            JobId = record.JobId,
+            SpeakerId = record.SpeakerId,
+            Target = record.Target,
+            SourceDatasetFingerprint = record.SourceDatasetFingerprint,
             Items = record.Items
         };
         Assert.NotEqual(baseline, Fingerprint(otherPolicy));
@@ -148,12 +173,20 @@ public sealed class TrainingInputFingerprintTests
         var record = Builder.Build([Seg("a"), Seg("b")], Input());
         Assert.Throws<ArgumentException>(() => TrainingInputFingerprint.Compute(new TrainingInputFingerprintInput
         {
-            DatasetFingerprint = " ", ContractFingerprint = "c", Backend = "b", BackendRevision = "r", Assessment = record
+            DatasetFingerprint = " ",
+            ContractFingerprint = "c",
+            Backend = "b",
+            BackendRevision = "r",
+            Assessment = record
         }));
         var reversed = new TrainingAssessmentRecord
         {
-            SchemaVersion = record.SchemaVersion, PolicyVersion = record.PolicyVersion, JobId = record.JobId,
-            SpeakerId = record.SpeakerId, Target = record.Target, SourceDatasetFingerprint = record.SourceDatasetFingerprint,
+            SchemaVersion = record.SchemaVersion,
+            PolicyVersion = record.PolicyVersion,
+            JobId = record.JobId,
+            SpeakerId = record.SpeakerId,
+            Target = record.Target,
+            SourceDatasetFingerprint = record.SourceDatasetFingerprint,
             Items = [.. record.Items.AsEnumerable().Reverse()]
         };
         Assert.Throws<ArgumentException>(() => Fingerprint(reversed));

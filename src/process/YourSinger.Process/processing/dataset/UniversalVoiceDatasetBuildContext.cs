@@ -9,6 +9,7 @@ namespace YourSinger.Process.Processing.Dataset;
 //   フィールド: [
 //     Dataset: 構築中のdataset
 //     ExistingDataset: 再利用する既存dataset
+//     ExistingRevision: 既存datasetの更新確認用ハッシュ
 //     ExistingSegmentsById: 既存segmentのキャッシュ検索表
 //     SpeakerBySegment: segmentから話者IDへの割り当て
 //     SpeakerEmbeddingById: 話者IDから埋め込みへの対応
@@ -19,6 +20,7 @@ namespace YourSinger.Process.Processing.Dataset;
 internal sealed record UniversalVoiceDatasetBuildContext(
     UniversalVoiceDatasetRecord Dataset,
     UniversalVoiceDatasetRecord? ExistingDataset,
+    string? ExistingRevision,
     Dictionary<string, UniversalVoiceSegment> ExistingSegmentsById,
     Dictionary<string, string> SpeakerBySegment,
     Dictionary<string, List<double>> SpeakerEmbeddingById,

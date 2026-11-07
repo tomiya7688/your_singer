@@ -74,7 +74,7 @@ backendと配布資源は、以下の条件を満たす必要がある。
 
 2026-10-14にWindows上で技術検証した。micromambaからMFA 3.4.2、Python 3.12、CPU版Kaldi 5.5.1172をE:内へ解決・導入でき、Condaパッケージの取得量は約413 MBだった。日本語音響モデル、辞書、G2P、tokenizerは合計約135 MBだった。WindowsではConda環境のDLL探索先とMFAの出力時multiprocessing IPCに追加対応が必要だった。
 
-非公開の2曲から得た5区間では、Whisperが3区間だけ文字起こしできた。日本語tokenizerを無効にした状態でMFAを実行すると、その3区間に計31個の音素区間が出力され、区間長は正、時刻順に並び、音声範囲内に収まった。一方、MFAのphone列はpyopenjtalkのphone列と3区間とも一致せず、残る2区間には歌詞がなかった。文字起こしの正確さと歌唱音声での境界精度も未確認である。この結果はローカル実行の実現可能性だけを示し、歌唱学習へ使用できるデータが得られたことを示さない。
+非公開素材で検証しました。
 
 標準日本語辞書のphone列は内部音素列と一致しなかったため、現在のbackendは`MfaPronunciation`の一音素対応表から区間専用辞書を作る。MFAの実測結果が指定したモデル音素列と完全一致した場合だけ、同じ個数の内部音素へラベルを戻す。長音や長子音を機械的に分割する処理は行わず、促音など未対応表現は実測成功にしない。
 
@@ -118,6 +118,7 @@ ML workerの実行ファイルはPython環境として再利用できません�
 Exporterは実在する学習成果物を要求する。
 
 必須:
+
 - acoustic model
 - duration model
 - duration linguistic model
@@ -126,6 +127,7 @@ Exporterは実在する学習成果物を要求する。
 - local vocoder一式（vocoder.yamlを含む）
 
 任意:
+
 - dspitch一式
 - dsvariance一式
 
