@@ -65,6 +65,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: 到達不能コード検査の自己検証
+        run: pwsh tools/dev/check_unreachable.ps1 -SelfTest
+      - name: 到達不能コードの検査 (Python/PowerShell)
+        run: pwsh tools/dev/check_unreachable.ps1
       - name: 構文確認
         run: python -m compileall -q src/process/YourSinger.Process/processing/ml/worker/your_singer_ml
       - name: pip と certifi を最低版へ更新して確認

@@ -4,7 +4,32 @@
 
 単一の綺麗な収録データセットを前提にせず、配信アーカイブ、動画、録音、音声ファイルなどのまとまった素材群から、音声抽出・分離・話者識別・区間分割・品質判定・学習用データ生成までを行い、既存の音声合成ソフトで利用できるモデルとして出力します。
 
-> 現在は設計・仕様策定段階です。
+> 現在は **開発段階** です。設計と仕様を固めながら、処理段階ごとの実装を `main` へ統合している途中で、**エンドツーエンドで実素材からモデルを作れる状態ではありません**。公開リリースもまだありません。
+
+## 実装状況(2026-11-07 時点)
+
+「実装」は `main` にソースとテストがあることを指します。合成fixture・単体テストの成功は、実際の雑多な素材や実GPUでモデルが生成できることを意味しません。
+
+| 処理段階                                               | 状況                                                                  | 根拠・補足                                                                                       |
+| ------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 入力(フォルダ走査・指紋)、FFmpeg前処理                 | 実装(実素材での網羅検証は未)                                          | `processing/media/`、`processing/audio/`、`processing/project/`                                  |
+| 話者分類・話者選択の補正                               | 実装(試作水準)                                                        | `processing/speaker/`                                                                            |
+| 音素・MFA測定(日本語)                                  | 実装(worker連携)。実モデルでの精度は未検証                            | `processing/ml/worker`、[forced-alignment.md](docs/forced-alignment.md)                          |
+| 共通dataset・カバレッジ診断・補完候補・重み方針        | 実装                                                                  | `processing/dataset/`、[phoneme-completion-candidates.md](docs/phoneme-completion-candidates.md) |
+| 学習戦略の計画・モード解決・事前検証・実行記録の検証   | 実装(契約と単体テストまで。実学習での検証は未)                        | `processing/training/`                                                                           |
+| 歌唱(DiffSinger系)学習入力・学習実行・出力検証         | 一部実装。重み付きサンプリングなどは未統合のPRあり。実GPU学習は未検証 | `processing/singing/`、[diffsinger-acoustic-input.md](docs/diffsinger-acoustic-input.md)         |
+| トーク(Style-Bert-VITS2系)学習入力・学習実行・出力検証 | 一部実装。実GPU学習・実読み上げ検証は未                               | `processing/talk/`、[talk-trainer-bundle.md](docs/talk-trainer-bundle.md)                        |
+| Exporter                                               | 実装(出力形式の検証まで。外部ソフトでの再生確認は未)                  | `processing/export/`                                                                             |
+| GUI                                                    | 試作(Avalonia)。学習前診断・学習実行の画面接続は一部未                | `src/ui/YourSinger.App`                                                                          |
+| 配布(ZIP・検証用ハッシュ・署名)                        | 構築手順は実装。公開リリース・正式署名は未                            | [release-signing.md](docs/release-signing.md)、`.github/workflows/package-worker.yml`            |
+
+`main` に未統合の機能はオープンなPRにだけ存在し、完成済みとは扱いません([PR一覧](https://github.com/tomiya7688/your_singer/pulls))。
+
+### 検証と制約
+
+- CI(`.github/workflows/build.yml`)で、.NETのビルドと回帰テスト、Pythonワーカーの単体テスト、文書の照合を実行します。ローカルでは `pwsh tools/dev/check.ps1` で同じ検査ができます。
+- 実GPUでの学習、実素材からの一連の生成、外部ソフトでの読み込み確認は、現時点で検証済みと言えません。
+- 次に必要な作業は [実装Issue一覧](docs/design/v1-training/README.md) と [ロードマップ](docs/roadmap.md) を参照してください。
 
 ## 目標
 
