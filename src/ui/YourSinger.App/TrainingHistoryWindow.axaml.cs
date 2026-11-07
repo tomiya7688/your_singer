@@ -104,6 +104,8 @@ public sealed partial class TrainingHistoryWindow : Window
         {
             BatchDetailText.Text = "再作成するジョブ一式を選択してください。";
             RecreateBatchButton.IsEnabled = false;
+            VerificationSampleCombo.ItemsSource = null;
+            OpenSampleButton.IsEnabled = false;
             StartTalkButton.IsEnabled = false;
             StartSingingButton.IsEnabled = false;
             return;
@@ -114,6 +116,7 @@ public sealed partial class TrainingHistoryWindow : Window
             string.Join("\n", batch.Jobs.Select(job =>
                 $"{job.SpeakerId} / {TargetLabel(job.Target)} / 補完{(job.AutoCorrectionEnabled ? "ON" : "OFF")} / {StateLabel(job.State)} / {job.SegmentIds.Count}区間\n" +
                 string.Join("\n", YourSinger.Process.Processing.Training.TrainingPlanSelection.DescribeJob(job))));
+        BatchDetailText.Text += "\n\n" + DescribeVerification(batch);
         var running = batch.Jobs.Any(job => job.State == TrainingJobState.Running);
         if (running) BatchDetailText.Text += "\n実行中のジョブを含むため、終了または中止を確認するまで再作成できません。";
         RecreateBatchButton.IsEnabled = !_busy && !running;

@@ -21,6 +21,10 @@
       <TextBlock x:Name="BatchDetailText" Text="再作成するジョブ一式を選択してください。" TextWrapping="Wrap" />
     </ScrollViewer>
     <StackPanel Grid.Row="5" Spacing="8">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <ComboBox x:Name="VerificationSampleCombo" MinWidth="360" PlaceholderText="保存済みの試験音声(無ければ空)" SelectionChanged="OnSampleSelectionChanged" />
+        <Button x:Name="OpenSampleButton" Content="試験音声を開いて試聴" Click="OnOpenSampleClick" IsEnabled="False" />
+      </StackPanel>
       <TextBlock Text="話者・用途・補完ON/OFFを引き継ぎ、現在の手動編集と補完設定で入力を組み直します。音声の再解析や学習の開始は行いません。" TextWrapping="Wrap" />
       <Button x:Name="RecreateBatchButton" Content="選択したジョブ一式を再作成" Click="OnRecreateBatchClick" IsEnabled="False" />
       <TextBlock Text="待機中のトークジョブを学習します。GPU・初期重み・素材を確認し、条件を満たさない場合は学習を始めません。実行中は「学習を取り消す」で子プロセスごと停止します。" TextWrapping="Wrap" />
