@@ -15,6 +15,14 @@ public sealed class DiffSingerTrainerService
         _workerClient = workerClient;
     }
 
+    // {
+    //   責務: [AsExecution: TrainingExecutionService に渡す学習処理を作る]
+    //   引数: [workspace: 作業領域, configPath: 学習設定]
+    //   戻り値: [train: 固定済みjobを受けてTrainAsyncを実行し、ログのパスを返す処理]
+    // }
+    public Func<TrainingJobRecord, CancellationToken, Task<string>> AsExecution(ProjectWorkspace workspace, string configPath) =>
+        (job, token) => TrainAsync(workspace, job, configPath, token);
+
     public async Task<string> TrainAsync(
         ProjectWorkspace workspace,
         TrainingJobRecord job,

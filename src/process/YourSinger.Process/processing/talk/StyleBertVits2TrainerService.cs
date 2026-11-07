@@ -21,6 +21,15 @@ public sealed class StyleBertVits2TrainerService
     }
 
     // {
+    //   責務: [AsExecution: TrainingExecutionService に渡す学習処理を作る]
+    //   引数: [workspace: 作業領域, modelName: 生成するモデル名, timbre: 声質の追加入力(省略可)]
+    //   戻り値: [train: 固定済みjobを受けてTrainAsyncを実行し、ログのパスを返す処理]
+    // }
+    public Func<TrainingJobRecord, CancellationToken, Task<string>> AsExecution(
+        ProjectWorkspace workspace, string modelName, TalkTimbreAdaptationInput? timbre = null) =>
+        (job, token) => TrainAsync(workspace, job, modelName, token, timbre);
+
+    // {
     //   責務: [TrainAsync: 作成済みのトーク学習入力でTrainerを実行する]
     //   処理: [1: ジョブと入力を確認する 2: 専用環境へ入力を渡す 3: ログの参照を返す]
     //   エラー: [入力不足・Trainer失敗・成果物不足で失敗する]
@@ -139,7 +148,10 @@ public sealed class StyleBertVits2TrainerService
                 throw new InvalidOperationException("声質参照を渡しましたが、Trainerがスタイル追加を報告していません。");
             usage = new SharedFeatureUsageEntry
             {
-                Feature = usage.Feature, Domain = usage.Domain, Support = usage.Support, Used = true,
+                Feature = usage.Feature,
+                Domain = usage.Domain,
+                Support = usage.Support,
+                Used = true,
                 Reason = $"歌唱区間 {count.GetInt32()} 件の音声から作ったスタイル「{TalkTimbreAdaptationInput.StyleName}」をトークモデルへ追加しました(教師データには使っていません)。"
             };
         }
