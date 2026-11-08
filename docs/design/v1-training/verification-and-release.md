@@ -50,6 +50,17 @@ stage.state: `not_run`, `running`, `passed`, `warning`, `failed`, `unavailable`�
 4. 音声認識による文字一致率、話者類似度、歪み／音割れ指標を取得できる場合は保存。取得不能な指標は `unavailable`、空値を満点にしない。
 5. 推論環境での実音声生成を再確認し、証跡（モデルhash、文章、推論runtime、出力WAV）を残す。
 
+## プリセット別の実品質・能力検証
+
+質感プリセットは必須であり、生成モデルの実用性だけでなく、**目標質感に沿って学習レシピ・推論制御・実際の出力が変化しているか**を確認する。手法と要件の正本は [Preset→学習レシピ設計](preset-recipe-selection.md)、[DiffSingerの質感実現](diffsinger-preset-realization.md)。
+
+- 話者/同一素材/同一の未学習歌詞・音符で `classic_synthetic` と `expressive_complex` ほかを比較。
+- 使用した `recipe_id/version`、Dataset/Weight、Acoustic/Duration/Pitch/Varianceの構成、予測できる表現軸、実checkpoint/音声hashを記録。
+- **目標質感の差が出るか**と、**発音/音程/本人性/無音・歪みが悪化していないか**を分けて評価する。歌唱の電子的表現を自然度スコアだけで落とさない。
+- 表現Embeddingを有効化しても学習用教師/予測model/Exporterが無い場合は未対応。モデルが変わらない/声質が壊れる場合は未完成。
+- OpenUtauの追加expressionはVoicebankの実対応を検証。独立voicebank variantは別Singerとして読み込めること。
+- 「現在の固定DiffSingerではその質感が作れない」を**仕様削除の理由にしない**。必要な学習stage/モデル構成の追加を完了条件へ含める。
+
 ## 歌唱モデルの検証
 
 1. OpenUtau 0.1.565互換のvoicebank設定、音素辞書、acoustic/duration/pitch等の必要なmodelを検査する。
