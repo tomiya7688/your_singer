@@ -73,5 +73,6 @@ Data Layer（project workspace内への永続化）
 11. [学習モード・Trainer統合](training-modes-and-backends.md)
 12. [検証・完成判定](verification-and-release.md)
 13. [実装Issueの依存順（PR #115・マージ待ち）](https://github.com/tomiya7688/your_singer/blob/issue-79-v1-training-issue-plan/docs/design/v1-training/implementation-plan.md)
+14. [感情による声の切り替え(トーク・歌唱)](emotion-expression.md)
 
 実行・レビュー手順は `AGENTS.md`、`dev-guidelines/workflow.md`、`tools/dev/check.ps1` を正とする。
