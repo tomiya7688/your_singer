@@ -1,5 +1,7 @@
 # DiffSingerの音響学習入力
 
+**質感別の学習設定を追加する設計:** [DiffSingerプリセット実現の詳細設計](design/v1-training/diffsinger-preset-realization.md)。現行`acoustic-training.yaml`はプリセット非依存の基準configである。学習用の条件付きEmbedding、Variance/Pitch教師、Augmentation、Vocoder、重み付きサンプルの対応が揃わないうちは「プリセットを学習できた」としない。
+
 ## 背景と目的
 
 Issue #11では、共通音声データから実際のDiffSingerが読める学習入力を生成します。
@@ -70,7 +72,7 @@ VoiceProject/training/diffsinger/<job-id>/
 
 worker の `binarize_diffsinger` が、音響学習入力から学習設定を作り、固定した公式 `scripts/binarize.py` を実行します。
 
-- 学習設定 `acoustic-training.yaml`(job 直下)は、固定ソースの `configs/acoustic.yaml` を `base_config` に取り、辞書・データセット・検証分割(`test_prefixes`)・`binary_data_dir` だけを指定します。データ増幅(augmentation)は、重みmanifestと1対1にするため無効にします。
+- 学習設定 `acoustic-training.yaml`(job 直下)は、固定ソースの `configs/acoustic.yaml` を `base_config` に取り、辞書・データセット・検証分割(`test_prefixes`)・`binary_data_dir` だけを指定します。現行のデータ増幅(augmentation)は、重みmanifestと1対1にするため**無効**です。質感別学習で有効にする場合は、派生データの元segment IDと学習item index/weightの正しい対応・元録音単位のtrain/val分離を実装し検証した後に限ります。
 - 検証用の区間は名前順で決定的に選びます(全体の1割、最大5件、学習用は必ず1件以上残します)。
 - 起動は `diffsinger_binarize_entry.py` 経由で、公式の item 書き込みを差し替え、学習 item 番号→名前を `binary/train.names.json` に残します。重み付きサンプラー(`weighted-ds-batch-v1`)がこの記録を使います。
 - 実行は子孫ごと回収できる形(`run_reclaiming`)で行い、タイムアウト・失敗は `run_failure.json` に残します。item 名の記録が無い、または件数が「入力 − 検証用」と合わないときは失敗にします。
