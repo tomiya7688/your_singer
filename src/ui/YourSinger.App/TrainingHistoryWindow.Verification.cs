@@ -53,7 +53,7 @@ public sealed partial class TrainingHistoryWindow
         try
         {
             // 既定のアプリで再生する(音声再生ライブラリは使わない)。
-            Process.Start(new ProcessStartInfo(row.Sample.FullPath) { UseShellExecute = true });
+            System.Diagnostics.Process.Start(new ProcessStartInfo(row.Sample.FullPath) { UseShellExecute = true });
             HistoryStatusText.Text = $"試験音声を開きました: {row.Sample.Label}";
         }
         catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException)
