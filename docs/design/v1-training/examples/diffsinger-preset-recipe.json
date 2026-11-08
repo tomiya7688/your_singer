@@ -1,0 +1,60 @@
+{
+  "schema_version": "1",
+  "job_id": "job-singing-example",
+  "target": "singing",
+  "preset": {
+    "id": "builtin.expressive_complex",
+    "version": "1.0.0"
+  },
+  "strategy": {
+    "id": "builtin.singing_expressive",
+    "version": "1.0.0"
+  },
+  "recipe": {
+    "id": "diffsinger-2.5.1-expressive",
+    "version": "1"
+  },
+  "dataset": {
+    "inventory_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "assessment_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "stages": [
+    {
+      "stage_id": "acoustic",
+      "operation_id": "builtin.diffsinger.acoustic",
+      "options_ref": "recipes/acoustic.json",
+      "options_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "initialization": "fine_tune"
+    },
+    {
+      "stage_id": "duration",
+      "operation_id": "builtin.diffsinger.duration",
+      "options_ref": "recipes/duration.json",
+      "options_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "initialization": "from_scratch"
+    },
+    {
+      "stage_id": "pitch_variance",
+      "operation_id": "builtin.diffsinger.variance",
+      "options_ref": "recipes/variance.json",
+      "options_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "initialization": "from_scratch"
+    },
+    {
+      "stage_id": "export",
+      "operation_id": "builtin.diffsinger.export",
+      "options_ref": "recipes/export.json",
+      "options_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "initialization": "not_applicable"
+    }
+  ],
+  "render_profile": {
+    "path": "recipes/render.json",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "required_output": {
+    "format": "openutau_diffsinger",
+    "version": "0.1.565"
+  },
+  "plan_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
