@@ -21,6 +21,7 @@
       <TextBlock x:Name="BatchDetailText" Text="再作成するジョブ一式を選択してください。" TextWrapping="Wrap" />
     </ScrollViewer>
     <StackPanel Grid.Row="5" Spacing="8">
+      <Button x:Name="ShowMaterialButton" Content="選択したジョブの素材量(発話・歌唱・声質参照)を表示" Click="OnShowMaterialClick" />
       <StackPanel Orientation="Horizontal" Spacing="8">
         <ComboBox x:Name="VerificationSampleCombo" MinWidth="360" PlaceholderText="保存済みの試験音声(無ければ空)" SelectionChanged="OnSampleSelectionChanged" />
         <Button x:Name="OpenSampleButton" Content="試験音声を開いて試聴" Click="OnOpenSampleClick" IsEnabled="False" />
