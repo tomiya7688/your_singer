@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace YourSinger.Data.Models;
 
 public sealed class UniversalVoiceDatasetRecord
@@ -91,7 +93,44 @@ public sealed class UniversalVoiceSegment
     public double VoicedRatio { get; set; }
 
     public StyleProsodyRecord StyleProsody { get; set; } = new();
+
+    // 感情ラベル(任意)。null は「ラベルなし」で、平常とは見なさない。未設定のときは保存結果にも出さず、既存データと同じ形になる。
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public EmotionLabelRecord? Emotion { get; set; }
+
     public List<double> SpeakerEmbedding { get; init; } = [];
+}
+
+// {
+//   責務: [EmotionLabelRecord: 区間に付けた感情ラベル(名前・付けた主体・確信度)]
+//   フィールド: [Name: 利用者が決める感情の名前, Source: user か inferred, Confidence: 推定の確信度(0〜1。測れていなければ null=未測定)]
+//   補足: [設計: docs/design/v1-training/emotion-expression.md。確信度の null は 0% ではなく未測定を表す。]
+// }
+public sealed class EmotionLabelRecord
+{
+    public const string SourceUser = "user";
+    public const string SourceInferred = "inferred";
+    public const int MaxNameLength = 32;
+
+    public required string Name { get; init; }
+    public required string Source { get; init; }
+    public double? Confidence { get; init; }
+
+    // {
+    //   責務: [Validate: 感情ラベルが保存してよい内容か確認し、問題があれば日本語の理由を返す]
+    //   戻り値: [reason: 問題が無ければ null]
+    // }
+    public string? Validate()
+    {
+        if (string.IsNullOrWhiteSpace(Name) || Name != Name.Trim()) return "感情の名前が空、または前後に空白があります。";
+        if (Name.Length > MaxNameLength) return $"感情の名前は{MaxNameLength}文字以内にしてください。";
+        if (Name.Any(char.IsControl)) return "感情の名前に制御文字は使えません。";
+        if (Source is not (SourceUser or SourceInferred)) return "感情ラベルの付け手は user か inferred にしてください。";
+        if (Confidence is { } c && (!double.IsFinite(c) || c is < 0 or > 1)) return "感情の確信度は0〜1にしてください。";
+        // 利用者が付けたラベルは確信度を持たない(推定ではない)。
+        if (Source == SourceUser && Confidence is not null) return "利用者が付けたラベルに確信度は付けられません。";
+        return null;
+    }
 }
 
 public static class ConfidenceStatus
