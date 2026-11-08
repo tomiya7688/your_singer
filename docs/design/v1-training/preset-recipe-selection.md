@@ -89,7 +89,7 @@ training → export → true inference → objective + listening evaluation
 
 ## 5. 新しい契約：PresetRecipePlan
 
-以下は**実装するschemaの構造例**であり、現在の `TrainingStrategyDescriptor` はstage optionsをまだ保持しない。
+以下は**実装するschemaの構造例**であり、現在の `TrainingStrategyDescriptor` はstage optionsをまだ保持しない。機械検証用の [PresetRecipePlan JSON Schema](schema/preset-recipe-plan.schema.json) と [具体例](examples/diffsinger-preset-recipe.json) を追加した。SHA-256等の例示値は実ファイルの内容ではなく、**実学習の成功を意味しない**。
 
 ```json
 {
