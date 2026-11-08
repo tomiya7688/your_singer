@@ -203,6 +203,12 @@ Acousticが必要なEmbeddingを学習し、`dspitch/`、`dsvariance/`（必要�
 - UIは `未実装` / `入力不足` / `学習可能` / `学習済み・推論未検証` / `質感確認済み` を区別。**プリセットを消したり、対応しないのに代わりにnaturalを選ぶことをしない**。
 - 実GPUとOpenUtau実機の検証が終わるまでプリセット対応の完了としない。
 
+## 学習レシピの回帰テスト契約
+
+[DiffSingerプリセット用の設計テストケース（JSON）](examples/diffsinger-preset-contract-cases.json) を、実装時のxUnit/pytest/GPU E2Eへ移す。JSON上の対応可否は**シミュレーションであり実GPU検証済みではない**。
+
+[PresetRecipePlan Schema](schema/preset-recipe-plan.schema.json) と [レシピ記録例](examples/diffsinger-preset-recipe.json) はConfig/Stage/成果物の版とhashを不変Jobへ保存するための契約。実モデル固有の設定はRecipeOptionsで個別に検証する。
+
 ## 9. 実装が小さくなるように責務を分ける
 
 | 既存クラス／ファイル | 追加責務（設計上） |
