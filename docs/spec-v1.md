@@ -342,6 +342,10 @@ C# 側は UI / Project / Job / Data / ML Worker Control を担当し、Python �
 
 ## 16. 質感プリセットと学習戦略の拡張性
 
+**必須機能:** 質感プリセットは表示だけの機能とせず、プリセットによって学習方法・データ配分・モデル構成/必要なサブモデル・合成制御を変更する。歌唱DiffSingerでもAcoustic/Duration/Pitch/Varianceの条件付けや独立学習variantを組み合わせ、**DiffSingerにプリセット機能がないことを理由にプリセットを削除しない**。
+
+[共通学習レシピ](design/v1-training/preset-recipe-selection.md)、[固定DiffSingerでの具体的実装](design/v1-training/diffsinger-preset-realization.md)を正本とする。プリセット名/メタデータの変更のみでは完成ではなく、実学習・OpenUtauでの歌唱・質感の違いまで検証する。
+
 - 生成目的（talk/singing/both）はユーザーが選択し、質感プリセットはそれぞれ独立に選択する。
 - 現行の音声合成方式を基に質感を分類し、クラシック電子的・自然・高表現・柔らかい・力強いなどをプリセット候補とする。
 - プリセットはモデル選択そのものではなく、目標質感の特徴と必要な学習/合成工程の条件である。

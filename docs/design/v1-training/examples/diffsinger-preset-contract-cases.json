@@ -1,0 +1,134 @@
+{
+  "schema_version": "1",
+  "description_ja": "DiffSingerの質感別レシピについて、実装時に必要な主な前提・非許容条件の例。学習・音声生成が成功した証拠ではない。",
+  "cases": [
+    {
+      "id": "classic_vs_expressive",
+      "preset_pair": [
+        "builtin.classic_synthetic",
+        "builtin.expressive_complex"
+      ],
+      "source": "same_speaker_same_training_split",
+      "expect": {
+        "distinct_training_recipe": true,
+        "distinct_config_or_checkpoint": true,
+        "render_with_same_unseen_score": true,
+        "require_texture_evidence": true
+      },
+      "forbid": [
+        "preset_name_only",
+        "identical_audio_claim_as_distinct_texture"
+      ]
+    },
+    {
+      "id": "expressive_has_measured_hn_features",
+      "preset": "builtin.expressive_complex",
+      "features": [
+        "breathiness",
+        "voicing",
+        "tension"
+      ],
+      "acoustic": {
+        "use_energy_embed": false,
+        "use_breathiness_embed": true,
+        "use_voicing_embed": true,
+        "use_tension_embed": true
+      },
+      "variance": {
+        "predict_dur": false,
+        "predict_pitch": false,
+        "predict_energy": false,
+        "predict_breathiness": true,
+        "predict_voicing": true,
+        "predict_tension": true
+      },
+      "expect": {
+        "feature_timebase_matches": true,
+        "requires_trained_acoustic": true,
+        "requires_variance_inference_if_enabled": true
+      },
+      "forbid": [
+        "enable_all_energy_breathiness_voicing",
+        "label_unknown_as_measured"
+      ]
+    },
+    {
+      "id": "expressive_no_hn_extractor",
+      "preset": "builtin.expressive_complex",
+      "features": [],
+      "expect": {
+        "status": "missing_capability_or_data",
+        "reason_codes": [
+          "missing_hn_features"
+        ]
+      },
+      "forbid": [
+        "set_embeds_true_without_features",
+        "announce_verified_preset"
+      ]
+    },
+    {
+      "id": "pitch_no_note_teacher",
+      "preset": "builtin.expressive_complex",
+      "note_ground_truth": false,
+      "expect": {
+        "predict_pitch_not_automatically_enabled": true,
+        "keep_manual_pitch_control": true
+      },
+      "forbid": [
+        "treat_extracted_f0_as_ground_truth_notes"
+      ]
+    },
+    {
+      "id": "augmentation_not_lineage_safe",
+      "preset": "builtin.powerful",
+      "has_augmented_item_lineage": false,
+      "expect": {
+        "augmentation_enabled": false,
+        "weighted_sampler_preserved": true
+      },
+      "forbid": [
+        "duplicate_augmented_samples_without_weight_normalization"
+      ]
+    },
+    {
+      "id": "voices_not_labeled_by_modes",
+      "preset": "builtin.characterized",
+      "has_same_speaker_mode_labels": false,
+      "expect": {
+        "not_claim_voice_color": true,
+        "alternative_separate_voicebank_possible": true
+      },
+      "forbid": [
+        "combine_different_speakers_as_modes"
+      ]
+    },
+    {
+      "id": "strict_openutau_expressions",
+      "preset": "builtin.soft_breathy",
+      "output_runtime": "openutau-0.1.565",
+      "has_trained_breathiness_embed": false,
+      "expect": {
+        "breathiness_curve_supported": false,
+        "preset_not_verified": true
+      },
+      "forbid": [
+        "write_brec_as_if_trained",
+        "pretend_only_render_settings_create_model"
+      ]
+    },
+    {
+      "id": "vocoder_license_missing",
+      "preset": "builtin.natural",
+      "vocoder_compatible": false,
+      "expect": {
+        "job_executable": false,
+        "reason": "vocoder_unavailable_or_license_unverified"
+      },
+      "forbid": [
+        "silently_download_nc_vocoder",
+        "report_usable_voicebank"
+      ]
+    }
+  ]
+}

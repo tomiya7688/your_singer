@@ -246,6 +246,8 @@ exporters/
 - [学習方式・重み付きデータ活用・品質検証](docs/training-strategy.md)
 - [v1学習の詳細設計・実装Issue一覧](docs/design/v1-training/README.md)
 - [質感プリセットの分類と音声合成方式](docs/design/v1-training/texture-preset-taxonomy.md)
+- **[プリセットごとに学習方法を変える設計](docs/design/v1-training/preset-recipe-selection.md)**
+- **[DiffSinger内部でも多様な質感を作る設計](docs/design/v1-training/diffsinger-preset-realization.md)**
 - [素材傾向から学習方法を選ぶ設計](docs/design/v1-training/data-profile-strategy-selection.md)
 - [学習戦略の第三者/Mod登録](docs/design/v1-training/strategy-plugin-api.md)
 - [技術アーキテクチャ / 配布設計](docs/architecture.md)

@@ -111,6 +111,12 @@ UIの「高品質 / 標準 / 軽量」は速度・VRAM等のモデルプロフ�
 
 ## 5. 歌唱: OpenVPI DiffSinger v2.5.1
 
+**質感プリセットに応じた学習方法の差別化は必須。** [Preset→学習レシピ](preset-recipe-selection.md) と [DiffSingerの質感別学習構成](diffsinger-preset-realization.md) に固定版`configs/acoustic.yaml` / `configs/variance.yaml` の条件付きEmbedding・表現特徴・モデル構成・推論/Exporter連携・重み付きAugmentationの制約を定義する。
+
+プリセット固有のレシピ選定は`SingingTrainingStrategyPlanner`、Stage初期化は`TrainingModeResolver`、DiffSingerのConfig Overlayと特徴/サブモデル整合性は専用のRecipe Compiler/Validatorを責務とする。現在の`BuiltInSingingStrategies`は表現条件付けをunsupportedと宣言しているため、実学習とOpenUtau出力が検証されるまで対応済みへ昇格しない。
+
+
+
 現行 `DiffSingerTrainerService` は `train_diffsinger` にjob/configを渡し、workerが `scripts/train.py --config ... --exp_name ... --reset` を実行する。実際の学習方式・初期checkpointはconfigに依存するため、**modeの記録・検査・初期化方法の明示化が必要**。
 
 - 公式の音響 `acoustic`、duration、pitch、varianceおよびVocoderへの依存を**別々に確認**する。完成する歌唱モデルに必要なサブモデルを隠さない。

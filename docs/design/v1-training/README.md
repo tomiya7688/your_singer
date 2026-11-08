@@ -61,17 +61,19 @@ Data Layer（project workspace内への永続化）
 ## 読む順番
 
 1. **[学習システム基本・詳細設計（正本）](learning-system-design.md)**
-2. **[学習戦略/Mod Providerの詳細契約（正本）](learning-strategy-protocol.md)**
-3. [機械検証用JSON Schema](schema/texture-preset.schema.json) / [Strategy Schema](schema/training-strategy.schema.json) / [Provider Schema](schema/training-provider.schema.json)
-4. [Mod/学習計画の具体例](examples/README.md)
-5. [目的・質感・素材量からの学習計画（事例）](goal-texture-data-planner.md)
-6. [音声方式・質感プリセットの分類](texture-preset-taxonomy.md)
-7. [素材傾向からの学習方法選択](data-profile-strategy-selection.md)
-8. [Modユーザー/開発者向け導入ガイド](strategy-plugin-api.md)
-9. [データ契約・重み付け](contracts-and-weighting.md)
-10. [自動仕分けと声質特徴の共有](routing-and-cross-domain.md)
-11. [学習モード・Trainer統合](training-modes-and-backends.md)
-12. [検証・完成判定](verification-and-release.md)
-13. [実装Issueの依存順（PR #115・マージ待ち）](https://github.com/tomiya7688/your_singer/blob/issue-79-v1-training-issue-plan/docs/design/v1-training/implementation-plan.md)
+2. **[質感プリセットから学習レシピを選ぶ設計](preset-recipe-selection.md)**
+3. **[DiffSingerの質感別学習・表現幅の詳細設計](diffsinger-preset-realization.md)**
+4. **[学習戦略/Mod Providerの詳細契約（正本）](learning-strategy-protocol.md)**
+5. [機械検証用JSON Schema](schema/texture-preset.schema.json) / [Strategy Schema](schema/training-strategy.schema.json) / [Provider Schema](schema/training-provider.schema.json)
+6. [Mod/学習計画の具体例](examples/README.md)
+7. [目的・質感・素材量からの学習計画（事例）](goal-texture-data-planner.md)
+8. [音声方式・質感プリセットの分類](texture-preset-taxonomy.md)
+9. [素材傾向からの学習方法選択](data-profile-strategy-selection.md)
+10. [Modユーザー/開発者向け導入ガイド](strategy-plugin-api.md)
+11. [データ契約・重み付け](contracts-and-weighting.md)
+12. [自動仕分けと声質特徴の共有](routing-and-cross-domain.md)
+13. [学習モード・Trainer統合](training-modes-and-backends.md)
+14. [検証・完成判定](verification-and-release.md)
+15. [実装Issueの依存順](implementation-plan.md)
 
 実行・レビュー手順は `AGENTS.md`、`dev-guidelines/workflow.md`、`tools/dev/check.ps1` を正とする。
