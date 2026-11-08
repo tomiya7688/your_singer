@@ -80,6 +80,24 @@ backendと配布資源は、以下の条件を満たす必要がある。
 
 MFAの[公式導入資料](https://montreal-forced-aligner.readthedocs.io/en/latest/installation.html)はConda環境を案内しており、Python workerへのpip依存追加だけでは配布要件を満たさない。専用Conda環境、日本語音響モデル、Windows用SoundFile wheel、モデル帰属を別bundleへ配置し、配布ビルドの必須資源として検証する。単一ファイル用`align_one`を使うため、以前のcorpus出力時に問題となったmultiprocessingを使わない。PyInstaller包装済みworkerと配布CI上の実行確認は別途必要である。
 
+## 質感プリセット別の学習レシピ（v1必須）
+
+詳細設計: [Presetからの学習方法選択](design/v1-training/preset-recipe-selection.md)、[DiffSingerの質感別学習・表現幅](design/v1-training/diffsinger-preset-realization.md)。
+
+Your Singerのプリセットは「OpenUtau/DiffSingerにプリセットボタンがあるか」ではなく、**ユーザーが指定した質感を生成するために、学習データの役割・重み、Acoustic/Duration/Pitch/Variance、学習時の条件付け・モデル構成、合成時制御、必要な独立checkpointまで変更する設計**とする。
+
+- `classic_synthetic`: 音素・F0・時間長を正確に制御した、意図した電子的音声。音声破壊を模倣しない。
+- `natural`/`clean_controlled`: 正しい発音・F0/Durationと本人の声質・自然な遷移のバランスを選ぶ。
+- `expressive_complex`: Breathiness/Voicing/Tension等、固定版に実在するEmbeddingを使えるように**実測特徴抽出→Binarization→Acoustic→必要なVariance/Pitch→OpenUtau推論**まで接続。学習なしで一律`true`にするだけでは不合格。
+- `soft_breathy`/`powerful`: 声質参照・有効区間・Tension/Voicing等の条件付き学習とモデル差分を検証。
+- 連続制御の幅だけでは目標を再現できない場合は、質感ごとに独立したAcoustic variant/声庫を生成する。OpenUtau voice color統合の未確認段階では、別声庫として安全に出力する。
+
+OpenUtau互換ではPITD/DYN以外のBREC/TENC/VOIC/GENC/VELC/PEXP/voice color等は声庫側の対応が前提。使用していない機能を利用可能と誤表示しない。固定公式`configs/acoustic.yaml`/`variance.yaml`の設定を検証し、Energy/Breathiness/Voicing等の相関のある機能を無条件にすべてONにしない。
+
+**現行の制約:** `diffsinger_binarize.py` は重み付きitem同定のためAugmentationを無効にしている。プリセット別のAugmentationを導入するときは**元segment→派生item→train index→weight**の1対1追跡とtrain/val漏洩防止が必須。まだ未実装の機能を実装済みとしない。
+
+また、現行のAcoustic学習はVocoder checkpointを必須としており、利用候補の再配布条件の問題を残す。対応可能な配布資源・互換性を確認するまで製品完成とはしない。
+
 ## Trainer連携
 
 DiffSinger本体はProcessへ直接組み込まず、ML workerから同梱Trainerを起動します。
