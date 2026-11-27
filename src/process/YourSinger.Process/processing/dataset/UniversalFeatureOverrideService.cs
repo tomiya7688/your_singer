@@ -89,4 +89,53 @@ public sealed class UniversalFeatureOverrideService
         UniversalVoiceDatasetCoverageBuilder.Rebuild(dataset);
         await _repository.SaveIfUnchangedAsync(workspace, dataset, snapshot.Revision, cancellationToken);
     }
+
+    // {
+    //   責務: [SetEmotionAsync: 区間の感情ラベルを利用者の指定で設定または取り消す]
+    //   処理: [
+    //     1: 名前を検査する(空・長すぎる・制御文字を保存前に拒否)
+    //     2: データセットと対象segmentを読み込む
+    //     3: ラベルを設定または取り消し、再解析でも再適用できるよう修正履歴に残して保存する
+    //   ]
+    //   引数: [
+    //     workspace: 対象プロジェクト
+    //     segmentId: 対象segmentのID
+    //     emotionName: 感情の名前。null は取り消し
+    //     cancellationToken: 処理中断要求
+    //   ]
+    //   戻り値: []
+    //   エラー: [名前が不正、データセットまたは対象segmentがない場合に失敗する]
+    //   副作用: [Universal Voice Datasetを保存する。音素・文字起こしには触れない]
+    // }
+    public async Task SetEmotionAsync(
+        ProjectWorkspace workspace,
+        string segmentId,
+        string? emotionName,
+        CancellationToken cancellationToken = default)
+    {
+        // 利用者が付けるラベルは確信度を持たない。保存前に内容を検査する。
+        var label = emotionName is null
+            ? null
+            : new EmotionLabelRecord { Name = emotionName, Source = EmotionLabelRecord.SourceUser };
+        if (label?.Validate() is { } reason)
+            throw new ArgumentException(reason, nameof(emotionName));
+
+        var snapshot = await _repository.LoadSnapshotAsync(workspace, cancellationToken);
+        var dataset = snapshot.Record
+            ?? throw new InvalidOperationException(
+                "Universal Voice Datasetがありません。");
+        var segment = dataset.Segments.FirstOrDefault(x => x.SegmentId == segmentId)
+            ?? throw new KeyNotFoundException(
+                $"対象セグメントが見つかりません: {segmentId}");
+
+        segment.Emotion = label;
+        // 取り消しは空文字で記録し、再解析後も外れたままにする。
+        dataset.Overrides.Add(new UserFeatureOverrideRecord
+        {
+            SegmentId = segmentId,
+            Field = UniversalVoiceDatasetOverrideApplicator.EmotionField,
+            Value = label?.Name ?? string.Empty
+        });
+        await _repository.SaveIfUnchangedAsync(workspace, dataset, snapshot.Revision, cancellationToken);
+    }
 }
