@@ -9,6 +9,7 @@ namespace YourSinger.Process.Processing.Dataset;
 //   処理: [
 //     1: 更新日時から選んだ最終の文字起こし修正を適用する
 //     2: 文字起こし変更時は依存する音素時刻を無効化する
+//     3: 更新日時から選んだ最終の感情ラベル修正(設定または取り消し)を適用する
 //   ]
 //   フィールド: []
 // }
@@ -47,7 +48,23 @@ internal static class UniversalVoiceDatasetOverrideApplicator
 
             segment.Transcript = transcript;
         }
+
+        // 感情ラベルも最終の指定だけを使う。空文字は「ラベルを外す」指定で、再解析後も外れたままにする。
+        foreach (var (segmentId, name) in LatestValues(dataset, EmotionField))
+        {
+            if (!segmentsById.TryGetValue(segmentId, out var segment))
+            {
+                continue;
+            }
+
+            segment.Emotion = name.Length == 0
+                ? null
+                : new EmotionLabelRecord { Name = name, Source = EmotionLabelRecord.SourceUser };
+        }
     }
+
+    // 感情ラベルの修正を記録するときの項目名。値は感情の名前、空文字は取り消し。
+    internal const string EmotionField = "emotion";
 
     // {
     //   責務: [LatestTranscriptValues: 修正履歴から区間ごとの最終歌詞を取り出す]
@@ -56,6 +73,14 @@ internal static class UniversalVoiceDatasetOverrideApplicator
     //   戻り値: [transcripts: 区間IDと最終歌詞の対応]
     // }
     internal static Dictionary<string, string> LatestTranscriptValues(UniversalVoiceDatasetRecord dataset) =>
-        dataset.Overrides.Where(item => item.Field == "transcript").OrderBy(item => item.ChangedAt)
+        LatestValues(dataset, "transcript");
+
+    // {
+    //   責務: [LatestValues: 修正履歴から、指定した項目の区間ごとの最終値を取り出す]
+    //   引数: [dataset: 修正履歴を持つデータセット, field: 項目名]
+    //   戻り値: [values: 区間IDと最終値の対応]
+    // }
+    internal static Dictionary<string, string> LatestValues(UniversalVoiceDatasetRecord dataset, string field) =>
+        dataset.Overrides.Where(item => item.Field == field).OrderBy(item => item.ChangedAt)
             .GroupBy(item => item.SegmentId).ToDictionary(group => group.Key, group => group.Last().Value, StringComparer.Ordinal);
 }
