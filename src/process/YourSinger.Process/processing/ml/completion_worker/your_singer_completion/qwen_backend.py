@@ -24,6 +24,10 @@ def japanese_phonemes(text: str) -> list[str]:
     return pyopenjtalk.g2p(text, kana=False).split()
 
 
+# {
+#   責務: [QwenBackend: Qwen3-TTSを読み込み補完音声を生成する(VRAM不足時はCPUオフロードへ落とす)]
+#   フィールド: [torch: torchモジュール, model: 読み込んだモデル]
+# }
 class QwenBackend:
     def __init__(self, model_directory: Path, device: str):
         try:
@@ -38,11 +42,19 @@ class QwenBackend:
         if device == "cuda:0" and not torch.cuda.is_available():
             raise RuntimeError("指定されたGPUを利用できません。")
         self.torch = torch
-        self.model = Qwen3TTSModel.from_pretrained(
-            str(model_directory), device_map=device,
-            dtype=torch.float32 if device == "cpu" else (torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16),
-            attn_implementation="eager", local_files_only=True, use_safetensors=True,
-        )
+        dtype = torch.float32 if device == "cpu" else (
+            torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16)
+        options = dict(dtype=dtype, attn_implementation="eager", local_files_only=True, use_safetensors=True)
+        try:
+            self.model = Qwen3TTSModel.from_pretrained(str(model_directory), device_map=device, **options)
+        except torch.cuda.OutOfMemoryError:
+            # VRAM不足: accelerateのdevice_map="auto"で一部層をCPUへオフロードして再試行する。
+            if device == "cpu":
+                raise
+            torch.cuda.empty_cache()
+            self.model = Qwen3TTSModel.from_pretrained(
+                str(model_directory), device_map="auto",
+                max_memory={0: "6GiB", "cpu": "16GiB"}, **options)
 
     def synthesize(self, text: str, reference: Path, reference_text: str,
                    seed: int) -> tuple[list[float], int]:

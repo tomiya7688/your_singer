@@ -202,15 +202,18 @@ class LocalModels:
         self.np, self.torch, self.g2p = np, torch, pyopenjtalk.g2p
         bert_models.load_model(Languages.JP, str(self.paths[1]))
         bert_models.load_tokenizer(Languages.JP, str(self.paths[1]))
-        # CPUでの検証可能性を優先。乱数シードは記録対象の固定値とする。
+        # cuda利用可なら自動でGPU、無ければCPU。乱数シードは記録対象の固定値とする。
+        from your_singer_ml.compute_device import pick_device
+        device = pick_device(torch)
         torch.manual_seed(0)
         self.tts = TTSModel(model_path=weights[0], config_path=model / "config.json",
-                            style_vec_path=model / "style_vectors.npy", device="cpu")
-        self.asr = WhisperModel(str(self.paths[2]), device="cpu", compute_type="int8", local_files_only=True)
+                            style_vec_path=model / "style_vectors.npy", device=device)
+        self.asr = WhisperModel(str(self.paths[2]), device=device,
+                                compute_type="float16" if device == "cuda" else "int8", local_files_only=True)
         self.encoder = EncoderClassifier.from_hparams(
             source=str(self.paths[3]), savedir=str(self.paths[3]),
             overrides={"pretrained_path": str(self.paths[3])},
-            run_opts={"device": "cpu"}, local_strategy=LocalStrategy.NO_LINK,
+            run_opts={"device": device}, local_strategy=LocalStrategy.NO_LINK,
             fetch_config=FetchConfig(allow_network=False))
 
     def _hash_models(self) -> list:

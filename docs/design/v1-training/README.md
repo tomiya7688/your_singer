@@ -71,6 +71,7 @@ Data Layer（project workspace内への永続化）
 9. [データ契約・重み付け](contracts-and-weighting.md)
 10. [自動仕分けと声質特徴の共有](routing-and-cross-domain.md)
 11. [学習モード・Trainer統合](training-modes-and-backends.md)
+- [GPU優先の学習・重い推論](gpu-first-compute.md)
 12. [検証・完成判定](verification-and-release.md)
 13. [実装Issueの依存順（PR #115・マージ待ち）](https://github.com/tomiya7688/your_singer/blob/issue-79-v1-training-issue-plan/docs/design/v1-training/implementation-plan.md)
 14. [感情による声の切り替え(トーク・歌唱)](emotion-expression.md)

@@ -11,6 +11,17 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+try:
+    from your_singer_ml import compute_device
+except ImportError:  # 専用Pythonでは同階層のファイルを直接読む。
+    import importlib.util as _util
+
+    _spec = _util.spec_from_file_location(
+        "compute_device", Path(__file__).with_name("compute_device.py")
+    )
+    compute_device = _util.module_from_spec(_spec)
+    _spec.loader.exec_module(compute_device)
+
 
 # {
 #   責務: [require_training_runtime: CUDAと公式が要求する日本語辞書APIを確認する]
@@ -72,8 +83,12 @@ def initialize(trainer: Path, output: Path) -> None:
         validation_files=str(data / "val.list"),
         use_jp_extra=False,
     )
-    hyperparameters["train"].update(
-        batch_size=2, epochs=100, eval_interval=1000, log_interval=200, bf16_run=False
+    # 既定はGPU+fp16(bf16非対応GPUでも可)。実効バッチは累積で維持する。
+    plan = compute_device.plan_training(request)
+    hyperparameters["train"].update(epochs=100, eval_interval=1000, log_interval=200)
+    compute_device.apply_to_hyperparameters(hyperparameters["train"], plan)
+    (output / "compute_plan.json").write_text(
+        json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     # 公式モデル内のWavLM参照も、カレントディレクトリに依存させない。
     hyperparameters["model"].setdefault("slm", {})["model"] = str(
@@ -222,6 +237,52 @@ def install_weighted_sampler(trainer: Path, output: Path) -> None:
 
 
 # {
+#   責務: [run_training_with_fallback: fp16で学習し、失敗したらfp32で1回だけやり直す]
+#   処理: [1: 計画がfp16/bf16ならautocastをfp16化する 2: 公式train_ms.pyを実行する 3: 失敗かつ混合精度ならconfigをfp32にして再実行する]
+#   引数: [trainer: 公式ソースの場所。output: ジョブ出力先。arguments: train_ms.pyへ渡す引数]
+#   戻り値: [なし]
+#   エラー: [fp32でも失敗した場合、または元からfp32の失敗は呼出し元へ伝える]
+# }
+def run_training_with_fallback(trainer: Path, output: Path, arguments: list) -> None:
+    config_path = output / "data" / "config.json"
+    hyperparameters = json.loads(config_path.read_text(encoding="utf-8"))
+    precision = hyperparameters["train"].get("mixed_precision", "fp32")
+    script = str(trainer / "train_ms.py")
+    for attempt in (precision, "fp32"):
+        sys.argv = [script, *arguments]
+        torch = original = None
+        try:
+            if attempt == "fp16":
+                import torch
+
+                original = compute_device.install_fp16_autocast(torch)
+            runpy.run_path(script, run_name="__main__")
+            return
+        except (
+            RuntimeError
+        ) as error:  # torchのOOM・精度起因の失敗はRuntimeError。設定不備等は再試行しない。
+            if attempt == "fp32":
+                raise
+            print(
+                f"混合精度({attempt})の学習に失敗したためfp32で再実行します: {error}",
+                file=sys.stderr,
+            )
+            try:
+                import torch as _torch
+
+                _torch.cuda.empty_cache()
+            except Exception:
+                pass
+            compute_device.fallback_to_fp32(hyperparameters["train"])
+            config_path.write_text(
+                json.dumps(hyperparameters, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        finally:
+            if torch is not None and original is not None:
+                torch.autocast = original
+
+
+# {
 #   責務: [main: 専用Pythonから許可した公式工程だけを起動する]
 #   処理: [1: 公式ソースの版を確認する 2: 辞書の書込先を分離する 3: 工程を起動する]
 #   エラー: [不明な工程・版違い・工程の失敗を終了コードで伝える]
@@ -258,6 +319,8 @@ def main() -> None:
         return
     if stage == "train_ms.py":
         install_weighted_sampler(trainer, output)
+        run_training_with_fallback(trainer, output, sys.argv[4:])
+        return
     sys.argv = [str(trainer / stage), *sys.argv[4:]]
     if stage in {"preprocess_text.py", "bert_gen.py"}:
         with isolated_dictionary_worker():
