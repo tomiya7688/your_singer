@@ -250,6 +250,7 @@ def run_training_with_fallback(trainer: Path, output: Path, arguments: list) -> 
     script = str(trainer / "train_ms.py")
     for attempt in (precision, "fp32"):
         sys.argv = [script, *arguments]
+        torch = original = None
         try:
             if attempt == "fp16":
                 import torch
@@ -260,13 +261,16 @@ def run_training_with_fallback(trainer: Path, output: Path, arguments: list) -> 
         except Exception as error:
             if attempt == "fp32":
                 raise
-            print(f"混合精度({attempt})の学習に失敗したためfp32で再実行します: {error}", file=sys.stderr)
+            print(
+                f"混合精度({attempt})の学習に失敗したためfp32で再実行します: {error}",
+                file=sys.stderr,
+            )
             compute_device.fallback_to_fp32(hyperparameters["train"])
             config_path.write_text(
                 json.dumps(hyperparameters, ensure_ascii=False, indent=2), encoding="utf-8"
             )
         finally:
-            if attempt == "fp16":
+            if torch is not None and original is not None:
                 torch.autocast = original
 
 
