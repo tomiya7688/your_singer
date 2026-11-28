@@ -252,12 +252,19 @@ public sealed partial class MainWindow : Window
             return;
 
         var record = await _classificationRepository.LoadAsync(_workspace);
+        // 感情ラベルは分類とは別の保存先にあるため、区間IDで突き合わせて一覧に添える(読めなければ表示しないだけ)。
+        var dataset = await _datasetRepository.LoadAsync(_workspace);
+        var emotions = dataset?.Segments
+            .Where(s => s.Emotion is not null)
+            .ToDictionary(s => s.SegmentId, s => s.Emotion!.Name)
+            ?? new Dictionary<string, string>();
         ClassificationList.ItemsSource = record?.Classifications
             .Select(x => new ClassificationUiItem(
                 x.SegmentId,
                 x.ContentType,
                 x.Confidence,
-                x.UserOverridden))
+                x.UserOverridden,
+                emotions.GetValueOrDefault(x.SegmentId)))
             .ToArray() ?? [];
     }
 
@@ -510,9 +517,11 @@ public sealed partial class MainWindow : Window
         string SegmentId,
         SegmentContentType Type,
         double Confidence,
-        bool UserOverridden)
+        bool UserOverridden,
+        string? Emotion = null)
     {
         public override string ToString() =>
-            $"{(UserOverridden ? "手動" : "自動")}  {Type}  {Confidence:P0}  {SegmentId}";
+            $"{(UserOverridden ? "手動" : "自動")}  {Type}  {Confidence:P0}  {SegmentId}"
+            + (Emotion is null ? string.Empty : $"  感情: {Emotion}");
     }
 }

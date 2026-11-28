@@ -61,6 +61,12 @@
               <Button Content="歌唱に修正" Click="OnSetSingingClick" />
               <Button Content="セグメント除外" Click="OnExcludeSegmentClick" />
             </StackPanel>
+            <TextBlock Text="感情ラベル(任意。付けない区間は「指定なし」のままです)" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox x:Name="EmotionNameBox" Width="180" MaxLength="32" Watermark="例: 嬉しい" />
+              <Button Content="感情を付ける" Click="OnSetEmotionClick" />
+              <Button Content="感情を外す" Click="OnClearEmotionClick" />
+            </StackPanel>
           </StackPanel>
         </Grid>
       </TabItem>
