@@ -71,7 +71,10 @@ def plan_training(request: dict, torch_module=None) -> dict:
 # }
 def apply_to_hyperparameters(train: dict, plan: dict) -> None:
     train.update(
-        batch_size=plan["micro_batch_size"],
+        batch_size=plan[
+            "effective_batch_size"
+        ],  # 公式が勾配累積に未対応のため、実効バッチを縮めない。
+        micro_batch_size=plan["micro_batch_size"],
         bf16_run=plan["precision"] in ("fp16", "bf16"),
         mixed_precision=plan["precision"],
         grad_accum_steps=plan["grad_accum_steps"],
@@ -100,6 +103,9 @@ def install_fp16_autocast(torch):
     original = torch.autocast
 
     def patched(*args, **kwargs):
+        # dtypeは位置引数(2番目)でも渡されるため両方を見る。
+        if len(args) > 1 and args[1] == torch.bfloat16:
+            args = (args[0], torch.float16, *args[2:])
         if kwargs.get("dtype") == torch.bfloat16:
             kwargs["dtype"] = torch.float16
         return original(*args, **kwargs)

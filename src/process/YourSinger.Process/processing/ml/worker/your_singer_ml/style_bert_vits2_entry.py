@@ -258,13 +258,21 @@ def run_training_with_fallback(trainer: Path, output: Path, arguments: list) -> 
                 original = compute_device.install_fp16_autocast(torch)
             runpy.run_path(script, run_name="__main__")
             return
-        except Exception as error:
+        except (
+            RuntimeError
+        ) as error:  # torchのOOM・精度起因の失敗はRuntimeError。設定不備等は再試行しない。
             if attempt == "fp32":
                 raise
             print(
                 f"混合精度({attempt})の学習に失敗したためfp32で再実行します: {error}",
                 file=sys.stderr,
             )
+            try:
+                import torch as _torch
+
+                _torch.cuda.empty_cache()
+            except Exception:
+                pass
             compute_device.fallback_to_fp32(hyperparameters["train"])
             config_path.write_text(
                 json.dumps(hyperparameters, ensure_ascii=False, indent=2), encoding="utf-8"
